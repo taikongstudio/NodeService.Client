@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option csharp_namespace = "JobsWorkerWebService.GrpcServices";
+
+import "google/protobuf/timestamp.proto";
+import "FileSystemModel.proto";
+
+package JobsWorkerWebService.GrpcServices;
+
+
+service FileSystem {
+  rpc List (FileSystemListReq) returns (FileSystemListRsp);
+}
+

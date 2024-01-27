@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ftptool": {
+      "commandName": "Project",
+      "commandLineArgs": "--rsp \"D:\\repos\\JobsWorkerDaemonService\\ftptool\\config\\ret_gm.bat\""
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "host": "172.27.242.224",
+  "port": 21,
+  "username": "xwdgmuser",
+  "password": "xwdgm@2023",
+  "action": "migrateconfig",
+  "args": [
+    "target_host=172.27.241.153",
+    "target_port=21",
+    "target_username=ftpuser",
+    "target_password=Szch@2023",
+    "mysql_host=172.27.242.221",
+    "mysql_userid=root",
+    "mysql_password=KNk3DRxA#=b3",
+    "mysql_database=data_count",
+    "configroot=JobsWorkerDeamonServiceConfig",
+    "channel=gm",
+    "hostnames=,",
+    "initonly=false",
+    "filtertype=include"
+  ]
+}

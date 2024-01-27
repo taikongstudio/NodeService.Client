@@ -1,0 +1,13 @@
+{
+  "host": "172.27.241.153",
+  "port": 21,
+  "username": "ftpuser",
+  "password": "Szch@2023",
+  "action": "checkconfigdir",
+  "args": [
+    "mysql_host=172.27.241.153",
+    "mysql_userid=root",
+    "mysql_password=Szch@2023",
+    "mysql_database=data_count"
+  ]
+}

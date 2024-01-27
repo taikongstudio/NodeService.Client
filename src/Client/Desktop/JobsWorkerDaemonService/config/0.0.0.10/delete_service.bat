@@ -1,0 +1,1 @@
+C:\\Windows\\System32\\sc.exe delete JobsWorkerDaemonServiceWindowsService

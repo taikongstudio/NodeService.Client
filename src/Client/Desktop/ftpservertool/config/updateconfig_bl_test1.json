@@ -1,0 +1,19 @@
+{
+  "host": "172.27.241.153",
+  "port": 21,
+  "username": "ftpuser",
+  "password": "Szch@2023",
+  "action": "updateconfig",
+  "args": [
+    "mysql_host=172.27.241.153",
+    "mysql_userid=root",
+    "mysql_password=Szch@2023",
+    "mysql_database=data_count",
+    "configroot=JobsWorkerDeamonServiceConfigTest",
+    "channel=bl",
+    "initonly=false",
+    "deleteonly=false",
+    "hostnames=CTRC-227,CTRC-059,CTRC-060,CTRC-061,ctrc-124,ctrc-210,CTRC-326,CTRC-352,CTRC-368X,CTRC-372X,CTRC-373,CTRC-369,CTRC-376,CTRC-395,CTRC-396,CTRC-397,CTRC-400,CTRC-370,ctrc-513,CTRC-522,CTRC-374,ctrc-h11,CTRC-h19,CTRC-h23,CTRC-h37,ctrc-h52,ctrc-h54,ctrc-h61,CTRC-h75,ctrc-h84,CTRC-H47,CTRC-h48,CTRC-h60,CTRC-547,DESKTOP-QLGMRQS,CTRC-011,ctrc-111,CTRC-023,CTRC-361,CTRC-360,CTRC-362,CTRC-375,DESKTOP-K6M8FFT,DESKTOP-2FLMBB1,DESKTOP-55JENJQ,DESKTOP-5TDJNDU,DESKTOP-ABK1TMF,ctrc-h55,DESKTOP-3VQE5K9,CTRC-421,ctrc-323,CTRC-166,CTRC-198,ctrc-178,CTRC-207,ctrc-149,CTRC-366,CTRC-359,ctrc-136,CTRC-356,BL19121003,ctrc-410,ctrc-585,ctrc-550,CTRC-566,CTRC-H62,ZhangYueSen-pc,CTRC-329,BL191210002,D22435,CTRC-377,CTRC-602,CTRC-376x,ctrc-587,CTRC-591,BL220328022,DESKTOP-AHM0QTP,CTRC-364x,ctrc-519",
+    "filtertype=include"
+  ]
+}

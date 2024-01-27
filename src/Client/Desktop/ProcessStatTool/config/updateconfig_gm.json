@@ -1,0 +1,19 @@
+{
+  "host": "172.27.242.224",
+  "port": 21,
+  "username": "xwdgmuser",
+  "password": "xwdgm@2023",
+  "action": "updateallmachineusages",
+  "args": [
+    "mysql_host=172.27.242.221",
+    "mysql_userid=root",
+    "mysql_password=KNk3DRxA#=b3",
+    "mysql_database=data_count",
+    "configroot=JobsWorkerDeamonServiceConfig",
+    "channel=gm",
+    "hostnames=,",
+    "initonly=true",
+    "deleteonly=false",
+    "filtertype=include"
+  ]
+}

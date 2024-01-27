@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option csharp_namespace = "JobsWorkerWebService.GrpcServices";
+
+import "google/protobuf/timestamp.proto";
+import "FileSystemModel.proto";
+
+package JobsWorkerWebService.GrpcServices;
+
+service JobsWorker {
+  rpc Subscribe (SubscribeRequest) returns (stream SubscribeEvent);
+}
+
+
+
+
+
+
+message SubscribeRequest {
+	string MachineName = 1;
+	string Topic = 2;
+}
+
+
+message SubscribeEvent {
+	string MachineName = 1;
+	string Topic = 2;
+	string Guid = 3;
+	oneof Reuqest{
+		FileSystemListReq FileSystemListReq = 4;
+	}
+}

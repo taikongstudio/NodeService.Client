@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option csharp_namespace = "GrpcServices";
+
+import "google/protobuf/timestamp.proto";
+
+package GrpcServices;
+
+service JobsWorker {
+  rpc Subscribe (SubscribeRequest) returns (stream SubscribeEvent);
+}
+
+
+message FileSystemListReq{
+	string Guid = 1;
+	string Path = 2;
+	string SearchPattern = 3;
+	bool IncludeSubDirectories = 4;
+	int32 Timeout = 5;
+}
+
+
+
+message SubscribeRequest {
+	string MachineName = 1;
+	string Topic = 2;
+}
+
+
+message SubscribeEvent {
+	string MachineName = 1;
+	string Topic = 2;
+	string Guid = 3;
+	oneof Reuqest{
+		FileSystemListReq FileSystemListReq = 4;
+	}
+}

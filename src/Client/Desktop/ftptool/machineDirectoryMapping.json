@@ -1,0 +1,67 @@
+﻿{
+  "hostConfigs": [
+    {
+      "host": "*",
+      "configs": [
+        {
+          "name": "kpr",
+          "root": "D:/kprs/Record"
+        },
+        {
+          "name": "fzwc",
+          "root": "D:/内压"
+        },
+        {
+          "name": "ret",
+          "root": "D:/电池膨胀力测试系统-V1.0.4-20191203/csv"
+        },
+        {
+          "name": "xjc",
+          "root": "D:/XJC"
+        }
+      ]
+    },
+    {
+      "host": "ywx-pc",
+      "configs": [
+        {
+          "name": "kpr",
+          "root": "D:/kprs/Record"
+        },
+        {
+          "name": "fzwc",
+          "root": "D:/内压"
+        },
+        {
+          "name": "ret",
+          "root": "D:/电池膨胀力测试系统-V1.0.4-20191203/csv"
+        },
+        {
+          "name": "xjc",
+          "root": "D:\\TESTDATA\\"
+        }
+      ]
+    },
+    {
+      "host": "ctrc-032",
+      "configs": [
+        {
+          "name": "kpr",
+          "root": "D:/kprs/Record"
+        },
+        {
+          "name": "fzwc",
+          "root": "D:/内压"
+        },
+        {
+          "name": "ret",
+          "root": "D:/电池膨胀力测试系统-V1.0.4-20191203/csv"
+        },
+        {
+          "name": "xjc",
+          "root": "D:\\TESTDATA\\"
+        }
+      ]
+    }
+  ]
+}
