@@ -1,0 +1,188 @@
+@namespace JobsWorkerWebService.Pages.Nodes.List
+@page "/nodes"
+@inject System.Net.Http.HttpClient HttpClient
+@using System.ComponentModel
+@using AntDesign.TableModels
+@inject NotificationService _notice
+
+<GridContent>
+    <GridRow Gutter="(8, 0)">
+        <GridCol Span="24">
+             <Table @ref="_table" Size="TableSize.Small" EnableVirtualization="true" OnChange="OnTableChange" TItem="NodeInfo" DataSource="@_nodesDataSource" OnRowClick="OnRowClick">
+                 <TitleTemplate>
+                     <GridRow>
+                         <GridCol Span="4">
+                             <Title Level="3">节点列表</Title>
+                         </GridCol>
+                         <GridCol Span="8" Offset="12">
+                            <Space>
+                                <SpaceItem>
+                                    <Button OnClick="RefreshNodeListAsync">刷新</Button>
+                                </SpaceItem>
+                                <SpaceItem>
+                                    <Search Placeholder="搜索节点" @bind-Value="_keywords" OnSearch="()=>_table?.ReloadData()" />
+                                </SpaceItem>
+                            </Space>
+                         </GridCol>
+                     </GridRow>
+                 </TitleTemplate>
+                 <ColumnDefinitions>
+                     <PropertyColumn Title="厂区" Filters="factory_name_Filters" OnFilter="((name,value)=>OnFilterFactoryName(value,name))" Sortable="true" Filterable="true" Property="c=>c.factory_name"></PropertyColumn>
+                     <PropertyColumn Title="节点名称" Sortable="true" Property="c=>c.node_name">
+                         <NavLink href="@("/nodes/"+context.node_name)">@context.node_name</NavLink>
+                        </PropertyColumn>
+                        <PropertyColumn Title="测试分类" Sortable="true" Property="c=>c.test_info"></PropertyColumn>
+                        <PropertyColumn Title="实验室名称" Sortable="true" Property="c=>c.lab_name"></PropertyColumn>
+                        <PropertyColumn Title="实验室区域" Sortable="true" Property="c=>c.lab_area"></PropertyColumn>
+                        <PropertyColumn Title="更新时间" Sortable="true" Property="c=>c.update_time"></PropertyColumn>
+                        <PropertyColumn Title="版本" Width="50" Property="c=>c.version"></PropertyColumn>
+                        <PropertyColumn Title="IP地址" Property="c=>c.ip_addresses">
+                            @{
+                            if (string.IsNullOrEmpty(context.ip_addresses))
+                            {
+                                <p Color="black">（空）</p>
+                            }
+                            else
+                            {
+                                foreach (var tag in context.ip_addresses.Split(','))
+                                {
+                                    <p Color="black">@tag</p>
+                                }
+                            }
+                        }
+
+                    </PropertyColumn>
+                    <PropertyColumn Title="用途" Property="c=>c.usages">
+                        @{
+                            if (string.IsNullOrEmpty(context.usages))
+                            {
+                                <p>（空）</p>
+                            }
+                            else
+                            {
+                                foreach (var tag in context.usages.Split(','))
+                                {
+                                    <p>@tag</p>
+                                }
+                            }
+                        }
+
+                    </PropertyColumn>
+                    <PropertyColumn Title="备注" Property="c=>c.remarks"></PropertyColumn>
+                    <ActionColumn Title="操作">
+                        <Space Size=@("middle")>
+                            <SpaceItem>
+                                <a>详细信息</a>
+                            </SpaceItem>
+                        </Space>
+                    </ActionColumn>
+                </ColumnDefinitions>
+
+            </Table>
+        </GridCol>
+    </GridRow>
+</GridContent>
+
+
+@code{
+    ITable _table;
+    string? _keywords;
+    private IEnumerable<NodeInfo>? _nodesDataSource = Array.Empty<NodeInfo>();
+
+    bool _loading;
+
+
+    public TableFilter<string?>[] factory_name_Filters = new TableFilter<string?>[] {
+        new() { Text = "光明", Value = "光明" },
+        new() { Text = "博罗", Value = "博罗" },
+        new() { Text = "未知", Value = "Unknown" },
+    };
+
+    private void OnNodeNameChanged(MouseEventArgs e)
+    {
+
+    }
+
+    private void OnSelectedFactoryNameChanged(string value)
+    {
+
+    }
+
+    private bool OnFilterFactoryName(string value, string name)
+    {
+        return string.IsNullOrEmpty(value) ? string.IsNullOrEmpty(name) : name.StartsWith(value);
+    }
+
+    void OnRowClick(RowData<NodeInfo> row)
+    {
+        Console.WriteLine($"row {row.Data.node_name} was clicked.");
+    }
+
+    async void OnRefreshClick()
+    {
+        await this.RefreshNodeListAsync();
+    }
+
+    async Task RefreshNodeListAsync()
+    {
+        try
+        {
+            this._loading = true;
+            this._nodesDataSource = await this.HttpClient.GetFromJsonAsync<List<NodeInfo>>($"/api/nodes/list?rdm={Random.Shared.Next()}");
+            this._loading = false;
+            this.StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            this._nodesDataSource = Array.Empty<NodeInfo>();
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "加载失败",
+                    Description = ex.Message,
+                });
+        }
+    }
+
+    protected override async Task OnInitializedAsync(){
+
+        await this.RefreshNodeListAsync();
+    }
+
+    private void OnTableChange(QueryModel<NodeInfo> query)
+    {
+        this._nodesDataSource = query.ExecuteQuery(this._nodesDataSource.AsQueryable())
+         .Where(FilterKeywords);
+    }
+
+    private bool FilterKeywords(NodeInfo nodeInfo){
+        if (string.IsNullOrEmpty(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.factory_name!=null&&nodeInfo.factory_name.Contains(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.node_name != null && nodeInfo.node_name.Contains(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.ip_addresses != null && nodeInfo.ip_addresses.Contains(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.version != null && nodeInfo.version.Contains(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.usages != null && nodeInfo.usages.Contains(this._keywords))
+        {
+            return true;
+        }
+        if (nodeInfo.remarks != null && nodeInfo.remarks.Contains(this._keywords))
+        {
+            return true;
+        }
+        return false;
+    }
+}

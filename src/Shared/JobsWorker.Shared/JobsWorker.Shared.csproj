@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.25.2" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.60.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.60.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+	<ItemGroup>
+		<SupportedPlatform Include="browser" />
+		<Protobuf Include="Protos\ConfigurationSystemModels.proto" />
+		<Protobuf Include="Protos\NodeService.proto" AdditionalImportDirs="Protos" />
+		<Protobuf Include="Protos\FileSystem.proto" AdditionalImportDirs="Protos" />
+		<Protobuf Include="Protos\FileSystemModels.proto" />
+	</ItemGroup>
+
+</Project>

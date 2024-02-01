@@ -1,0 +1,168 @@
+@namespace JobsWorkerWebService.Client.Pages.Nodes.List
+@page "/"
+@using JobsWorker.Shared.Models
+@using JobsWorkerWebService.Client
+@inject System.Net.Http.HttpClient httpClient
+@using System.ComponentModel
+@using AntDesign.TableModels
+@inject NotificationService _notice
+
+<GridContent>
+    <Row>
+
+    </Row>
+    <Space>
+        <SpaceItem>
+            厂区
+        </SpaceItem>
+        <SpaceItem>
+            <RadioGroup @bind-Value="@_selected_factory_name" OnChange="OnSelectedFactoryNameChanged" TValue="string">
+                <Radio RadioButton Value="@("all")">全部</Radio>
+                 <Radio RadioButton Value="@("gm")">光明</Radio>
+                 <Radio RadioButton Value="@("bl")">博罗</Radio>
+             </RadioGroup>
+        </SpaceItem>
+         <SpaceItem>
+             搜索机器名称
+         </SpaceItem>
+         <SpaceItem>
+             <Input Placeholder="机器名称"  @bind-Value="@_NodeName" />
+         </SpaceItem>
+        <SpaceItem>
+             <Button OnClick="OnNodeNameChanged">
+                <Icon Type="search" Theme="outline" /> 搜索
+            </Button>
+        </SpaceItem>
+        <SpaceItem>
+            <Button>Confirm</Button>
+        </SpaceItem>
+    </Space>
+    <Table Size="TableSize.Small" EnableVirtualization="true" TItem="NodeInfo" DataSource="@nodesList" OnRowClick="OnRowClick">
+        <PropertyColumn Title="厂区" Filters="factory_name_Filters" OnFilter="((name,value)=>OnFilterFactoryName(value,name))" Sortable="true" Filterable="true" Property="c=>c.factory_name"></PropertyColumn>
+        <PropertyColumn Title="节点名称" Sortable="true" Property="c=>c.node_name">
+             <NavLink href="@("/nodes/"+context.node_name)">@context.node_name</NavLink>
+        </PropertyColumn>
+        <PropertyColumn Title="测试分类" Sortable="true" Property="c=>c.test_info"></PropertyColumn>
+        <PropertyColumn Title="实验室名称" Sortable="true" Property="c=>c.lab_name">
+        </PropertyColumn>
+        <PropertyColumn Title="实验室区域" Sortable="true" Property="c=>c.lab_area">
+        </PropertyColumn>
+        <PropertyColumn Title="更新时间" Sortable="true"  Property="c=>c.update_time"></PropertyColumn>
+        <PropertyColumn Title="版本" Width="50" Property="c=>c.version"></PropertyColumn>
+        <PropertyColumn Title="IP地址" Property="c=>c.ip_addresses">
+            @{
+                if (string.IsNullOrEmpty(context.ip_addresses))
+                {
+                    <p Color="black">（空）</p>
+                }
+                else
+                {
+                    foreach (var tag in context.ip_addresses.Split(','))
+                    {
+                        <p Color="black">@tag</p>
+                    }
+                }
+            }
+
+        </PropertyColumn>
+        <PropertyColumn Title="用途" Property="c=>c.usages">
+            @{
+                if (string.IsNullOrEmpty(context.usages))
+                {
+                    <p Color="black">（空）</p>
+                }else
+                {
+                    foreach (var tag in context.usages.Split(','))
+                    {
+                        var color = tag.Length > 5 ? "geekblue" : "green";
+                        if (tag == "loser")
+                        {
+                            color = "volcano";
+                        }
+                        <Tag Color="@color">@tag</Tag>
+                    }
+                }
+            }
+
+        </PropertyColumn>
+        <PropertyColumn Title="备注" Property="c=>c.remarks"></PropertyColumn>
+        <ActionColumn Title="操作">
+            <Space Size=@("middle")>
+                <SpaceItem>
+                    <a>详细信息</a>
+                </SpaceItem>
+            </Space>
+        </ActionColumn>
+    </Table>
+
+
+</GridContent>
+
+
+@code{
+
+    string _NodeName;
+
+    bool _loading;
+
+    List<string> _items;
+    string _selected_factory_name;
+    IEnumerable<string> _selectedValues1, _selectedValues2;
+
+    public TableFilter<string?>[] factory_name_Filters = new TableFilter<string?>[] {
+        new() { Text = "光明", Value = "光明" },
+        new() { Text = "博罗", Value = "博罗" },
+        new() { Text = "（空白）", Value = null },
+    };
+
+    private void OnNodeNameChanged(MouseEventArgs e)
+    {
+
+    }
+
+    private void OnSelectedFactoryNameChanged(string value)
+    {
+        Console.WriteLine($"selected size: ${value}");
+    }
+
+    private bool OnFilterFactoryName(string value, string name)
+    {
+        return string.IsNullOrEmpty(value) ? string.IsNullOrEmpty(name) : name.StartsWith(value);
+    }
+
+    private IEnumerable<NodeInfo>? nodesList = Array.Empty<NodeInfo>();
+
+    void OnRowClick(RowData<NodeInfo> row)
+    {
+        Console.WriteLine($"row {row.Data.node_name} was clicked.");
+    }
+
+    async void OnRefreshClick()
+    {
+        await this.RefreshNodeListAsync();
+    }
+
+    async Task RefreshNodeListAsync()
+    {
+        try
+        {
+            this._loading = true;
+            this.nodesList = await this.httpClient.GetFromJsonAsync<List<NodeInfo>>($"/api/nodes/list?rdm={Random.Shared.Next()}");
+            this._loading = false;
+            this.StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "加载失败",
+                    Description = ex.Message,
+                });
+        }
+    }
+
+    protected override async Task OnInitializedAsync(){
+
+        await this.RefreshNodeListAsync();
+    }
+}

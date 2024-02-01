@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+option csharp_namespace = "JobsWorker.Shared";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "FileSystemModels.proto";
+import "ConfigurationSystemModels.proto";
+
+package JobsWorker.Shared;
+
+service NodeService {
+  rpc Subscribe (SubscribeRequest) returns (stream SubscribeEvent);
+  rpc SendFileSystemListDirectoryResponse(FileSystemListDirectoryRsp) returns(google.protobuf.Empty);
+  rpc SendFileSystemListDriveResponse(FileSystemListDriveRsp) returns(google.protobuf.Empty);
+  rpc SendHeartBeatResponse(HeartBeatRsp) returns(google.protobuf.Empty);
+  rpc SendFileSystemBulkOperationReport(FileSystemBulkOperationReport) returns(google.protobuf.Empty);
+  rpc SendFileSystemBulkOperationResponse(FileSystemBulkOperationRsp) returns(google.protobuf.Empty);
+  rpc QueryConfigurations(QueryConfigurationReq) returns(QueryConfigurationRsp);
+}
+
+
+
+message HeartBeatReq {
+	string NodeName = 1;
+	string RequestId = 2;
+}
+
+message HeartBeatRsp {
+	string NodeName = 1;
+	string RequestId = 2;
+	map<string, string> Properties = 3;
+}
+
+
+
+
+message SubscribeRequest {
+	string NodeName = 1;
+	repeated string Topics = 2;
+}
+
+message SubscribeEvent {
+	string NodeName = 1;
+	string Topic = 2;
+	string EventId = 3;
+	map<string, string> Properties = 4;
+	oneof Event{
+		HeartBeatReq HeartBeatReq = 5;
+		FileSystemListDirectoryReq FileSystemListDirectoryReq = 6;
+		FileSystemListDriveReq FileSystemListDriveReq = 7;
+		FileSystemBulkOperationReq FileSystemBulkOperationReq = 8;
+		ConfigurationChangedReport ConfigurationChangedReport = 9;
+	}
+}

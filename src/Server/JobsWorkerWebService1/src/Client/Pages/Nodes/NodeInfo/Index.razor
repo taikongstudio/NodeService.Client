@@ -1,0 +1,60 @@
+﻿@namespace JobsWorkerWebService.Client.Pages.Nodes.NodeInfo
+@using JobsWorkerWebService.Client.Pages.Nodes.NodeInfo.Components.FileExplorer
+@page "/nodes/{nodeName}"
+@inject NotificationService _notice
+
+<PageTitle>@NodeName</PageTitle>
+
+<GridContent>
+        <Tabs DefaultActiveKey="2">
+            <TabPane Key="1">
+                <TabTemplate>
+                    <span><Icon Type="profile" />基础信息</span>
+                </TabTemplate>
+                <ChildContent>Tab 1</ChildContent>
+            </TabPane>
+            <TabPane Key="2">
+                <TabTemplate>
+                    <span><Icon Type="file" />文件浏览器</span>
+                </TabTemplate>
+                <ChildContent>
+                    <FileExplorer NodeName="@NodeName"/>
+
+            </ChildContent>
+            </TabPane>
+            <TabPane Key="3">
+                <TabTemplate>
+                    <span><Icon Type="code" />配置</span>
+                </TabTemplate>
+                <ChildContent>Tab 1</ChildContent>
+            </TabPane>
+            <TabPane Key="3">
+                <TabTemplate>
+                    <span><Icon Type="code" />终端</span>
+                </TabTemplate>
+                <ChildContent>Tab 1</ChildContent>
+            </TabPane>
+        </Tabs>
+</GridContent>
+
+@code{
+
+    int _pageIndex = 1;
+
+    int _pageSize = 5;
+
+    int _total = 0;
+
+
+
+    [Parameter]
+    public string? NodeName { get; set; }
+
+
+    protected override Task OnParametersSetAsync()
+    {
+        return base.OnParametersSetAsync();
+    }
+
+
+}

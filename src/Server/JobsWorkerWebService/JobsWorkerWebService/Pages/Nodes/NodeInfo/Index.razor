@@ -1,0 +1,61 @@
+﻿@namespace JobsWorkerWebService.Client.Pages.Nodes.NodeInfo
+@using JobsWorkerWebService.Pages.Nodes.NodeInfo.Components.FileExplorer
+@using JobsWorkerWebService.Pages.Nodes.NodeInfo.Components.Information
+@inject System.Net.Http.HttpClient HttpClient
+@page "/nodes/{nodeName}"
+@inject NotificationService _notice
+
+<PageTitle>@NodeName</PageTitle>
+
+<GridContent>
+        <GridCol Span="24">
+            <Tabs DefaultActiveKey="2">
+                <TabPane Key="1">
+                    <TabTemplate>
+                        <span><Icon Type="profile" />节点信息</span>
+                    </TabTemplate>
+                    <ChildContent>
+                        <NodeInformation NodeName="@NodeName" />
+                    </ChildContent>
+                </TabPane>
+                <TabPane Key="2">
+                    <TabTemplate>
+                        <span><Icon Type="file" />文件浏览器</span>
+                    </TabTemplate>
+                    <ChildContent>
+                        <FileExplorer NodeName="@NodeName"/>
+                    </ChildContent>
+                </TabPane>
+                <TabPane Key="3">
+                    <TabTemplate>
+                        <span><Icon Type="code" />配置</span>
+                    </TabTemplate>
+                    <ChildContent>Tab 1</ChildContent>
+                </TabPane>
+                <TabPane Key="3">
+                    <TabTemplate>
+                        <span><Icon Type="code" />终端</span>
+                    </TabTemplate>
+                    <ChildContent>Tab 1</ChildContent>
+                </TabPane>
+            </Tabs>
+        </GridCol>
+</GridContent>
+
+    @code{
+
+    int _pageIndex = 1;
+
+    int _pageSize = 5;
+
+    int _total = 0;
+
+
+
+    [Parameter]
+    public string? NodeName { get; set; }
+
+
+
+
+}

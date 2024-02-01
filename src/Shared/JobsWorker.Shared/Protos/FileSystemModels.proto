@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+option csharp_namespace = "JobsWorker.Shared";
+
+import "google/protobuf/timestamp.proto";
+
+package JobsWorker.Shared;
+
+message FileSystemObject{
+	string Name = 1;
+	string FullName  = 2;
+	string Type = 3;
+	int64 Length  = 4;
+	google.protobuf.Timestamp CreationTime  = 5;
+	google.protobuf.Timestamp LastWriteTime  = 6;
+}
+
+message FileSystemDriveInfo{
+	string Name = 1;
+	int64 TotalFreeSpace = 2;
+	int64 AvailableFreeSpace = 3;
+	int64 TotalSize = 4;
+	string DriveType = 5;
+	string DriveFormat = 6;
+	bool IsReady = 7;
+	string RootDirectory = 8;
+	string VolumeLabel = 9;
+}
+
+
+message FileSystemListDirectoryReq{
+	string RequestId = 1;
+	string NodeName = 2;
+	string Directory = 3;
+	string SearchPattern = 4;
+	bool IncludeSubDirectories = 5;
+	int32 Timeout = 6;
+}
+
+
+message FileSystemListDirectoryRsp {
+	string RequestId = 1;
+	string NodeName = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+	repeated FileSystemObject FileSystemObjects = 5;
+}
+
+message FileSystemListDriveReq{
+	string RequestId = 1;
+	string NodeName = 2;
+	int32 Timeout = 6;
+}
+
+
+message FileSystemListDriveRsp {
+	string RequestId = 1;
+	string NodeName = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+	repeated FileSystemDriveInfo Drives = 5;
+}
+
+
+enum FileSystemOperation{
+	None = 0;
+	Create = 1;
+	Delete = 2;
+	Move = 3;
+	Rename = 4;
+	Open = 5;
+}
+
+enum FileSystemOperationState{
+	NotStarted = 0;
+	Pending = 1;
+	Running = 2;
+	Finished = 3;
+	Cancelled = 4;
+	Failed = 5;
+}
+
+message FileSystemBulkOperationReq{
+	string RequestId = 1;
+	string NodeName = 2;
+	repeated string PathList = 3;
+	FileSystemOperation Operation = 4;
+	map<string,string> Headers = 5;
+}
+
+message FileSystemBulkOperationRsp{
+	string RequestId = 1;
+	string NodeName = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+}
+
+message FileSystemOperationProgress{
+	string FullName = 1;
+	int32 ErrorCode = 2;
+	string Message = 3;
+	FileSystemOperation Operation = 4;
+	double Progress = 5;
+	FileSystemOperationState State = 6;
+	bool IsCompleted = 7;
+	map<string,string> Properties = 8;
+}
+
+message FileSystemBulkOperationReport{
+	string RequestId = 1;
+	string NodeName = 2;
+	string OriginalRequestId = 3;
+	FileSystemOperationState State = 4;
+	repeated FileSystemOperationProgress Progresses = 5;
+}
+
+message FileSystemQueryBulkOperationReportReq{
+	string RequestId = 1;
+	string OriginalRequestId = 2;
+	string NodeName = 3;
+	int32 Timeout = 4;
+}
+
+message FileSystemQueryBulkOperationReportRsp{
+	string RequestId = 1;
+	string NodeName = 2;
+	string OriginalRequestId = 3;
+	int32 ErrorCode = 4;
+	string Message = 5;
+	repeated FileSystemBulkOperationReport Reports = 6;
+}
+
+message FileSystemBulkOperationCancelReq{
+	string RequestId = 1;
+	string OriginalRequestId = 2;
+}
+
+message FileSystemBulkOperationCancelRsp{
+	string RequestId = 1;
+	string OriginalRequestId = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+	repeated FileSystemOperationProgress Progresses = 5;
+}

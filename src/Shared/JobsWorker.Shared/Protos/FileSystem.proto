@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option csharp_namespace = "JobsWorker.Shared";
+
+import "google/protobuf/timestamp.proto";
+import "FileSystemModels.proto";
+
+package JobsWorker.Shared;
+
+
+service FileSystem {
+  rpc ListDirectory (FileSystemListDirectoryReq) returns (FileSystemListDirectoryRsp);
+  rpc ListDrive (FileSystemListDriveReq) returns (FileSystemListDriveRsp);
+  rpc BulkOperaion(FileSystemBulkOperationReq) returns(FileSystemBulkOperationRsp);
+  rpc QueryBulkOperationReport(FileSystemQueryBulkOperationReportReq) returns(FileSystemQueryBulkOperationReportRsp);
+  rpc CancelBulkOperation(FileSystemBulkOperationCancelReq) returns (FileSystemBulkOperationCancelRsp);
+}
+
