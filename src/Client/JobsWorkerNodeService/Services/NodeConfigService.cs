@@ -3,6 +3,8 @@ using JobsWorker.Shared;
 using JobsWorker.Shared.MessageQueue;
 using JobsWorker.Shared.Models;
 using JobsWorkerNodeService.Models;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Collections.Concurrent;
 using System.Diagnostics;

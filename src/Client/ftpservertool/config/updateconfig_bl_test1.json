@@ -13,7 +13,7 @@
     "channel=bl",
     "initonly=false",
     "deleteonly=false",
-    "hostnames=,",
+    "hostnames=ZhangYueSen-pc",
     "filtertype=include"
   ]
 }

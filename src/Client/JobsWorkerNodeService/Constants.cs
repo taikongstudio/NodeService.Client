@@ -8,6 +8,6 @@ namespace JobsWorkerNodeService
 {
     public class Constants
     {
-        public const string Version = "E771E953-171F-4375-949B-E48E061976F9";
+        public const string Version = "172A4713-2E8D-416A-B696-CB173474D467";
     }
 }

@@ -1,6 +1,7 @@
 ﻿using JobsWorker.Shared;
 using JobsWorker.Shared.Models;
 using JobsWorkerNodeService.Models;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Collections.Concurrent;
 using System.Diagnostics;

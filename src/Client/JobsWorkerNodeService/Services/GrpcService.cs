@@ -8,6 +8,7 @@ using JobsWorkerNodeService.Helper;
 using JobsWorkerNodeService.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Collections;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -122,16 +123,19 @@ namespace JobsWorkerNodeService.Services
 
         private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
-        private readonly Options _options;
+        private readonly IConfiguration _configuration;
         private readonly IInprocMessageQueue<string, string, NodeConfigChangedEvent> _inprocMessageQueue;
 
         public ILogger<GrpcService> Logger { get; private set; }
 
 
-        public GrpcService(IInprocMessageQueue<string, string, NodeConfigChangedEvent> inprocMessageQueue, ILogger<GrpcService> logger, Options options)
+        public GrpcService(
+            IInprocMessageQueue<string, string, NodeConfigChangedEvent> inprocMessageQueue, 
+            ILogger<GrpcService> logger, 
+            IConfiguration  configuration)
         {
             this._inprocMessageQueue = inprocMessageQueue;
-            this._options = options;
+            this._configuration = configuration;
             this.Logger = logger;
             this._subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, new ExecutionDataflowBlockOptions()
             {
@@ -201,36 +205,39 @@ namespace JobsWorkerNodeService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                this.Logger.LogError(ex.ToString());
             }
         }
 
         private async Task RunGrpcLoopAsync(CancellationToken cancellationToken = default)
         {
-            var handler = new HttpClientHandler();
-            handler.ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-            var dnsName = Dns.GetHostName();
-            using var channel = GrpcChannel.ForAddress(this._options.address, new GrpcChannelOptions()
-            {
-                HttpHandler = handler,
-                Credentials = ChannelCredentials.SecureSsl
-            });
-            var jobWorkerClient = new NodeService.NodeServiceClient(channel);
+
             try
             {
+                using var handler = new HttpClientHandler();
+                handler.ServerCertificateCustomValidationCallback =
+                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                var dnsName = Dns.GetHostName();
+                string? address = GetAddressFromConfiguration();
+                this.Logger.LogInformation($"Grpc Address:{address}");
+                using var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions()
+                {
+                    HttpHandler = handler,
+                    Credentials = ChannelCredentials.SecureSsl
+                });
+                var jobWorkerClient = new NodeService.NodeServiceClient(channel);
                 _ = Task.Run(async () =>
-                 {
-                     while (!cancellationToken.IsCancellationRequested)
-                     {
-                         if (!await this.QueryNodeConfigAsync(dnsName, jobWorkerClient, cancellationToken))
-                         {
-                             this.Logger.LogError("Failed to query config,sleep 30s");
-                             await Task.Delay(TimeSpan.FromSeconds(30000), cancellationToken);
-                         }
-                         break;
-                     }
-                 }, cancellationToken);
+                {
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        if (await this.QueryNodeConfigAsync(dnsName, jobWorkerClient, cancellationToken))
+                        {
+                            break;
+                        }
+                        this.Logger.LogError("Failed to query config,sleep 30s");
+                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    }
+                }, cancellationToken);
 
                 var subscribeCall = jobWorkerClient.Subscribe(new SubscribeRequest()
                 {
@@ -260,6 +267,19 @@ namespace JobsWorkerNodeService.Services
             {
 
             }
+        }
+
+        private string? GetAddressFromConfiguration()
+        {
+            try
+            {
+                return this._configuration.GetValue<string>("GrpcConfig:Address");
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+
         }
 
         private async Task<bool> QueryNodeConfigAsync(string dnsName, NodeService.NodeServiceClient nodeServiceClient, CancellationToken cancellationToken = default)
@@ -535,21 +555,28 @@ namespace JobsWorkerNodeService.Services
 
             try
             {
-                heartBeatRsp.Properties.Add("DateTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
-                heartBeatRsp.Properties.Add("Version", Constants.Version);
-                heartBeatRsp.Properties.Add("Environment.UserName", Environment.UserName);
-                heartBeatRsp.Properties.Add("Environment.ProcessorCount", Environment.ProcessorCount.ToString());
-                heartBeatRsp.Properties.Add("Environment.IsPrivilegedProcess", Environment.IsPrivilegedProcess.ToString());
-                heartBeatRsp.Properties.Add("Environment.UserInteractive", Environment.UserInteractive.ToString());
-                heartBeatRsp.Properties.Add("Environment.SystemDirectory", Environment.SystemDirectory);
-                heartBeatRsp.Properties.Add("Environment.LogicalDrives", string.Join(",", Environment.GetLogicalDrives()));
-                heartBeatRsp.Properties.Add("NetworkInterface.IsNetworkAvailable", NetworkInterface.GetIsNetworkAvailable().ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.LastUpdateDateTimeKey, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
+                heartBeatRsp.Properties.Add(NodeProperties.VersionKey, Constants.Version);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserNameKey, Environment.UserName);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessorCountKey, Environment.ProcessorCount.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_IsPrivilegedProcessKey, Environment.IsPrivilegedProcess.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserInteractiveKey, Environment.UserInteractive.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemDirectoryKey, Environment.SystemDirectory);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_OSVersionKey, Environment.OSVersion.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserDomainNameKey, Environment.UserDomainName);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_CommandLineKey, Environment.CommandLine);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_WorkingSetKey, Environment.WorkingSet.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemPageSizeKey, Environment.SystemPageSize.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessPathKey, Environment.ProcessPath);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_VersionKey, Environment.Version.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_LogicalDrivesKey, string.Join(",", Environment.GetLogicalDrives()));
+                heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_IsNetworkAvailableKey, NetworkInterface.GetIsNetworkAvailable().ToString());
+
+                CollectEnvironmentVariables(heartBeatRsp);
 
                 CollectNetworkInterfaces(heartBeatRsp);
 
-                var processList = CommonHelper.CollectProcessList(this.Logger);
-
-                heartBeatRsp.Properties.Add("Processes", JsonSerializer.Serialize(processList));
+                CollectProcessList(heartBeatRsp);
             }
             catch (Exception ex)
             {
@@ -567,22 +594,46 @@ namespace JobsWorkerNodeService.Services
             {
                 try
                 {
-                    NetworkInterfaceModel[] networkInterfaceModels = NetworkInterface.GetAllNetworkInterfaces().Select(x => new NetworkInterfaceModel()
-                    {
-                        Name = x.Name,
-                        PhysicalAddress = x.GetPhysicalAddress().ToString(),
-                        NetworkInterfaceType = x.NetworkInterfaceType,
-                        Id = x.Id,
-                        OperationalStatus = x.OperationalStatus,
-                        Description = x.Description,
-
-                    }).ToArray();
-                    heartBeatRsp.Properties.Add("NetworkInterface.AllNetworkInterfaces", JsonSerializer.Serialize(networkInterfaceModels));
+                    var networkInterfaceModels = NetworkInterface.GetAllNetworkInterfaces().Select(NetworkInterfaceModel.From);
+                    heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_AllNetworkInterfacesKey, JsonSerializer.Serialize(networkInterfaceModels));
                 }
                 catch (Exception ex)
                 {
                     this.Logger.LogError(ex.ToString());
                 }
+            }
+
+            void CollectProcessList(HeartBeatRsp heartBeatRsp)
+            {
+                var processList = CommonHelper.CollectProcessList(this.Logger);
+
+                heartBeatRsp.Properties.Add(NodeProperties.Process_ProcessesKey, JsonSerializer.Serialize(processList));
+            }
+
+            void CollectEnvironmentVariables(HeartBeatRsp heartBeatRsp)
+            {
+
+                List<EnvironmentVariableInfo> environmentVariables = new List<EnvironmentVariableInfo>();
+                try
+                {
+                    foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+                    {
+
+                        environmentVariables.Add(new EnvironmentVariableInfo()
+                        {
+                            Name = entry.Key as string,
+                            Value = entry.Value as string
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.Logger.LogError(ex.ToString());
+                }
+
+                heartBeatRsp.Properties.Add(
+                    NodeProperties.Environment_EnvironmentVariablesKey,
+                    JsonSerializer.Serialize(environmentVariables));
             }
         }
 

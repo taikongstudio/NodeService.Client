@@ -1,27 +1,24 @@
 using CommandLine;
-using JobsWorker.Shared;
 using JobsWorker.Shared.MessageQueue;
 using JobsWorker.Shared.MessageQueue.Models;
-using JobsWorker.Shared.Models;
 using JobsWorkerNodeService.Models;
 using JobsWorkerNodeService.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Web;
 using Quartz;
 using Quartz.Impl;
-using System.Diagnostics;
+using System;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace JobsWorkerNodeService
 {
     public static class Program
     {
-        private static WebApplicationBuilder ConfigureServices(
-            this WebApplicationBuilder webApplicationBuilder,
-            Action<IServiceCollection> action)
-        {
-            action(webApplicationBuilder.Services);
-            return webApplicationBuilder;
-        }
 
         public static void Main(string[] args)
         {
@@ -30,7 +27,7 @@ namespace JobsWorkerNodeService
                 .ParseArguments<Options>(args)
                                      .WithParsed((options) =>
                                      {
-                                         if (options.mode==null)
+                                         if (options.mode == null)
                                          {
                                              options.mode = "nodeservice";
                                          }
@@ -42,6 +39,7 @@ namespace JobsWorkerNodeService
         {
             try
             {
+                Console.WriteLine(JsonSerializer.Serialize(options));
                 switch (options.mode)
                 {
                     case "nodeservice":
@@ -63,17 +61,10 @@ namespace JobsWorkerNodeService
             try
             {
                 LogManager.AutoShutdown = true;
-                var builder = WebApplication.CreateBuilder(args);
+                IHostBuilder builder = Host.CreateDefaultBuilder(args);
                 builder.ConfigureServices(services =>
                 {
-                    services.AddSingleton<Options>((serviceProvider) =>
-                    {
-                        if (options.address == null)
-                        {
-                            options.address = builder.Configuration.GetSection("GrpcConfig")["address"];
-                        }
-                        return options;
-                    });
+                    services.AddSingleton<Options>(options);
                     services.AddHostedService<GrpcService>();
                     services.AddHostedService<NodeConfigService>();
                     services.AddHostedService<ProcessService>();
@@ -101,31 +92,14 @@ namespace JobsWorkerNodeService
                         string,
                         UploadFileToFtpServerRequest>>(new InprocMessageQueue<string, string, UploadFileToFtpServerRequest>());
 
-                    services.AddRazorPages();
-                });
-                builder
-                    .Logging
-                    .ClearProviders()
-                    .AddConsole()
-                    .AddNLogWeb();
-
-                // Add services to the container.
-                builder.Services.AddRazorPages();
+                }).ConfigureLogging(loggingBuilder =>
+                {
+                    loggingBuilder.ClearProviders();
+                    loggingBuilder.AddConsole();
+                })
+                .UseNLog();
 
                 var app = builder.Build();
-
-                // Configure the HTTP request pipeline.
-                if (!app.Environment.IsDevelopment())
-                {
-                    app.UseExceptionHandler("/Error");
-                }
-                app.UseStaticFiles();
-
-                app.UseRouting();
-
-                app.UseAuthorization();
-
-                app.MapRazorPages();
 
                 app.Run();
             }

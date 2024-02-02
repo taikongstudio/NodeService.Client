@@ -1,5 +1,6 @@
 ﻿using JobsWorker.Shared.Models;
 using JobsWorkerNodeService.Jobs;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Text.Json;
 

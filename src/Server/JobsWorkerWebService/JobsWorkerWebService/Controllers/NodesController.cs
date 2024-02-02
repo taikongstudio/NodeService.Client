@@ -39,11 +39,11 @@ namespace JobsWorkerWebService.Controllers
         }
 
         [HttpGet("/api/nodes/{nodeName}/props")]
-        public async Task<ApiResult<IEnumerable<NodeProperty>>> QueryNodeListAsync(string nodeName)
+        public async Task<ApiResult<IEnumerable<NodePropertyItem>>> QueryNodeListAsync(string nodeName)
         {
-            ApiResult<IEnumerable<NodeProperty>> apiResult = new ApiResult<IEnumerable<NodeProperty>>();
+            ApiResult<IEnumerable<NodePropertyItem>> apiResult = new ApiResult<IEnumerable<NodePropertyItem>>();
             var nodeDict = await this._memoryCache.GetOrCreateNodePropsAsync(nodeName);
-            apiResult.Value = nodeDict.Select(x => new NodeProperty()
+            apiResult.Value = nodeDict.Select(x => new NodePropertyItem()
             {
                 Name = x.Key,
                 Value = x.Value,

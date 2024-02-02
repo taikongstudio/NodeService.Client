@@ -2,6 +2,7 @@
 using JobsWorker.Shared.MessageQueue;
 using JobsWorkerNodeService.Models;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

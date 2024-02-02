@@ -5,14 +5,10 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<OutputType>WinExe</OutputType>
 	</PropertyGroup>
 
-	<ItemGroup>
-	  <Compile Remove="config\**" />
-	  <Content Remove="config\**" />
-	  <EmbeddedResource Remove="config\**" />
-	  <None Remove="config\**" />
-	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
 		<PackageReference Include="FluentFTP" Version="48.0.3" />
@@ -24,6 +20,17 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Properties\PublishProfiles\" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Update="appsettings.Development.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	  <None Update="appsettings.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>

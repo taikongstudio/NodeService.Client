@@ -6,9 +6,10 @@ namespace JobsWorkerWebService.Extensions
 {
     public static class MemoryCacheExtensions
     {
+
         public static async Task<ConcurrentDictionary<string, string>?> GetOrCreateNodePropsAsync(this IMemoryCache memoryCache, string nodeName)
         {
-            string key = $"NodeProps:{nodeName}";
+            string key = $"NodeProperties:{nodeName}";
             var propDict = await memoryCache.GetOrCreateAsync<ConcurrentDictionary<string, string>>(key, (cacheEntry) =>
             {
                 var dict = new ConcurrentDictionary<string, string>();

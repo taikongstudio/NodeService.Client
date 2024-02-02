@@ -1,4 +1,5 @@
 using AntDesign.ProLayout;
+using CommandLine;
 using FluentFTP;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -18,6 +19,8 @@ using Microsoft.EntityFrameworkCore;
 using NLog.Extensions.Logging;
 using System.Net;
 using System.Runtime.CompilerServices;
+using JobsWorkerWebService;
+using System.Text.Json;
 
 
 public class Program
@@ -27,10 +30,28 @@ public class Program
 
     public static void Main(string[] args)
     {
+
+        Parser.Default.ParseArguments<Options>(args)
+                         .WithParsed((options) =>
+                         {
+                             Console.WriteLine(JsonSerializer.Serialize(options));
+                             if (string.IsNullOrEmpty(options.env))
+                             {
+                                 options.env = Environments.Development;
+                             }
+                             RunWithOptions(options, args);
+                         });
+
+    }
+
+    private static void RunWithOptions(Options options, string[] args)
+    {
         Environment.CurrentDirectory = AppContext.BaseDirectory;
 
         try
         {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", options.env);
+
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
@@ -48,10 +69,7 @@ public class Program
         {
             Console.WriteLine(ex.ToString());
         }
-
-
     }
-
 
     static void Configure(WebApplication app)
     {
@@ -109,8 +127,8 @@ public class Program
 
     private static void MapGrpcServices(WebApplication app)
     {
-        app.MapGrpcService<FileSystemService>().EnableGrpcWeb().RequireCors("AllowAll");
-        app.MapGrpcService<JobsWorkerWebService.GrpcServices.NodeService>().EnableGrpcWeb().RequireCors("AllowAll");
+        app.MapGrpcService<FileSystemServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
+        app.MapGrpcService<JobsWorkerWebService.GrpcServices.NodeServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
     }
 
     static void Configure(WebApplicationBuilder builder)
@@ -251,7 +269,10 @@ public class Program
             Message>>(new InprocMessageQueue<string, string, Message>());
 
 
-        builder.Services.AddGrpc();
+        builder.Services.AddGrpc(grpcServiceOptions =>
+        {
+           
+        });
         builder.Services.AddCors(o => o.AddPolicy("AllowAll", builder =>
         {
             builder.AllowAnyOrigin()

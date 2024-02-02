@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace JobsWorkerNodeService
 {
@@ -22,6 +23,12 @@ namespace JobsWorkerNodeService
 
         [Option("address", HelpText = "address")]
         public string address { get; set; }
+
+
+        public string ToJsonString()
+        {
+            return JsonSerializer.Serialize(this);
+        }
 
     }
 }
