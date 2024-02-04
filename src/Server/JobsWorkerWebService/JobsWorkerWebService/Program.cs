@@ -12,7 +12,6 @@ using JobsWorkerWebService.GrpcServices;
 using JobsWorkerWebService.Models.Configurations;
 using JobsWorkerWebService.Services;
 using JobsWorkerWebService.Services.VirtualSystem;
-using JobsWorkerWebService.Services.VirtualSystemServices;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -128,7 +127,7 @@ public class Program
     private static void MapGrpcServices(WebApplication app)
     {
         app.MapGrpcService<FileSystemServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
-        app.MapGrpcService<JobsWorkerWebService.GrpcServices.NodeServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
+        app.MapGrpcService<NodeServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
     }
 
     static void Configure(WebApplicationBuilder builder)
@@ -177,9 +176,21 @@ public class Program
         {
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseMySql(builder.Configuration.GetConnectionString("MySQL"),
-            MySqlServerVersion.LatestSupportedServerVersion));
+            MySqlServerVersion.LatestSupportedServerVersion, mySqlOptionBuilder =>
+            {
+                mySqlOptionBuilder.EnableStringComparisonTranslations();
+            }));
         }
-       
+
+        builder.Services.AddDbContext<ApplicationProfileDbContext>(options => {
+            options.UseMySql(builder.Configuration.GetConnectionString("MyProfileSQL"),
+            MySqlServerVersion.LatestSupportedServerVersion, mySqlOptionBuilder =>
+            {
+                mySqlOptionBuilder.EnableStringComparisonTranslations();
+            });
+            options.EnableThreadSafetyChecks(true);
+        });
+
 
 
         builder.Services.AddScoped(sp => new HttpClient

@@ -1,11 +1,10 @@
 ﻿using FluentFTP;
 using JobsWorker.Shared;
-using JobsWorkerWebService.Services.VirtualSystem;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-namespace JobsWorkerWebService.Services.VirtualSystemServices
+namespace JobsWorkerWebService.Services.VirtualSystem
 {
     public class ListDirectoryOptions
     {
@@ -64,7 +63,7 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
 
         public abstract ValueTask<string> GetWorkingDirectoryAsync(CancellationToken cancellationToken = default);
 
-        public abstract ValueTask<string> SetWorkingDirectoryAsync(string workingDirectory, 
+        public abstract ValueTask<string> SetWorkingDirectoryAsync(string workingDirectory,
             CancellationToken cancellationToken = default);
 
         public abstract ValueTask<Stream?> ReadFileAsync(string path,
@@ -88,14 +87,14 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
 
         public FtpVirtualFileSystem(AsyncFtpClient asyncFtpClient)
         {
-            this._client = asyncFtpClient;
+            _client = asyncFtpClient;
         }
 
         public override async ValueTask<Exception?> ConnectAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                await this._client.AutoConnect(cancellationToken);
+                await _client.AutoConnect(cancellationToken);
                 return null;
             }
             catch (Exception ex)
@@ -112,7 +111,7 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
         {
             try
             {
-                await this._client.DeleteDirectory(directory,
+                await _client.DeleteDirectory(directory,
                     recursive ? FtpListOption.Recursive : FtpListOption.Auto,
                     cancellationToken);
                 return null;
@@ -129,7 +128,7 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
         {
             try
             {
-                await this._client.DeleteFile(path, cancellationToken);
+                await _client.DeleteFile(path, cancellationToken);
                 return null;
             }
             catch (Exception ex)
@@ -142,22 +141,22 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
 
         public override ValueTask<bool> DirectoryExits(string path, CancellationToken cancellationToken = default)
         {
-            return new ValueTask<bool>(this._client.DirectoryExists(path, cancellationToken));
+            return new ValueTask<bool>(_client.DirectoryExists(path, cancellationToken));
         }
 
         public override void Dispose()
         {
-            this._client.Dispose();
+            _client.Dispose();
         }
 
         public override ValueTask<bool> DownloadStream(string path, Stream stream, CancellationToken cancellationToken = default)
         {
-            return new ValueTask<bool>(this._client.DownloadStream(stream, path, 0, null, cancellationToken, 0));
+            return new ValueTask<bool>(_client.DownloadStream(stream, path, 0, null, cancellationToken, 0));
         }
 
         public override ValueTask<bool> FileExits(string path, CancellationToken cancellationToken = default)
         {
-            return new ValueTask<bool>(this._client.FileExists(path, cancellationToken));
+            return new ValueTask<bool>(_client.FileExists(path, cancellationToken));
         }
 
         public override async ValueTask<string> GetWorkingDirectoryAsync(CancellationToken cancellationToken = default)
@@ -196,7 +195,7 @@ namespace JobsWorkerWebService.Services.VirtualSystemServices
 
         public override async ValueTask<bool> UploadStream(string path, Stream stream, CancellationToken cancellationToken = default)
         {
-            return await this._client.UploadStream(stream, path, FtpRemoteExists.Overwrite, true, null, cancellationToken) == FtpStatus.Success;
+            return await _client.UploadStream(stream, path, FtpRemoteExists.Overwrite, true, null, cancellationToken) == FtpStatus.Success;
         }
 
         public override ValueTask<Stream?> WriteFileAsync(

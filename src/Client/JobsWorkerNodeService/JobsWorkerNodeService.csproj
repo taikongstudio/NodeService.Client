@@ -17,6 +17,7 @@
 		<PackageReference Include="NLog.Extensions.Logging" Version="5.3.5" />
 		<PackageReference Include="NLog.Web.AspNetCore" Version="5.3.5" />
 		<PackageReference Include="Quartz" Version="3.8.0" />
+		<PackageReference Include="System.DirectoryServices" Version="8.0.0" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj" />

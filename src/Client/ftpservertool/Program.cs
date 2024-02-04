@@ -22,7 +22,7 @@ namespace ftpservertool
              {
                  if (Debugger.IsAttached)
                  {
-                     options.rsp = Path.Combine(AppContext.BaseDirectory, "config/updateconfig_bl_test1.json");
+                     options.rsp = Path.Combine(AppContext.BaseDirectory, "config/updateconfig_gm.json");
                  }
                  if (options.rsp != null)
                  {

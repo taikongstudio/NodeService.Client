@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
@@ -6,11 +7,12 @@ using System.Text.Json.Serialization;
 namespace JobsWorker.Shared.Models
 {
     [Table("node_info")]
+    [PrimaryKey(nameof(node_name))]
     public class NodeInfo
     {
         public string node_id { get; set; }
-        [Key]
-        public string? node_name { get; set; }
+
+        public string node_name { get; set; }
 
         public string? factory_name { get; set; }
         [NotMapped]
@@ -40,5 +42,15 @@ namespace JobsWorker.Shared.Models
 
         public string? node_config { get; set; }
 
+        public bool is_online { get; set; }
+
+        public static NodeInfo Create(string nodeName)
+        {
+            return new NodeInfo
+            {
+                node_id = Guid.NewGuid().ToString("N"),
+                node_name = nodeName,
+            };
+        }
     }
 }

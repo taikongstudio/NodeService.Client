@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Collections;
 using System.Diagnostics;
+using System.DirectoryServices.ActiveDirectory;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.NetworkInformation;
@@ -555,22 +556,24 @@ namespace JobsWorkerNodeService.Services
 
             try
             {
-                heartBeatRsp.Properties.Add(NodeProperties.LastUpdateDateTimeKey, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
-                heartBeatRsp.Properties.Add(NodeProperties.VersionKey, Constants.Version);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserNameKey, Environment.UserName);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessorCountKey, Environment.ProcessorCount.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_IsPrivilegedProcessKey, Environment.IsPrivilegedProcess.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserInteractiveKey, Environment.UserInteractive.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemDirectoryKey, Environment.SystemDirectory);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_OSVersionKey, Environment.OSVersion.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserDomainNameKey, Environment.UserDomainName);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_CommandLineKey, Environment.CommandLine);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_WorkingSetKey, Environment.WorkingSet.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemPageSizeKey, Environment.SystemPageSize.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessPathKey, Environment.ProcessPath);
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_VersionKey, Environment.Version.ToString());
-                heartBeatRsp.Properties.Add(NodeProperties.Environment_LogicalDrivesKey, string.Join(",", Environment.GetLogicalDrives()));
-                heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_IsNetworkAvailableKey, NetworkInterface.GetIsNetworkAvailable().ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.LastUpdateDateTime_Key, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
+                heartBeatRsp.Properties.Add(NodeProperties.Version_Key, Constants.Version);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserName_Key, Environment.UserName);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessorCount_Key, Environment.ProcessorCount.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_IsPrivilegedProcess_Key, Environment.IsPrivilegedProcess.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserInteractive_Key, Environment.UserInteractive.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemDirectory_Key, Environment.SystemDirectory);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_OSVersion_Key, Environment.OSVersion.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_UserDomainName_Key, Environment.UserDomainName);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_CommandLine_Key, Environment.CommandLine);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_WorkingSet_Key, Environment.WorkingSet.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_SystemPageSize_Key, Environment.SystemPageSize.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_ProcessPath_Key, Environment.ProcessPath);
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_Version_Key, Environment.Version.ToString());
+                heartBeatRsp.Properties.Add(NodeProperties.Environment_LogicalDrives_Key, string.Join(",", Environment.GetLogicalDrives()));
+                heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_IsNetworkAvailable_Key, NetworkInterface.GetIsNetworkAvailable().ToString());
+
+                CollectDomain(heartBeatRsp);
 
                 CollectEnvironmentVariables(heartBeatRsp);
 
@@ -595,7 +598,7 @@ namespace JobsWorkerNodeService.Services
                 try
                 {
                     var networkInterfaceModels = NetworkInterface.GetAllNetworkInterfaces().Select(NetworkInterfaceModel.From);
-                    heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_AllNetworkInterfacesKey, JsonSerializer.Serialize(networkInterfaceModels));
+                    heartBeatRsp.Properties.Add(NodeProperties.NetworkInterface_AllNetworkInterfaces_Key, JsonSerializer.Serialize(networkInterfaceModels));
                 }
                 catch (Exception ex)
                 {
@@ -607,7 +610,7 @@ namespace JobsWorkerNodeService.Services
             {
                 var processList = CommonHelper.CollectProcessList(this.Logger);
 
-                heartBeatRsp.Properties.Add(NodeProperties.Process_ProcessesKey, JsonSerializer.Serialize(processList));
+                heartBeatRsp.Properties.Add(NodeProperties.Process_Processes_Key, JsonSerializer.Serialize(processList));
             }
 
             void CollectEnvironmentVariables(HeartBeatRsp heartBeatRsp)
@@ -632,8 +635,22 @@ namespace JobsWorkerNodeService.Services
                 }
 
                 heartBeatRsp.Properties.Add(
-                    NodeProperties.Environment_EnvironmentVariablesKey,
+                    NodeProperties.Environment_EnvironmentVariables_Key,
                     JsonSerializer.Serialize(environmentVariables));
+            }
+
+            void CollectDomain(HeartBeatRsp heartBeatRsp)
+            {
+                try
+                {
+                    Domain domain = Domain.GetComputerDomain();
+                    heartBeatRsp.Properties.Add(NodeProperties.Domain_ComputerDomain_Key, domain.Name);
+                }
+                catch (Exception ex)
+                {
+                    this.Logger.LogError(ex.ToString());
+                }
+
             }
         }
 

@@ -48,7 +48,10 @@
     <None Update="config\mergeext1_bl.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="config\updateconfig_bl_random_50.json">
+    <None Update="config\cccc.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="config\updateconfig_bl_randome50.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="config\updateconfig_gm_test.json">

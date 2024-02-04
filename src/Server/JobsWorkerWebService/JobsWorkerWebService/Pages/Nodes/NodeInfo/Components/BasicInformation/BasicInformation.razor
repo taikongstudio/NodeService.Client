@@ -1,8 +1,8 @@
 ﻿@inject System.Net.Http.HttpClient HttpClient
 @inject NotificationService _notice
 
-<Descriptions Layout="@DescriptionsLayout.Vertical" Title="节点信息" Bordered>
-    <DescriptionsItem Title="节点名称">@NodeProperties.NodeName</DescriptionsItem>
+<Descriptions Column="5" Layout="@DescriptionsLayout.Vertical" Title="节点信息" Bordered>
+    <DescriptionsItem  Title="节点名称">@NodeProperties.NodeName</DescriptionsItem>
         <DescriptionsItem Title="状态">
             <Badge Status="@BadgeStatus.Processing" Text="在线"></Badge>
         </DescriptionsItem>
@@ -12,7 +12,7 @@
         <DescriptionsItem Title="Cpu核心数量">@NodeProperties.ProcessorCount</DescriptionsItem>
         <DescriptionsItem Title="系统版本">@NodeProperties.OSVersion</DescriptionsItem>
         <DescriptionsItem Title="运行时版本">@NodeProperties.RuntimeVersion</DescriptionsItem>
-        <DescriptionsItem Title="进程路径">@NodeProperties.ProcessPath</DescriptionsItem>
+        <DescriptionsItem Title="进程路径"><Text Style="width:100px"  Ellipsis EllipsisConfig="@EllipsisConfig">@NodeProperties.ProcessPath</Text></DescriptionsItem>
         <DescriptionsItem Title="WorkingSet">@NodeProperties.WorkingSet</DescriptionsItem>
         <DescriptionsItem Title="SystemPageSize">@NodeProperties.SystemPageSize</DescriptionsItem>
         <DescriptionsItem Title="用户域名名称">@NodeProperties.UserDomainName</DescriptionsItem>
@@ -21,7 +21,7 @@
         <DescriptionsItem Title="系统目录">@NodeProperties.SystemDirectory</DescriptionsItem>
         <DescriptionsItem Title="逻辑驱动器">@NodeProperties.LogicalDrives</DescriptionsItem>
         <DescriptionsItem Title="用户交互模式">@NodeProperties.UserInteractive</DescriptionsItem>
-        <DescriptionsItem Title="逻辑驱动器">@NodeProperties.LogicalDrives</DescriptionsItem>
+        <DescriptionsItem Title="计算机域名">@NodeProperties.ComputerDomain</DescriptionsItem>
     </Descriptions>
 
 
@@ -30,5 +30,9 @@
     public NodeProperties? NodeProperties { get; set; }
 
 
-
-}
+    TypographyEllipsisConfig EllipsisConfig = new TypographyEllipsisConfig()
+        {
+            Suffix = "更多",
+            Rows = 3
+        };
+    }

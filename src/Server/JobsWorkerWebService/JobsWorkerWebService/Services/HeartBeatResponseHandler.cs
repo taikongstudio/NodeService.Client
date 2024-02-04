@@ -7,12 +7,12 @@ using System.Collections.Concurrent;
 
 namespace JobsWorkerWebService.Services
 {
-    public interface IHeartBeatResponseHandler : IDisposable
+    public interface IHeartBeatResponseHandler : IAsyncDisposable
     {
         Task HandleAsync(HttpContext httpContext, HeartBeatResponse heartBeatResponse);
     }
 
-    public class HeartBeatResponseHandler : IHeartBeatResponseHandler, IDisposable
+    public class HeartBeatResponseHandler : IHeartBeatResponseHandler, IAsyncDisposable
     {
         private readonly ApplicationDbContext _applicationDbContext;
         private readonly IMemoryCache _memoryCache;
@@ -28,30 +28,36 @@ namespace JobsWorkerWebService.Services
             this._logger = logger;
         }
 
-        public void Dispose()
+        public NodeInfo NodeInfo { get; private set; }
+
+        public  ValueTask DisposeAsync()
         {
-            this._applicationDbContext.Dispose();
+            if (this.NodeInfo != null)
+            {
+                this.NodeInfo.is_online = false;
+            }
+            return ValueTask.CompletedTask;
         }
 
         public async Task HandleAsync(HttpContext httpContext, HeartBeatResponse heartBeatResponse)
         {
             try
             {
-                heartBeatResponse.Content.Properties.TryAdd(NodeProperties.NodeNameKey, heartBeatResponse.Content.NodeName);
+                heartBeatResponse.Content.Properties.TryAdd(NodeProperties.NodeName_Key, heartBeatResponse.Content.NodeName);
                 var remoteIPAddress = httpContext.Connection.RemoteIpAddress;
                 var nodeInfo = await this._applicationDbContext.NodeInfoDbSet.FindAsync(heartBeatResponse.Content.NodeName);
                 if (nodeInfo == null)
                 {
-                    nodeInfo = new NodeInfo()
-                    {
-                        node_id = Guid.NewGuid().ToString("N"),
-                        node_name = heartBeatResponse.Content.NodeName,
-                    };
+                    nodeInfo = NodeInfo.Create(heartBeatResponse.Content.NodeName);
                     this._applicationDbContext.NodeInfoDbSet.Add(nodeInfo);
                 }
-                nodeInfo.update_time = heartBeatResponse.Content.Properties[NodeProperties.LastUpdateDateTimeKey];
-                nodeInfo.version = heartBeatResponse.Content.Properties[NodeProperties.VersionKey];
+                this.NodeInfo = nodeInfo;
+                nodeInfo.is_online = true;
+                nodeInfo.update_time = heartBeatResponse.Content.Properties[NodeProperties.LastUpdateDateTime_Key];
+                nodeInfo.version = heartBeatResponse.Content.Properties[NodeProperties.Version_Key];
                 nodeInfo.ip_addresses = remoteIPAddress.ToString();
+                nodeInfo.install_status = true;
+                nodeInfo.login_name = heartBeatResponse.Content.Properties[NodeProperties.Environment_UserName_Key];
                 if (nodeInfo.ip_addresses.StartsWith("10"))
                 {
                     nodeInfo.factory_name = "BL";

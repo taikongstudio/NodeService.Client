@@ -7,11 +7,16 @@
 @inject System.Net.Http.HttpClient HttpClient
 @page "/nodes/{nodeName}"
 @inject NotificationService _notice
+@inject NavigationManager NavigationManager
 
 <PageTitle>@NodeName</PageTitle>
 
 <GridContent>
         <GridCol Span="24">
+            <PageHeader 
+                Class="site-page-header" 
+                Title="@NodeName" 
+                OnBack="@(()=> { NavigationManager.NavigateTo("/nodes");})" />
             <Tabs DefaultActiveKey="1">
                 <TabPane Key="1">
                     <TabTemplate>

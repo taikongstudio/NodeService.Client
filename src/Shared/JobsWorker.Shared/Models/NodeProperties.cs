@@ -9,27 +9,29 @@ namespace JobsWorker.Shared.Models
 {
     public class NodeProperties
     {
-        public const string NodeNameKey = "NodeName";
-        public const string LastUpdateDateTimeKey = "LastUpdateDateTime";
-        public const string VersionKey = "Version";
-        public const string Environment_UserNameKey = "Environment.UserName";
-        public const string Environment_ProcessorCountKey = "Environment.ProcessorCount";
-        public const string Environment_IsPrivilegedProcessKey = "Environment.IsPrivilegedProcess";
-        public const string Environment_UserInteractiveKey = "Environment.UserInteractive";
-        public const string Environment_SystemDirectoryKey = "Environment.SystemDirectory";
-        public const string Environment_LogicalDrivesKey = "Environment.LogicalDrives";
-        public const string Environment_OSVersionKey = "Environment.OSVersion";
-        public const string Environment_UserDomainNameKey = "Environment.UserDomainName";
-        public const string Environment_CommandLineKey = "Environment.CommandLine";
-        public const string Environment_WorkingSetKey = "Environment.WorkingSet";
-        public const string Environment_SystemPageSizeKey = "Environment.SystemPageSize";
-        public const string Environment_ProcessPathKey = "Environment.ProcessPath";
-        public const string Environment_VersionKey = "Environment.Version";
-        public const string Environment_EnvironmentVariablesKey = "Environment.EnvironmentVariables";
-        public const string NetworkInterface_IsNetworkAvailableKey = "NetworkInterface.IsNetworkAvailable";
-        public const string NetworkInterface_AllNetworkInterfacesKey = "NetworkInterface.AllNetworkInterfaces";
-        public const string Process_ProcessesKey = "Process.Processes";
-        public const string Collect_TimeSpanKey = "Collect.TimeSpan";
+        public const string NodeName_Key = "NodeName";
+        public const string LastUpdateDateTime_Key = "LastUpdateDateTime";
+        public const string Version_Key = "Version";
+        public const string Environment_UserName_Key = "Environment.UserName";
+        public const string Environment_ProcessorCount_Key = "Environment.ProcessorCount";
+        public const string Environment_IsPrivilegedProcess_Key = "Environment.IsPrivilegedProcess";
+        public const string Environment_UserInteractive_Key = "Environment.UserInteractive";
+        public const string Environment_SystemDirectory_Key = "Environment.SystemDirectory";
+        public const string Environment_LogicalDrives_Key = "Environment.LogicalDrives";
+        public const string Environment_OSVersion_Key = "Environment.OSVersion";
+        public const string Environment_UserDomainName_Key = "Environment.UserDomainName";
+        public const string Environment_CommandLine_Key = "Environment.CommandLine";
+        public const string Environment_WorkingSet_Key = "Environment.WorkingSet";
+        public const string Environment_SystemPageSize_Key = "Environment.SystemPageSize";
+        public const string Environment_ProcessPath_Key = "Environment.ProcessPath";
+        public const string Environment_Version_Key = "Environment.Version";
+        public const string Environment_EnvironmentVariables_Key = "Environment.EnvironmentVariables";
+        public const string NetworkInterface_IsNetworkAvailable_Key = "NetworkInterface.IsNetworkAvailable";
+        public const string NetworkInterface_AllNetworkInterfaces_Key = "NetworkInterface.AllNetworkInterfaces";
+        public const string Process_Processes_Key = "Process.Processes";
+        public const string Collect_TimeSpan_Key = "Collect.TimeSpan";
+        public const string Domain_ComputerDomain_Key = "Domain.ComputerDomain";
+        public const string CollectTimeSpan_Key = "CollectTimeSpan";
 
 
         public string NodeName { get; set; }
@@ -62,12 +64,14 @@ namespace JobsWorker.Shared.Models
 
         public bool IsNetworkAvailable { get; set; }
 
+        public string ComputerDomain { get; set; }
+
         public IEnumerable<NetworkInterfaceModel> NetworkInterfaces { get; set; }
 
         public IEnumerable<ProcessInfo> Processes { get; set; }
 
         public IEnumerable<EnvironmentVariableInfo> EnvironmentVariables { get; set; }
-
+        public string CollectTimeSpan { get; set; }
 
         public static NodeProperties FromNodePropertyItems(NodePropertyItem[] items)
         {
@@ -79,62 +83,68 @@ namespace JobsWorker.Shared.Models
                 {
                     switch (nodePropertyItem.Name)
                     {
-                        case NodeNameKey:
+                        case NodeName_Key:
                             properties.NodeName = nodePropertyItem.Value;
                             break;
-                        case LastUpdateDateTimeKey:
+                        case LastUpdateDateTime_Key:
                             properties.LastUpdateDateTime = nodePropertyItem.Value;
                             break;
-                        case VersionKey:
+                        case Version_Key:
                             properties.Version = nodePropertyItem.Value;
                             break;
-                        case Environment_UserNameKey:
+                        case Environment_UserName_Key:
                             properties.UserName = nodePropertyItem.Value;
                             break;
-                        case Environment_ProcessorCountKey:
+                        case Environment_ProcessorCount_Key:
                             properties.ProcessorCount = int.Parse(nodePropertyItem.Value);
                             break;
-                        case Environment_UserInteractiveKey:
+                        case Environment_UserInteractive_Key:
                             properties.UserInteractive = bool.Parse(nodePropertyItem.Value);
                             break;
-                        case Environment_IsPrivilegedProcessKey:
+                        case Environment_IsPrivilegedProcess_Key:
                             properties.IsPrivilegedProcess = bool.Parse(nodePropertyItem.Value);
                             break;
-                        case Environment_LogicalDrivesKey:
+                        case Environment_LogicalDrives_Key:
                             properties.LogicalDrives = nodePropertyItem.Value;
                             break;
-                        case Environment_SystemDirectoryKey:
+                        case Environment_SystemDirectory_Key:
                             properties.SystemDirectory = nodePropertyItem.Value;
                             break;
-                        case Environment_OSVersionKey:
+                        case Environment_OSVersion_Key:
                             properties.OSVersion = nodePropertyItem.Value;
                             break;
-                        case Environment_EnvironmentVariablesKey:
+                        case Environment_EnvironmentVariables_Key:
                             properties.EnvironmentVariables = JsonSerializer.Deserialize<EnvironmentVariableInfo[]>(nodePropertyItem.Value);
                             break;
-                        case Environment_ProcessPathKey:
+                        case Environment_ProcessPath_Key:
                             properties.ProcessPath = nodePropertyItem.Value;
                             break;
-                        case Environment_SystemPageSizeKey:
+                        case Environment_SystemPageSize_Key:
                             properties.SystemPageSize = long.Parse(nodePropertyItem.Value);
                             break;
-                        case Environment_UserDomainNameKey:
+                        case Environment_UserDomainName_Key:
                             properties.UserDomainName = nodePropertyItem.Value;
                             break;
-                        case Environment_WorkingSetKey:
+                        case Environment_WorkingSet_Key:
                             properties.WorkingSet = long.Parse(nodePropertyItem.Value);
                             break;
-                        case Environment_VersionKey:
+                        case Environment_Version_Key:
                             properties.Version = nodePropertyItem.Value;
                             break;
-                        case NetworkInterface_IsNetworkAvailableKey:
+                        case NetworkInterface_IsNetworkAvailable_Key:
                             properties.IsNetworkAvailable = bool.Parse(nodePropertyItem.Value);
                             break;
-                        case NetworkInterface_AllNetworkInterfacesKey:
+                        case NetworkInterface_AllNetworkInterfaces_Key:
                             properties.NetworkInterfaces = JsonSerializer.Deserialize<NetworkInterfaceModel[]>(nodePropertyItem.Value);
                             break;
-                        case Process_ProcessesKey:
+                        case Process_Processes_Key:
                             properties.Processes = JsonSerializer.Deserialize<ProcessInfo[]>(nodePropertyItem.Value);
+                            break;
+                        case Domain_ComputerDomain_Key:
+                            properties.ComputerDomain = nodePropertyItem.Value;
+                            break;
+                        case CollectTimeSpan_Key:
+                            properties.CollectTimeSpan = nodePropertyItem.Value;
                             break;
                         default:
                             break;

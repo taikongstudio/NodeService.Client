@@ -2,12 +2,13 @@
 @page "/plugins"
 @using JobsWorker.Shared.Models
 @using JobsWorkerWebService.Client
-@inject System.Net.Http.HttpClient HttpClient
 @using System.ComponentModel
 @using AntDesign.TableModels
 @using System.ComponentModel.DataAnnotations
 @using System.Text.Json
 @inject NotificationService _notice
+@inject System.Net.Http.HttpClient HttpClient
+@inject NavigationManager NavigationManager
 
 <GridContent>
     <Modal Title="@("BasicModal")"
@@ -143,7 +144,7 @@
 
     private HttpRequestMessage BuildRequestMessage()
     {
-        string requestUri = $"http://localhost:5000/api/plugins/upload/";
+        string requestUri = $"{this.NavigationManager.BaseUri}/api/plugins/upload/";
         var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri);
         var requestContent = new MultipartFormDataContent();
         var streamContent = new StreamContent(this.model.File.OpenReadStream(1024 * 1024 * 100));

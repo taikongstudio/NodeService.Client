@@ -1,13 +1,5 @@
-﻿using JobsWorkerNodeService;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using NLog;
-using System;
-using System.Collections.Generic;
+﻿using NLog;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace JobsWorkerNodeService.Services
 {
@@ -54,41 +46,30 @@ namespace JobsWorkerNodeService.Services
         {
             if (int.TryParse(this._options.parentprocessid, out var processId))
             {
-                while (true)
+                try
                 {
-                    try
+                    using var process = Process.GetProcessById(processId);
+                    if (process == null || process.HasExited)
                     {
-                        using var process = Process.GetProcessById(processId);
-                        if (process == null)
-                        {
-                            return;
-                        }
-                        try
-                        {
-                            if (process.HasExited)
-                            {
-                                goto LExit;
-                            }
-                        }
-                        catch
-                        {
-
-                        }
+                        this._logger.LogError($"exit process null process or exited process");
                     }
-                    catch (ArgumentException ex)
+                    else
                     {
-                        this._logger.LogError(ex.ToString());
-                        goto LExit;
-
+                        return;
                     }
-                    catch (Exception ex)
-                    {
-                        this._logger.LogError(ex.ToString());
-                    }
+                }
+                catch (ArgumentException ex)
+                {
+                    this._logger.LogError(ex.ToString());
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex.ToString());
+                    return;
                 }
 
             }
-        LExit:
+
             this._logger.LogError($"exit process");
             LogManager.Flush();
             LogManager.Shutdown();

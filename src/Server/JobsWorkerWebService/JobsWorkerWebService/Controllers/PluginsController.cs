@@ -4,7 +4,6 @@ using JobsWorkerWebService.Data;
 using JobsWorkerWebService.Extensions;
 using JobsWorkerWebService.Models.Configurations;
 using JobsWorkerWebService.Services.VirtualSystem;
-using JobsWorkerWebService.Services.VirtualSystemServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel;
