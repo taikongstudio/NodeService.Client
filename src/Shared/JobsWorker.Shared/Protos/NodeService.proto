@@ -10,13 +10,15 @@ import "ConfigurationSystemModels.proto";
 package JobsWorker.Shared;
 
 service NodeService {
-  rpc Subscribe (SubscribeRequest) returns (stream SubscribeEvent);
-  rpc SendFileSystemListDirectoryResponse(FileSystemListDirectoryRsp) returns(google.protobuf.Empty);
-  rpc SendFileSystemListDriveResponse(FileSystemListDriveRsp) returns(google.protobuf.Empty);
-  rpc SendHeartBeatResponse(HeartBeatRsp) returns(google.protobuf.Empty);
-  rpc SendFileSystemBulkOperationReport(FileSystemBulkOperationReport) returns(google.protobuf.Empty);
-  rpc SendFileSystemBulkOperationResponse(FileSystemBulkOperationRsp) returns(google.protobuf.Empty);
-  rpc QueryConfigurations(QueryConfigurationReq) returns(QueryConfigurationRsp);
+	rpc Subscribe (SubscribeRequest) returns (stream SubscribeEvent);
+	rpc SendFileSystemListDirectoryResponse(FileSystemListDirectoryRsp) returns(google.protobuf.Empty);
+	rpc SendFileSystemListDriveResponse(FileSystemListDriveRsp) returns(google.protobuf.Empty);
+	rpc SendHeartBeatResponse(HeartBeatRsp) returns(google.protobuf.Empty);
+	rpc SendFileSystemBulkOperationReport(FileSystemBulkOperationReport) returns(google.protobuf.Empty);
+	rpc SendFileSystemBulkOperationResponse(FileSystemBulkOperationRsp) returns(google.protobuf.Empty);
+	rpc QueryConfigurations(QueryConfigurationReq) returns(QueryConfigurationRsp);
+	rpc SendJobExecutionTriggerResponse(JobExecutionTriggerRsp) returns(google.protobuf.Empty);
+	rpc SendJobExecutionReport(stream JobExecutionReport) returns(google.protobuf.Empty);
 }
 
 
@@ -51,5 +53,58 @@ message SubscribeEvent {
 		FileSystemListDriveReq FileSystemListDriveReq = 7;
 		FileSystemBulkOperationReq FileSystemBulkOperationReq = 8;
 		ConfigurationChangedReport ConfigurationChangedReport = 9;
+		JobExecutionTriggerReq JobExecutionTriggerReq = 10;
 	}
 }
+
+ enum JobExecutionStatus
+{
+    JobExecutionStatus_Unknown = 0;
+    JobExecutionStatus_Triggered  = 1;
+	JobExecutionStatus_Pendding = 2;
+    JobExecutionStatus_Started = 3;
+    JobExecutionStatus_Running = 4;
+    JobExecutionStatus_Failed = 5;
+    JobExecutionStatus_Finished = 6;
+}
+
+
+message JobExecutionReport {
+	string NodeName = 1;
+	string RequestId = 2;
+	JobExecutionStatus Status = 3;
+	map<string, string> Properties = 4;
+	repeated string Logs = 5;
+}
+
+message UpdateJobExecutionStatusRsp {
+	string NodeName = 1;
+	string RequestId = 2;
+}
+
+message JobExecutionTriggerReq {
+	string NodeName = 1;
+	string RequestId = 2;
+	map<string, string> Properties = 3;
+}
+
+message JobExecutionTriggerRsp {
+	string NodeName = 1;
+	string RequestId = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+}
+
+message JobCancelReq {
+	string NodeName = 1;
+	string RequestId = 2;
+	map<string, string> Properties = 3;
+}
+
+message JobCancelRsp {
+	string NodeName = 1;
+	string RequestId = 2;
+	int32 ErrorCode = 3;
+	string Message = 4;
+}
+

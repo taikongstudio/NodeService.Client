@@ -1,0 +1,1959 @@
+﻿@namespace JobsWorkerWebService.Pages.CommonConfig.NodeConfigTemplates
+@page "/CommonConfig/NodeConfigTemplates"
+@inject ApiService ApiService
+@inject NotificationService _notice
+@inject ConfirmService _confirmService
+
+<GridContent>
+    <Modal Width="800"
+           Title="@_modalTitle"
+           Visible="@_editFormVisible"
+           Maximizable="true"
+           DefaultMaximized="true"
+           MaxBodyHeight="90vh"
+           ConfirmLoading="@_editFormConfirmLoading"
+           OnOk="@HandleEditFormOk"
+           OnCancel="@HandleEditFormCancel">
+        <Form Model="@_editModel" Size="@AntSizeLDSType.Default"
+              LabelColSpan="4"
+              Loading="@_loading"
+              Layout="@FormLayout.Horizontal"
+              WrapperColSpan="20"
+              OnFinish="OnEditFormFinish"
+              OnFinishFailed="OnEditFormFinishFailed"
+              @ref="@_editForm">
+            <FormItem Label="名称">
+                <Input @bind-Value="@context.Name" />
+            </FormItem>
+            <FormItem Label="描述">
+                <Input @bind-Value="@context.Description" />
+            </FormItem>
+            <FormItem Label="http地址">
+                <Input @bind-Value="@context.HttpAddress" Placeholder="输入http地址" />
+            </FormItem>
+            <FormItem Label="grpc地址">
+                <Input @bind-Value="@context.GrpcAddress" Placeholder="输入grpc地址" />
+            </FormItem>
+            <FormItem Label="版本">
+                <Input @bind-Value="@context.Version" />
+            </FormItem>
+            <FormItem Label="应用到节点">
+                <Button  OnClick="SelectAllNodeInfo" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    全选
+                </Button>
+                <Button OnClick="UnselectAllNodeInfo" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    取消全选
+                </Button>
+                <Button OnClick="QueryNodeInfoList" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    刷新节点
+                </Button>
+                <Table OnChange="OnNodeTableChange"
+                       @ref="_nodeTable"
+                       Context="nodeInfo"
+                       TItem="NodeInfoModel"
+                       @bind-SelectedRows="@_selectedNodeInfos"
+                       DataSource="@_nodeInfoList"
+                       Size="TableSize.Small">
+                    <TitleTemplate>
+                        <GridRow>
+                            <GridCol Span="4">
+                                <Title Level="3">节点</Title>
+                            </GridCol>
+                            <GridCol Span="12" Offset="8">
+                                <Search Placeholder="搜索节点名称" @bind-Value="@_nodeSearchText" OnSearch="()=>_nodeTable?.ReloadData()" />
+                            </GridCol>
+                        </GridRow>
+                    </TitleTemplate>
+                    <ColumnDefinitions>
+                        <Selection Key="@nodeInfo.Id" Type="checkbox" />
+                        <PropertyColumn  Title="标志" Ellipsis Property="c=>c.Id" Sortable></PropertyColumn>
+                         <PropertyColumn Title="节点名称" Property="c=>c.Name" Sortable></PropertyColumn>
+                         <PropertyColumn Title="状态" Property="c=>c.Status" Sortable>
+                            @switch (nodeInfo.Status)
+                            {
+                                case NodeStatus.Online:
+                                    <Badge Status="@BadgeStatus.Processing" Text="在线"></Badge>
+                                    break;
+                                case NodeStatus.Offline:
+                                    <Badge Status="@BadgeStatus.Warning" Text="离线"></Badge>
+                                    break;
+                               case NodeStatus.NotConfigured:
+                                    <Badge Status="@BadgeStatus.Warning" Text="未配置"></Badge>
+                                    break;
+                            }
+                        </PropertyColumn>
+                    </ColumnDefinitions>
+                 </Table>
+             </FormItem>
+            <FormItem Label="任务调度配置">
+                <Select DataSource="@_jobScheduleConfigs"
+                        @bind-Value="@_selectedJobScheduleConfigId"
+                        LabelName="@nameof(ModelBase.Name)"
+                        ValueName="@nameof(ModelBase.Id)"
+                        Style="width:200px" />
+                <Button OnClick="AddJobScheduleConfigTemplateBinding" Disabled="@(this._selectedJobScheduleConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    添加
+                </Button>
+                <Button OnClick="RemoveSelectedJobScheduleConfigTemplateBinding" Disabled="@(this._selectedJobScheduleConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    删除
+                </Button>
+                <Table @ref="@_jobScheduleConfigTemplateBindingTable"
+                       Context="mappingEntry"
+                       TItem="JobScheduleConfigTemplateBindingModel"
+                       @bind-SelectedRows="@_selectedJobScheduleConfigBindings"
+                       DataSource="@context.JobScheduleConfigTemplateBindingList"
+                       Size="TableSize.Small">
+                    <Selection Key="@mappingEntry.TargetForeignKey" Type="checkbox" />
+                    <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+
+            </FormItem>
+            <FormItem Label="Ftp配置">
+                <Select DataSource="@_ftpConfigs"
+                        @bind-Value="@_selectedFtpConfigId"
+                        LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                        Style="width:200px" />
+                 <Button OnClick="AddFtpConfigTemplateBinding" Disabled="@(this._selectedFtpConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    添加
+                </Button>
+                 <Button OnClick="RemoveSelectedFtpConfigTemplateBinding" Disabled="@(this._selectedFtpConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    删除
+                </Button>
+                 <Table @ref="@_ftpConfigTemplateBindingTable"
+                       Context="mappingEntry"
+                       TItem="FtpConfigTemplateBindingModel"
+                       @bind-SelectedRows="@_selectedFtpConfigBindings"
+                       DataSource="@context.FtpConfigTemplateBindingList"
+                       Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+            <FormItem Label="Ftp上传配置">
+                <Select DataSource="@_ftpUploadConfigs"
+                        @bind-Value="@_selectedFtpUploadConfigId"
+                        LabelName="@nameof(ModelBase.Name)"
+                        ValueName="@nameof(ModelBase.Id)"
+                        Style="width:200px" />
+                <Button OnClick="AddFtpUploadConfigTemplateBinding" Disabled="@(this._selectedFtpUploadConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    添加
+                </Button>
+                <Button OnClick="RemoveSelectedFtpUploadConfigTemplateBinding" Disabled="@(this._selectedFtpUploadConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                    删除
+                </Button>
+                 <Table @ref="@_ftpUploadConfigTemplateBindingTable"
+                       Context="mappingEntry"
+                       TItem="FtpUploadConfigTemplateBindingModel"
+                       @bind-SelectedRows="@_selectedFtpUploadConfigBindings"
+                       DataSource="@context.FtpUploadConfigTemplateBindingList"
+                       Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+            <FormItem Label="Mysql配置">
+                 <Select DataSource="@_mysqlConfigs"
+                         @bind-Value="@_selectedMysqlConfigId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px" />
+                 <Button OnClick="AddMysqlConfigTemplateBinding" Disabled="@(this._selectedMysqlConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedMysqlConfigTemplateBinding" Disabled="@(this._selectedMysqlConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_mysqlConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="MysqlConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedMysqlConfigBindings"
+                        DataSource="@context.MysqlConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+             <FormItem Label="Kafka配置">
+                 <Select DataSource="@_kafkaConfigs"
+                         @bind-Value="@_selectedKafkaConfigId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px" />
+                 <Button OnClick="AddKafkaConfigTemplateBinding" Disabled="@(this._selectedKafkaConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedKafkaConfigTemplateBinding" Disabled="@(this._selectedKafkaConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_kafkaConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="KafkaConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedKafkaConfigBindings"
+                        DataSource="@context.KafkaConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+             </FormItem>
+            <FormItem Label="日志上传配置">
+                 <Select DataSource="@_logUploadConfigs"
+                         @bind-Value="@_selectedLogUploadConfigId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px" />
+                 <Button OnClick="AddLogUploadConfigTemplateBinding" Disabled="@(this._selectedLogUploadConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedLogUploadConfigTemplateBinding" Disabled="@(this._selectedLogUploadConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_logUploadConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="LogUploadConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedLogUploadConfigBindings"
+                        DataSource="@context.LogUploadConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+            <FormItem Label="RestApi配置">
+                 <Select DataSource="@_restApiConfigs"
+                         @bind-Value="@_selectedRestApiConfigId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px" />
+                 <Button OnClick="AddRestApiConfigTemplateBinding" Disabled="@(this._selectedRestApiConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedRestApiConfigTemplateBinding" Disabled="@(this._selectedRestApiConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_restApiConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="RestApiConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedRestApiConfigBindings"
+                        DataSource="@context.RestApiConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+            <FormItem Label="插件配置">
+                 <Select DataSource="@_pluginConfigs"
+                         @bind-Value="@_selectedPluginInfoId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px" />
+                 <Button OnClick="AddPluginConfigTemplateBinding" Disabled="@(this._selectedPluginInfoId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedPluginConfigTemplateBinding" Disabled="@(this._selectedPluginInfoBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_pluginConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="PluginConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedPluginInfoBindings"
+                        DataSource="@context.PluginConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+            <FormItem Label="本地目录映射">
+                 <Select 
+                         DataSource="@_localDirectoryMappingConfigs"
+                         @bind-Value="@_selectedLocalDirectoryMappingConfigId"
+                         LabelName="@nameof(ModelBase.Name)"
+                         ValueName="@nameof(ModelBase.Id)"
+                         Style="width:200px"  />
+                 <Button OnClick="AddLocalDirectoryMappingConfigTemplateBinding" Disabled="@(this._selectedLocalDirectoryMappingConfigId==null)" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     添加
+                 </Button>
+                 <Button OnClick="RemoveSelectedLocalDirectoryMappingConfigTemplateBinding" Disabled="@(this._selectedLocalDirectoryMappingConfigBindings.IsNullOrAny(IsRemovableTemplateBindingTarget))" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                     删除
+                 </Button>
+                 <Table @ref="@_localDirectoryMappingConfigTemplateBindingTable"
+                        Context="mappingEntry"
+                        TItem="LocalDirectoryMappingConfigTemplateBindingModel"
+                        @bind-SelectedRows="@_selectedLocalDirectoryMappingConfigBindings"
+                        DataSource="@context.LocalDirectoryMappingConfigTemplateBindingList"
+                        Size="TableSize.Small">
+                     <Selection Key="@mappingEntry.TargetForeignKey" Disabled="@(IsDisabled(mappingEntry.CombinedKey))" Type="checkbox" />
+                     <PropertyColumn Title="标志" Property="c=>c.TargetForeignKey" Sortable></PropertyColumn>
+                     <PropertyColumn Title="名称" Property="c=>c.TargetName" Sortable></PropertyColumn>
+                 </Table>
+            </FormItem>
+        </Form>
+    </Modal>
+
+     <Space Style="margin-bottom:16px">
+        <SpaceItem>
+            <Button Type="@ButtonType.Primary" OnClick="()=>ShowEditForm()">新建配置</Button>
+        </SpaceItem>
+        <SpaceItem>
+            <Button Type="@ButtonType.Primary" OnClick="()=>this.QueryConfigListAsync()">刷新</Button>
+        </SpaceItem>
+
+    </Space>
+<Table Size="TableSize.Small" Loading="_loading" EnableVirtualization="true" TItem="NodeConfigTemplateModel" DataSource="@_dataSource">
+    <ColumnDefinitions>
+    <PropertyColumn Title="标志" Ellipsis  Sortable Property="c=>c.Id"></PropertyColumn>
+    <PropertyColumn Title="名称" Sortable Property="c=>c.Name"></PropertyColumn>
+    <PropertyColumn Title="版本" Sortable="true" Property="c=>c.Version"></PropertyColumn>
+    <PropertyColumn Title="默认" Sortable="true" Property="c=>c.IsDefault"></PropertyColumn>
+    <PropertyColumn Title="grpc地址" Sortable="true" Property="c=>c.GrpcAddress"></PropertyColumn>
+    <PropertyColumn Title="http地址" Sortable="true" Property="c=>c.HttpAddress"></PropertyColumn>
+            <ActionColumn Fixed="right" Width="250" Title="操作">
+                <CellRender Context="cellData">
+                    <Space>
+                         <SpaceItem>
+                             <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Icon="@IconType.Outline.Copy" OnClick="()=>ShowEditForm(context.Copy<NodeConfigTemplateModel>())"></Button>
+                         </SpaceItem>
+                        <SpaceItem>
+                            <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Icon="@IconType.Outline.Edit" OnClick="()=>ShowEditForm(context)"></Button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Danger Icon="@IconType.Outline.Delete" OnClick="()=>DeleteConfig(context)"></Button>
+                         </SpaceItem>
+                         @if (cellData.RowData.Expanded)
+                        {
+                            <SpaceItem>
+                                <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Icon="@IconType.Outline.FullscreenExit" OnClick="()=>cellData.RowData.Expanded=false"></Button>
+                            </SpaceItem>
+                        }
+                        else
+                        {
+                            <SpaceItem>
+                                <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Icon="@IconType.Outline.Fullscreen" OnClick="()=>cellData.RowData.Expanded=true"></Button>
+                            </SpaceItem>
+                        }
+
+                     </Space>
+                 </CellRender>
+             </ActionColumn>
+    </ColumnDefinitions>
+    <ExpandTemplate>
+         <Tabs Animated>
+                <TabPane Tab="使用此模板的节点" Key="1">
+                    <StringEntryTable DataSource="@context.Data.Nodes.Select(x=>new StringEntry(x.Id,x.Name))"
+                                      NameTitle="节点Id"
+                                      ValueTitle="节点名称名称"
+                                      IsEditable="false" />
+                </TabPane>
+                <TabPane Tab="任务调度" Key="2">
+                    <StringEntryTable DataSource="@context.Data.JobScheduleConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="任务Id"
+                                      ValueTitle="任务名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="Ftp" Key="3">
+                    <StringEntryTable DataSource="@context.Data.FtpConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="Mysql" Key="4">
+                    <StringEntryTable DataSource="@context.Data.MysqlConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="Kafka" Key="5">
+                    <StringEntryTable DataSource="@context.Data.KafkaConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="Ftp上传" Key="6">
+                    <StringEntryTable DataSource="@context.Data.FtpUploadConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="日志上传" Key="7">
+                    <StringEntryTable DataSource="@context.Data.LogUploadConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="目录映射" Key="8">
+                    <StringEntryTable DataSource="@context.Data.LogUploadConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+
+                <TabPane Tab="插件" Key="9">
+                    <StringEntryTable DataSource="@context.Data.PluginConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+
+                <TabPane Tab="RestApi" Key="10">
+                    <StringEntryTable DataSource="@context.Data.RestApiConfigTemplateBindingList.Select(x=>new StringEntry(x.TargetForeignKey,x.Target?.Name))"
+                                      NameTitle="配置Id"
+                                      ValueTitle="配置名称"
+                                      IsEditable="false" />
+                </TabPane>
+            </Tabs>
+    </ExpandTemplate>
+</Table>
+</GridContent>
+
+ @code {
+    ITable _nodeTable;
+    string _nodeSearchText;
+
+    string _modalTitle;
+    bool _editFormVisible = false;
+    bool _editFormSubmitting = false;
+    bool _editFormConfirmLoading = false;
+    Form<NodeConfigTemplateModel> _editForm;
+    NodeConfigTemplateModel _editModel = new NodeConfigTemplateModel();
+
+
+    private HashSet<(string OwnerId, string TargetId, string ContextId)> _bindingHashSet = new();
+    private HashSet<(string OwnerId, string TargetId)> _removableHashSet = new();
+
+    IEnumerable<JobTypeDescConfigModel> _jobTypeDescConfigs;
+
+    IEnumerable<NodeInfoModel> _nodeInfoList = [];
+    IEnumerable<NodeInfoModel> _selectedNodeInfos = [];
+    IEnumerable<NodeConfigTemplateNodeInfoBindingModel> _selectedNodeInfoBindings = [];
+    private string? _selectedNodeInfoId;
+
+
+    IEnumerable<FtpUploadConfigModel> _ftpUploadConfigs;
+    IEnumerable<FtpUploadConfigTemplateBindingModel> _selectedFtpUploadConfigBindings = [];
+    private string? _selectedFtpUploadConfigId;
+    ITable _ftpUploadConfigTemplateBindingTable;
+
+    IEnumerable<FtpConfigModel> _ftpConfigs;
+    IEnumerable<FtpConfigTemplateBindingModel> _selectedFtpConfigBindings = [];
+    private string? _selectedFtpConfigId;
+    ITable _ftpConfigTemplateBindingTable;
+
+    IEnumerable<MysqlConfigModel> _mysqlConfigs;
+    IEnumerable<MysqlConfigTemplateBindingModel> _selectedMysqlConfigBindings = [];
+    private string? _selectedMysqlConfigId;
+    ITable _mysqlConfigTemplateBindingTable;
+
+    IEnumerable<LogUploadConfigModel> _logUploadConfigs;
+    IEnumerable<LogUploadConfigTemplateBindingModel> _selectedLogUploadConfigBindings = [];
+    private string? _selectedLogUploadConfigId;
+    ITable _logUploadConfigTemplateBindingTable;
+
+    IEnumerable<PluginConfigModel> _pluginConfigs;
+    IEnumerable<PluginConfigTemplateBindingModel> _selectedPluginInfoBindings = [];
+    private string? _selectedPluginInfoId;
+    ITable _pluginConfigTemplateBindingTable;
+
+    IEnumerable<LocalDirectoryMappingConfigModel> _localDirectoryMappingConfigs;
+    IEnumerable<LocalDirectoryMappingConfigTemplateBindingModel> _selectedLocalDirectoryMappingConfigBindings = [];
+    private string? _selectedLocalDirectoryMappingConfigId;
+    ITable _localDirectoryMappingConfigTemplateBindingTable;
+
+    IEnumerable<RestApiConfigModel> _restApiConfigs;
+    IEnumerable<RestApiConfigTemplateBindingModel> _selectedRestApiConfigBindings = [];
+    private string? _selectedRestApiConfigId;
+    ITable _restApiConfigTemplateBindingTable;
+
+    IEnumerable<JobScheduleConfigModel> _jobScheduleConfigs;
+    IEnumerable<JobScheduleConfigTemplateBindingModel> _selectedJobScheduleConfigBindings = [];
+    private string? _selectedJobScheduleConfigId;
+    ITable _jobScheduleConfigTemplateBindingTable;
+
+    IEnumerable<KafkaConfigModel> _kafkaConfigs;
+    IEnumerable<KafkaConfigTemplateBindingModel> _selectedKafkaConfigBindings = [];
+    private string? _selectedKafkaConfigId;
+    ITable _kafkaConfigTemplateBindingTable;
+
+    private bool _loading;
+    private IEnumerable<NodeConfigTemplateModel>? _dataSource = Array.Empty<NodeConfigTemplateModel>();
+
+    private async Task ShowEditForm(NodeConfigTemplateModel? model = null)
+    {
+        this._loading = true;
+        this._removableHashSet.Clear();
+        this._bindingHashSet.Clear();
+        await this.QueryAllConfigListAsync().ConfigureAwait(false);
+        this._editFormVisible = true;
+        if (model == null)
+        {
+            this._editModel = new NodeConfigTemplateModel()
+                {
+                    Id = Guid.NewGuid().ToString()
+                };
+            this._modalTitle = "新建配置";
+        }
+        else
+        {
+            this._editModel = model.JsonClone<NodeConfigTemplateModel>();
+            this._modalTitle = "编辑配置";
+            this.FindConfigs(this._editModel);
+            if (this._nodeInfoList != null)
+            {
+                this._selectedNodeInfos = this._editModel.NodeIdList.Select(id => this._nodeInfoList.FirstOrDefault(x => x.Id == id));
+            }
+        }
+
+        this._loading = false;
+    }
+
+    private async Task QueryAllConfigListAsync()
+    {
+        await this.QueryFtpUploadConfigList();
+        await this.QueryFtpConfigList();
+        await this.QueryLocalDirectoryMappingConfigList();
+        await this.QueryLogUploadConfigList();
+        await this.QueryPluginConfigList();
+        await this.QueryRestApiConfigList();
+        await this.QueryTaskScheduleConfigList();
+        await this.QueryMysqlConfigList();
+        await this.QueryKafkaConfigList();
+        await this.QueryNodeInfoList();
+        await this.QueryJobTypeDescConfigList();
+    }
+
+    private async Task OnEditFormFinish(EditContext editContext)
+    {
+        try
+        {
+            this._editModel.NodeIdList.Clear();
+            this._editModel.NodeIdList.AddRange(this._selectedNodeInfos.Select(x => x.Id).DistinctBy(x => x));
+            var apiResult = await this.ApiService.AddOrUpdateAsync([this._editModel]);
+            if (apiResult.ErrorCode == 0)
+            {
+                await this.QueryAllConfigListAsync();
+                this._removableHashSet.Clear();
+                this._bindingHashSet.Clear();
+                foreach (var item in apiResult.Result)
+                {
+                    FindConfigs(item);
+                }
+                this._dataSource = apiResult.Result;
+                this._editFormVisible = false;
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+        finally
+        {
+            this._editFormSubmitting = false;
+            this._editFormConfirmLoading = false;
+        }
+    }
+
+    private void OnEditFormFinishFailed(EditContext editContext)
+    {
+        this._editFormSubmitting = false;
+        this._editFormConfirmLoading = false;
+    }
+
+    private Task<ConfirmResult> ShowConfirmDialogAsync(string title, string content)
+    {
+        var options = new ConfirmButtonOptions()
+            {
+                Button1Props = new AntDesign.ButtonProps()
+                {
+                    ChildContent = "确定",
+                    Type = ButtonType.Primary,
+                },
+                Button2Props = new AntDesign.ButtonProps()
+                {
+                    ChildContent = "取消"
+                }
+            };
+        return _confirmService.Show(
+                content,
+                title,
+                ConfirmButtons.OKCancel,
+                ConfirmIcon.Info,
+                options);
+    }
+
+    private async Task DeleteConfig(NodeConfigTemplateModel model)
+    {
+        try
+        {
+            if (await ShowConfirmDialogAsync("删除确认", "确定要删除吗？") != ConfirmResult.OK)
+            {
+                return;
+            }
+            var apiResult = await this.ApiService.RemoveAsync([model]);
+            if (apiResult.ErrorCode == 0)
+            {
+                this._dataSource = apiResult.Result;
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+
+    private void HandleEditFormCancel(MouseEventArgs e)
+    {
+        this._editFormVisible = false;
+        this._bindingHashSet.Clear();
+        this._removableHashSet.Clear();
+    }
+
+
+    private void HandleEditFormOk(MouseEventArgs e)
+    {
+        this._editFormSubmitting = true;
+        this._editForm.Submit();
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        await this.QueryConfigListAsync().ConfigureAwait(false);
+
+    }
+
+    private async Task QueryConfigListAsync()
+    {
+        try
+        {
+            this._loading = true;
+            var apiResult = await this.ApiService.QueryNodeConfigTemplateListAsync();
+            await this.QueryAllConfigListAsync();
+            foreach (var item in apiResult.Result)
+            {
+                FindConfigs(item);
+            }
+            this._dataSource = apiResult.Result;
+            this._loading = false;
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+        finally
+        {
+            this._loading = false;
+        }
+
+    }
+
+    private void FindConfigs(NodeConfigTemplateModel model)
+    {
+        foreach (var binding in model.JobScheduleConfigTemplateBindingList)
+        {
+            binding.Target = this._jobScheduleConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+            if (binding.Target == null)
+            {
+                continue;
+            }
+            if (TryAddRemovableTarget(binding.CombinedKey))
+            {
+                RefreshTemplateBindings(binding.Target, ListChangedType.ItemAdded);
+            }
+        }
+
+        foreach (var binding in model.FtpUploadConfigTemplateBindingList)
+        {
+            binding.Target = this._ftpUploadConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.FtpConfigTemplateBindingList)
+        {
+            binding.Target = this._ftpConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.MysqlConfigTemplateBindingList)
+        {
+            binding.Target = this._mysqlConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.LogUploadConfigTemplateBindingList)
+        {
+            binding.Target = this._logUploadConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.PluginConfigTemplateBindingList)
+        {
+            binding.Target = this._pluginConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.RestApiConfigTemplateBindingList)
+        {
+            binding.Target = this._restApiConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.LocalDirectoryMappingConfigTemplateBindingList)
+        {
+            binding.Target = this._localDirectoryMappingConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        foreach (var binding in model.KafkaConfigTemplateBindingList)
+        {
+            binding.Target = this._kafkaConfigs.FirstOrDefault(x => x.Id == binding.TargetForeignKey);
+        }
+
+        model.Nodes = model.NodeIdList.Select(id => this._nodeInfoList.FirstOrDefault(x => x.Id == id)).ToList();
+
+
+    }
+
+    private async Task QueryFtpUploadConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryFtpUploadConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._ftpUploadConfigs = apiResult.Result ?? Array.Empty<FtpUploadConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryFtpConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryFtpConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._ftpConfigs = apiResult.Result ?? Array.Empty<FtpConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryJobTypeDescConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryJobTypeDescConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._jobTypeDescConfigs = apiResult.Result ?? Array.Empty<JobTypeDescConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+
+    private async Task QueryLogUploadConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryLogUploadConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._logUploadConfigs = apiResult.Result ?? Array.Empty<LogUploadConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryLocalDirectoryMappingConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryLocalDirectoryMappingConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._localDirectoryMappingConfigs = apiResult.Result ?? Array.Empty<LocalDirectoryMappingConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryMysqlConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryMysqlConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._mysqlConfigs = apiResult.Result ?? Array.Empty<MysqlConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryKafkaConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryKafkaConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._kafkaConfigs = apiResult.Result ?? Array.Empty<KafkaConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryNodeInfoList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryNodeListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._nodeInfoList = apiResult.Result ?? Array.Empty<NodeInfoModel>();
+                this._selectedNodeInfos = this._editModel.NodeIdList.Select(id => this._nodeInfoList.FirstOrDefault(x => x.Id == id));
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryPluginConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryPluginConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._pluginConfigs = apiResult.Result ?? Array.Empty<PluginConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryRestApiConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryRestApiConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._restApiConfigs = apiResult.Result ?? Array.Empty<RestApiConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+    private async Task QueryTaskScheduleConfigList()
+    {
+        try
+        {
+            var apiResult = await this.ApiService.QueryTaskScheduleConfigListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._jobScheduleConfigs = apiResult.Result ?? Array.Empty<JobScheduleConfigModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "错误提示",
+                        Description = apiResult.Message,
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            await this._notice.Open(new NotificationConfig()
+                {
+                    Message = "错误提示",
+                    Description = ex.ToString(),
+                });
+        }
+    }
+
+
+
+    private void AddFtpUploadConfigTemplateBinding()
+    {
+        var target = this._ftpUploadConfigs.FirstOrDefault(x => x.Id == this._selectedFtpUploadConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedFtpUploadConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.FtpUploadConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.FtpUploadConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedFtpUploadConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedFtpUploadConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.FtpUploadConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._ftpUploadConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddFtpConfigTemplateBinding()
+    {
+        var target = this._ftpConfigs.FirstOrDefault(x => x.Id == this._selectedFtpConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedFtpConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.FtpConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.FtpConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedFtpConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedFtpConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.FtpConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._ftpConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddMysqlConfigTemplateBinding()
+    {
+        var target = this._mysqlConfigs.FirstOrDefault(x => x.Id == this._selectedMysqlConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedMysqlConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.MysqlConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.MysqlConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedMysqlConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedMysqlConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.MysqlConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._mysqlConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddLogUploadConfigTemplateBinding()
+    {
+        var target = this._logUploadConfigs.FirstOrDefault(x => x.Id == this._selectedLogUploadConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedLogUploadConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.LogUploadConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.LogUploadConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedLogUploadConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedLogUploadConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.LogUploadConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._logUploadConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddPluginConfigTemplateBinding()
+    {
+        var target = this._pluginConfigs.FirstOrDefault(x => x.Id == this._selectedPluginInfoId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedPluginInfoId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.PluginConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.PluginConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+
+    }
+
+    private void RemoveSelectedPluginConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedPluginInfoBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.PluginConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._pluginConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddLocalDirectoryMappingConfigTemplateBinding()
+    {
+        var target = this._localDirectoryMappingConfigs.FirstOrDefault(x => x.Id == this._selectedLocalDirectoryMappingConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedLocalDirectoryMappingConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.LocalDirectoryMappingConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.LocalDirectoryMappingConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedLocalDirectoryMappingConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedLocalDirectoryMappingConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.LocalDirectoryMappingConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._localDirectoryMappingConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddRestApiConfigTemplateBinding()
+    {
+        var target = this._restApiConfigs.FirstOrDefault(x => x.Id == this._selectedRestApiConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedRestApiConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.RestApiConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.RestApiConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedRestApiConfigTemplateBinding()
+    {
+
+        foreach (var item in this._selectedRestApiConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.RestApiConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._restApiConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void AddJobScheduleConfigTemplateBinding()
+    {
+        var target = this._jobScheduleConfigs.FirstOrDefault(x => x.Id == this._selectedJobScheduleConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedJobScheduleConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.JobScheduleConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.JobScheduleConfigTemplateBindingList.Add(new JobScheduleConfigTemplateBindingModel()
+            {
+                TargetForeignKey = this._selectedJobScheduleConfigId,
+                Target = target,
+                OwnerForeignKey = this._editModel.Id,
+                Owner = this._editModel
+            });
+        RefreshTemplateBindings(target,  ListChangedType.ItemAdded);
+    }
+
+
+
+    private void RemoveSelectedJobScheduleConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedJobScheduleConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                RefreshTemplateBindings(item.Target, ListChangedType.ItemDeleted);
+                this._editModel.JobScheduleConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._jobScheduleConfigTemplateBindingTable.UnselectAll();
+        this._jobScheduleConfigTemplateBindingTable.ReloadData();
+    }
+
+    private void AddKafkaConfigTemplateBinding()
+    {
+        var target = this._kafkaConfigs.FirstOrDefault(x => x.Id == this._selectedKafkaConfigId);
+        if (target == null)
+        {
+            return;
+        }
+        var key = (this._editModel.Id, this._selectedKafkaConfigId);
+        if (!TryAddRemovableTarget(key))
+        {
+            return;
+        }
+        if (this._editModel.KafkaConfigTemplateBindingList.Any(x => x.CombinedKey == key))
+        {
+            return;
+        }
+        this._editModel.KafkaConfigTemplateBindingList.Add(new()
+            {
+                OwnerForeignKey = this._editModel.Id,
+                TargetForeignKey = target.Id,
+                Target = target,
+            });
+    }
+
+    private void RemoveSelectedKafkaConfigTemplateBinding()
+    {
+        foreach (var item in this._selectedKafkaConfigBindings)
+        {
+            if (this.TryRemoveRemovableTarget(item.CombinedKey))
+            {
+                this._editModel.KafkaConfigTemplateBindingList.RemoveAll(x => x.CombinedKey == item.CombinedKey);
+            }
+        }
+        this._kafkaConfigTemplateBindingTable.UnselectAll();
+    }
+
+    private void SelectAllNodeInfo()
+    {
+        this._selectedNodeInfos = this._nodeInfoList;
+    }
+
+    private void UnselectAllNodeInfo()
+    {
+        this._selectedNodeInfos = [];
+    }
+
+    void OnNodeTableChange(QueryModel<NodeInfoModel> query)
+    {
+        this._nodeInfoList = query.ExecuteQuery(this._nodeInfoList.AsQueryable())
+            .Where(x => string.IsNullOrWhiteSpace(this._nodeSearchText) || x.Name.Contains(this._nodeSearchText, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RefreshTemplateBindings(JobScheduleConfigModel model, ListChangedType changeType)
+    {
+        if (model == null)
+        {
+            return;
+        }
+        if (model.JobTypeDesc == null)
+        {
+            model.JobTypeDesc = this._jobTypeDescConfigs.FirstOrDefault(x => x.Id == model.JobTypeDescForeignKey);
+        }
+        if (model.JobTypeDesc == null)
+        {
+            return;
+        }
+
+        foreach (var optionEditor in model.JobTypeDesc.OptionEditors)
+        {
+            if (!Enum.TryParse<OptionValueType>(optionEditor.Tag.ToString(), out var optionEditorType))
+            {
+                continue;
+            }
+            switch (optionEditorType)
+            {
+                case OptionValueType.TextValue:
+                    break;
+                case OptionValueType.NumberValue:
+                    break;
+                case OptionValueType.BooleanValue:
+                    break;
+                case OptionValueType.TextArrayValue:
+                    break;
+                case OptionValueType.ScriptCodeValue:
+                    break;
+                case OptionValueType.FtpConfigListValue:
+                    var ftpConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindFtpConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.FtpConfigTemplateBindingList,
+                            ftpConfigList,
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(this._editModel.Id,
+                            this._editModel.FtpConfigTemplateBindingList, ftpConfigList);
+                    }
+
+
+                    break;
+                case OptionValueType.MysqlConfigListValue:
+                    var mysqlConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindMysqlConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.MysqlConfigTemplateBindingList,
+                            mysqlConfigList,
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.MysqlConfigTemplateBindingList, mysqlConfigList);
+                    }
+
+                    break;
+                case OptionValueType.KafkaConfigListValue:
+                    var kafkaConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindKafkaConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                        model.Id,
+                        this._editModel.KafkaConfigTemplateBindingList,
+                        kafkaConfigList,
+                        (target) =>
+                        {
+                            return new()
+                                {
+                                    OwnerForeignKey = this._editModel.Id,
+                                    TargetForeignKey = target.Id,
+                                    Target = target,
+                                };
+                        });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.KafkaConfigTemplateBindingList, kafkaConfigList);
+                    }
+
+                    break;
+                case OptionValueType.FtpConfigValue:
+                    var ftpConfig = model.Options.ReadOptionValue<FtpConfigModel>(optionEditor.Name, FindFtpConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.FtpConfigTemplateBindingList,
+                            [ftpConfig],
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.FtpConfigTemplateBindingList, [ftpConfig]);
+                    }
+
+
+                    break;
+                case OptionValueType.MysqlConfigValue:
+                    var mysqlConfig = model.Options.ReadOptionValue<MysqlConfigModel>(optionEditor.Name, FindMysqlConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.MysqlConfigTemplateBindingList,
+                            [mysqlConfig],
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.MysqlConfigTemplateBindingList, [mysqlConfig]);
+                    }
+
+                    break;
+                case OptionValueType.KafkaConfigValue:
+                    var kafkaConfig = model.Options.ReadOptionValue<KafkaConfigModel>(optionEditor.Name, FindKafkaConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.KafkaConfigTemplateBindingList,
+                            [kafkaConfig],
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.KafkaConfigTemplateBindingList, [kafkaConfig]);
+                    }
+
+                    break;
+                case OptionValueType.FtpUploadConfigValue:
+                    var ftpUploadConfig = model.Options.ReadOptionValue<FtpUploadConfigModel>(optionEditor.Name, FindFtpUploadConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.FtpUploadConfigTemplateBindingList,
+                            [ftpUploadConfig],
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.FtpUploadConfigTemplateBindingList, [ftpUploadConfig]);
+                    }
+
+                    break;
+                case OptionValueType.FtpUploadConfigListValue:
+                    var ftpUploadConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindFtpUploadConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                         model.Id,
+                         this._editModel.FtpUploadConfigTemplateBindingList,
+                         ftpUploadConfigList,
+                         (target) =>
+                         {
+                             return new()
+                                 {
+                                     OwnerForeignKey = this._editModel.Id,
+                                     TargetForeignKey = target.Id,
+                                     Target = target,
+                                 };
+                         });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.FtpUploadConfigTemplateBindingList, ftpUploadConfigList);
+                    }
+
+                    break;
+                case OptionValueType.LogUploadConfigValue:
+                    var logUploadConfig = model.Options.ReadOptionValue<LogUploadConfigModel>(optionEditor.Name, FindLogUploadConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                         model.Id,
+                         this._editModel.LogUploadConfigTemplateBindingList,
+                         [logUploadConfig],
+                         (target) =>
+                         {
+                             return new()
+                                 {
+                                     OwnerForeignKey = this._editModel.Id,
+                                     TargetForeignKey = target.Id,
+                                     Target = target,
+                                 };
+                         });
+
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.LogUploadConfigTemplateBindingList, [logUploadConfig]);
+                    }
+
+                    break;
+                case OptionValueType.LogUploadConfigListValue:
+                    var logUploadConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindLogUploadConfigModel);
+
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                             this._editModel.LogUploadConfigTemplateBindingList,
+                             logUploadConfigList,
+                             (target) =>
+                             {
+                                 return new()
+                                     {
+                                         OwnerForeignKey = this._editModel.Id,
+                                         TargetForeignKey = target.Id,
+                                         Target = target,
+                                     };
+                             });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.LogUploadConfigTemplateBindingList, logUploadConfigList);
+                    }
+
+                    break;
+                case OptionValueType.LocalDirectoryMappingConfigValue:
+                    var localDirectoryMappingConfig = model.Options.ReadOptionValue<LocalDirectoryMappingConfigModel>(optionEditor.Name, FindLocalDirectoryMappingConfigConfigModel);
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                           this._editModel.LocalDirectoryMappingConfigTemplateBindingList,
+                              [localDirectoryMappingConfig],
+                           (target) =>
+                           {
+                               return new()
+                                   {
+                                       OwnerForeignKey = this._editModel.Id,
+                                       TargetForeignKey = target.Id,
+                                       Target = target,
+                                   };
+                           });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.LocalDirectoryMappingConfigTemplateBindingList, [localDirectoryMappingConfig]);
+                    }
+
+
+
+                    break;
+                case OptionValueType.LocalDirectoryMappingConfigListValue:
+                    var localDirectoryMappingConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindLocalDirectoryMappingConfigConfigModel);
+
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.LocalDirectoryMappingConfigTemplateBindingList,
+                               localDirectoryMappingConfigList,
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.LocalDirectoryMappingConfigTemplateBindingList, localDirectoryMappingConfigList);
+                    }
+
+
+                    break;
+                case OptionValueType.PluginConfigValue:
+                    var pluginConfig = model.Options.ReadOptionValue<PluginConfigModel>(optionEditor.Name, FindPluginConfigModel);
+
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                            model.Id,
+                            this._editModel.PluginConfigTemplateBindingList,
+                               [pluginConfig],
+                            (target) =>
+                            {
+                                return new()
+                                    {
+                                        OwnerForeignKey = this._editModel.Id,
+                                        TargetForeignKey = target.Id,
+                                        Target = target,
+                                    };
+                            });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.PluginConfigTemplateBindingList, [pluginConfig]);
+                    }
+
+
+                    break;
+                case OptionValueType.PluginConfigListValue:
+                    var pluginConfigList = model.Options.ReadOptionArrayValues(optionEditor.Name, FindPluginConfigModel);
+
+                    if (changeType == ListChangedType.ItemAdded)
+                    {
+                        AddBindings(
+                        model.Id,
+                          this._editModel.PluginConfigTemplateBindingList,
+                         pluginConfigList,
+                          (target) =>
+                          {
+                              return new()
+                                  {
+                                      OwnerForeignKey = this._editModel.Id,
+                                      TargetForeignKey = target.Id,
+                                      Target = target,
+                                  };
+                          });
+                    }
+                    else if (changeType == ListChangedType.ItemDeleted)
+                    {
+                        RemoveBindings(model.Id, this._editModel.PluginConfigTemplateBindingList, pluginConfigList);
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+        }
+    }
+
+
+    private bool IsDisabled((string OwnerId, string TargetId) key)
+    {
+        return !this._removableHashSet.Contains(key);
+    }
+
+    private bool TryAddBindingTarget((string OwnerId, string TargetId) key, string? contextId)
+    {
+        var hashKey = (key.Item1, key.Item2, contextId);
+        return this._bindingHashSet.Add(hashKey);
+    }
+
+    private bool TryRemoveBindingTarget((string OwnerId, string TargetId) key, string? contextId)
+    {
+        var hashKey = (key.Item1, key.Item2, contextId);
+        return this._bindingHashSet.Remove(hashKey);
+    }
+
+    private bool TryAddRemovableTarget((string OwnerId, string TargetId) key)
+    {
+        if (this._bindingHashSet.Any(x => (x.OwnerId, x.TargetId) == key))
+        {
+            return false;
+        }
+        return this._removableHashSet.Add((key.OwnerId, key.TargetId));
+    }
+
+    private bool IsRemovableTemplateBindingTarget(BindingModelBase bindingModelBase)
+    {
+        if (bindingModelBase is JobScheduleConfigTemplateBindingModel)
+        {
+            return false;
+        }
+        var key = bindingModelBase.CombinedKey;
+        if (this._bindingHashSet.Any(x => (x.OwnerId, x.TargetId) == key))
+        {
+            return true;
+        }
+        return !this._removableHashSet.Contains(key);
+    }
+
+    private bool IsRemovableTarget((string OwnerId, string TargetId) key)
+    {
+        if (this._bindingHashSet.Any(x => (x.OwnerId, x.TargetId) == key))
+        {
+            return false;
+        }
+        return this._removableHashSet.Contains((key.OwnerId, key.TargetId));
+    }
+
+    private bool TryRemoveRemovableTarget((string OwnerId, string TargetId) key)
+    {
+        if (this._bindingHashSet.Any(x => (x.OwnerId, x.TargetId) == key))
+        {
+            return false;
+        }
+        return this._removableHashSet.Remove((key.OwnerId, key.TargetId));
+    }
+
+    private void AddBindings<TBinding, TModel>(
+        string contextId,
+        IList<TBinding> dest,
+        IEnumerable<TModel> src,
+        Func<TModel, TBinding> addBindingAction
+    )
+        where TBinding : BindingModelBase
+        where TModel : ModelBase
+    {
+        ArgumentNullException.ThrowIfNull(dest, nameof(dest));
+        ArgumentNullException.ThrowIfNull(src, nameof(src));
+        var ownnerId = this._editModel.Id;
+        foreach (var item in src)
+        {
+            if (item == null)
+            {
+                continue;
+            }
+            var key = (ownnerId, item.Id);
+            TryRemoveRemovableTarget(key);
+            if (!TryAddBindingTarget(key, contextId))
+            {
+                continue;
+            }
+            var model = dest.FirstOrDefault(x => x.CombinedKey == key);
+            if (model == null)
+            {
+                var binding = addBindingAction.Invoke(item);
+                dest.Add(binding);
+            }
+        }
+    }
+
+    private void RemoveBindings<TBinding, TModel>(
+        string contextId,
+        IList<TBinding> dest,
+        IEnumerable<TModel> src
+    )
+        where TBinding : BindingModelBase
+        where TModel : ModelBase
+    {
+        ArgumentNullException.ThrowIfNull(dest, nameof(dest));
+        ArgumentNullException.ThrowIfNull(src, nameof(src));
+
+        foreach (var item in src)
+        {
+            if (item == null)
+            {
+                continue;
+            }
+            var key = (this._editModel.Id, item.Id);
+            if (!TryRemoveBindingTarget(key, contextId))
+            {
+                continue;
+            }
+            var binding = dest.FirstOrDefault(x => x.CombinedKey == key);
+            if (binding != null)
+            {
+                dest.Remove(binding);
+            }
+        }
+    }
+
+    private FtpConfigModel FindFtpConfigModel(string id)
+    {
+        return this._ftpConfigs.FindConfig(id);
+    }
+
+    private KafkaConfigModel FindKafkaConfigModel(string id)
+    {
+        return this._kafkaConfigs.FindConfig(id);
+    }
+
+    private MysqlConfigModel FindMysqlConfigModel(string id)
+    {
+        return this._mysqlConfigs.FindConfig(id);
+    }
+
+    private FtpUploadConfigModel FindFtpUploadConfigModel(string id)
+    {
+        return this._ftpUploadConfigs.FindConfig(id);
+    }
+
+    private LogUploadConfigModel FindLogUploadConfigModel(string id)
+    {
+        return this._logUploadConfigs.FindConfig(id);
+    }
+
+    private PluginConfigModel FindPluginConfigModel(string id)
+    {
+        return this._pluginConfigs.FindConfig(id);
+    }
+
+
+    private LocalDirectoryMappingConfigModel FindLocalDirectoryMappingConfigConfigModel(string id)
+    {
+        return this._localDirectoryMappingConfigs.FindConfig(id);
+    }
+
+}

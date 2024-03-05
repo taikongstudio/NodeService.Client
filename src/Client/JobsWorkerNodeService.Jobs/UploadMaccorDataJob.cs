@@ -1,4 +1,7 @@
-﻿using JobsWorker.Shared.Models;
+﻿using JobsWorker.Shared.DataModels;
+using JobsWorkerNodeService.Jobs.Models;
+using MaccorDataUpload.Models;
+using MaccorDataUpload.Workers;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using System;
@@ -13,123 +16,180 @@ namespace JobsWorkerNodeService.Jobs
     internal class UploadMaccorDataJob : JobBase
     {
 
-        class MaccorUploadToolInstanceInfo
-        {
-            public Process Process { get; set; }
 
-            public string MySqlConfig { get; set; }
-
-            public string ServiceConfig { get; set; }
-
-            public string dbName { get; set; }
-        }
-
-
-        public override Task Execute(IJobExecutionContext context)
+        public override async Task Execute(IJobExecutionContext context)
         {
             try
             {
-                var path = options["path"];
-                var broker_list = options["broker_list"];
-                var header_topic_name = options["header_topic_name"];
-                var time_data_topic_name = options["time_data_topic_name"];
-                var maxDegreeOfParallelism = int.Parse(options["maxDegreeOfParallelism"]);
-
-                var plugin_path = options["plugin_path"].Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
-
-                var mysql_host = options[nameof(MySqlConfig.mysql_host)];
-                var mysql_database = options[nameof(MySqlConfig.mysql_database)];
-                var mysql_userid = options[nameof(MySqlConfig.mysql_userid)];
-                var mysql_password = options[nameof(MySqlConfig.mysql_password)];
-
-                var dbName = options["dbName"];
+                UploadMaccorDataJobOptions options = this.JobScheduleConfig.GetOptions<UploadMaccorDataJobOptions>();
+                var path = options.path;
+                var broker_list = options.broker_list;
+                var header_topic_name = options.header_topic_name;
+                var time_data_topic_name = options.time_data_topic_name;
+                var maxDegreeOfParallelism = options.maxDegreeOfParallelism;
+                var mySqlConfigName = options.mysqlConfigName;
+                var dbName = options.dbName;
 
 
                 if (string.IsNullOrEmpty(path))
                 {
-                    path = "D:\\Maccor\\System";
-                    Logger.LogError($"use default maccor path:{path}");
-                }
-                if (!Directory.Exists(path))
-                {
-                    var directoryTxtFile = "C:\\shouhu\\maccor.txt";
-                    if (!File.Exists(directoryTxtFile))
+                    foreach (var driveInfo in DriveInfo.GetDrives())
                     {
-                        Logger.LogError($"Could not found Maccor config file:{directoryTxtFile}");
-                        return Task.CompletedTask;
+                        path = Path.Combine(driveInfo.RootDirectory.FullName, "Maccor", "System");
+                        this.Logger.LogInformation($"try use maccor path:{path}");
+                        if (Directory.Exists(path))
+                        {
+                            break;
+                        }
                     }
-                    path = File.ReadAllLines(directoryTxtFile).FirstOrDefault();
                 }
                 if (!Directory.Exists(path))
                 {
-                    Logger.LogError($"Could not found Maccor config file:{path}");
-                    return Task.CompletedTask;
+                    this.Logger.LogError($"Could not found Maccor path:{path}");
+                    return;
                 }
 
 
                 DirectoryInfo directoryInfo = directoryInfo = new DirectoryInfo(path);
 
+                var mysqlConfig = this.NodeConfigTemplate.FindMysqlConfig(mySqlConfigName);
 
-                object mySqlConfig = new
+                if (mySqlConfigName == null)
                 {
-                    mysql_host,
-                    mysql_database,
-                    mysql_userid,
-                    mysql_password,
-                };
+                    this.Logger.LogError($"Could not find mysql config:{mySqlConfigName}");
+                    return;
+                }
 
                 foreach (var dir in directoryInfo.GetDirectories())
                 {
                     var dataPath = Path.Combine(dir.FullName, "Archive");
 
-                    object dataReportServiceConfig = new
+                    DataReportServiceConfig serviceConfig = new DataReportServiceConfig()
                     {
                         path = dataPath,
-                        broker_list,
-                        header_topic_name,
-                        time_data_topic_name,
-                        maxDegreeOfParallelism,
-                        dbName,
+                        broker_list = broker_list,
+                        header_topic_name = header_topic_name,
+                        time_data_topic_name = time_data_topic_name,
+                        maxDegreeOfParallelism=  maxDegreeOfParallelism,
+                        dbName= dbName,
                     };
 
                     if (!Directory.Exists(dataPath))
                     {
-                        Logger.LogError($"Could not found directory:{dataPath}");
+                        this.Logger.LogError($"Could not found directory:{dataPath}");
                         continue;
                     }
                     var key = $"DataFileCollectorWorker:{dataPath}";
 
-                    SetupWorker(dataPath, key, dataReportServiceConfig, mySqlConfig, dbName);
+                    SetupWorker(key, serviceConfig, mysqlConfig);
                 }
 
 
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                this.Logger.LogError(ex.ToString());
             }
-            return Task.CompletedTask;
         }
 
         private void SetupWorker(
-            string dataPath,
             string key,
-            object serviceConfig,
-            object mySqlConfig,
-            string dbName)
+            DataReportServiceConfig serviceConfig,
+            MysqlConfigModel mySqlConfig
+            )
         {
             try
             {
 
+                var dataFileCollectorWorker = AppDomain.CurrentDomain.GetData(key) as DataFileCollectorWorker;
+                if (dataFileCollectorWorker == null)
+                {
+                    dataFileCollectorWorker = RunWorker(serviceConfig, mySqlConfig);
+                    AppDomain.CurrentDomain.SetData(key, dataFileCollectorWorker);
+                }
+                else
+                {
+                    dataFileCollectorWorker.IsUpdatingConfig = true;
+
+                    if (dataFileCollectorWorker.ServiceConfig != null
+                        &&
+                        dataFileCollectorWorker.ServiceConfig.AsJson() != serviceConfig.AsJson())
+                    {
+                        dataFileCollectorWorker.UpdateServiceConfig(serviceConfig);
+                    }
+
+                    if (dataFileCollectorWorker.MysqlConfig != null
+                        &&
+                        dataFileCollectorWorker.MysqlConfig.ToJsonString<MysqlConfigModel>() != mySqlConfig.ToJsonString<MysqlConfigModel>())
+                    {
+                        dataFileCollectorWorker.UpdateMySqlConfig(mySqlConfig);
+                    }
+
+                    if (dataFileCollectorWorker.DbName != serviceConfig.dbName)
+                    {
+                        dataFileCollectorWorker.InitializeSqliteDb(serviceConfig.dbName, true);
+                    }
+
+                    dataFileCollectorWorker.IsUpdatingConfig = false;
+                }
 
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                this.Logger.LogError(ex.ToString());
             }
 
         }
 
+        private DataFileCollectorWorker RunWorker(
+    DataReportServiceConfig dataReportServiceConfig,
+    MysqlConfigModel mySqlConfig)
+        {
 
+            DataFileCollectorWorker dataFileCollectorWorker = new DataFileCollectorWorker(this.Logger);
+            dataFileCollectorWorker.UpdateServiceConfig(dataReportServiceConfig);
+            dataFileCollectorWorker.UpdateMySqlConfig(mySqlConfig);
+            dataFileCollectorWorker.InitializeSqliteDb(dataReportServiceConfig.dbName);
+            dataFileCollectorWorker.Start();
+            return dataFileCollectorWorker;
+        }
+
+
+    }
+
+    public class ServiceConfig
+    {
+        public string Path { get; }
+        public string Broker_list { get; }
+        public string Header_topic_name { get; }
+        public string Time_data_topic_name { get; }
+        public int MaxDegreeOfParallelism { get; }
+        public string DbName { get; }
+
+        public ServiceConfig(string path, string broker_list, string header_topic_name, string time_data_topic_name, int maxDegreeOfParallelism, string dbName)
+        {
+            Path = path;
+            Broker_list = broker_list;
+            Header_topic_name = header_topic_name;
+            Time_data_topic_name = time_data_topic_name;
+            MaxDegreeOfParallelism = maxDegreeOfParallelism;
+            DbName = dbName;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is ServiceConfig other &&
+                   Path == other.Path &&
+                   Broker_list == other.Broker_list &&
+                   Header_topic_name == other.Header_topic_name &&
+                   Time_data_topic_name == other.Time_data_topic_name &&
+                   MaxDegreeOfParallelism == other.MaxDegreeOfParallelism &&
+                   DbName == other.DbName;
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Path, Broker_list, Header_topic_name, Time_data_topic_name, MaxDegreeOfParallelism, DbName);
+        }
     }
 }

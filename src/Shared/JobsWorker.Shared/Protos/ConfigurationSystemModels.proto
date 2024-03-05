@@ -9,7 +9,7 @@ package JobsWorker.Shared;
 message QueryConfigurationReq {
 	string NodeName = 1;
 	string RequestId = 2;
-	repeated string ConfigurationKeys = 3;
+	map<string,string> Parameters = 3;
 }
 
 message QueryConfigurationRsp{

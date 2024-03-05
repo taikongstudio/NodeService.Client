@@ -126,7 +126,7 @@ namespace JobsWorkerNodeService.Jobs.Helpers
 
         public string GetNodeName()
         {
-            return Environment.NodeName;
+            return Dns.GetHostName();
         }
 
         public string GetUserName()

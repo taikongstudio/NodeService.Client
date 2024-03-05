@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using JobsWorkerNodeService.Jobs.Models;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Diagnostics;
 
@@ -13,14 +14,17 @@ namespace JobsWorkerNodeService.Jobs
 
         public override async Task Execute(IJobExecutionContext context)
         {
-
-
             try
             {
-                string scripts = this.options["scripts"].Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
-                string workingDirectory = this.options["workingDirectory"].Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
-                bool createNoWindow = bool.Parse(this.options["createNoWindow"]);
-                Logger.LogInformation($"Execute script :{scripts} at {workingDirectory} createNoWindow:{createNoWindow}");
+                ExecuteScriptJobOptions options = this.JobScheduleConfig.GetOptions<ExecuteScriptJobOptions>();
+                string scripts = options.scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
+                string workingDirectory = options.workingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
+                bool createNoWindow = options.createNoWindow;
+                if (string.IsNullOrEmpty(workingDirectory))
+                {
+                    workingDirectory = AppContext.BaseDirectory;
+                }
+                this.Logger.LogInformation($"Execute script :{scripts} at {workingDirectory} createNoWindow:{createNoWindow}");
                 using (Process process = new Process())
                 {
                     process.StartInfo.FileName = "C:\\Windows\\System32\\cmd.exe";
@@ -34,7 +38,7 @@ namespace JobsWorkerNodeService.Jobs
 
                     var outputDataRecieveEventHandler = new DataReceivedEventHandler((s, de) =>
                     {
-                        Logger.LogInformation(de.Data);
+                        this.Logger.LogInformation(de.Data);
                     });
 
                     process.OutputDataReceived += outputDataRecieveEventHandler;
@@ -54,6 +58,10 @@ namespace JobsWorkerNodeService.Jobs
             catch (Exception ex)
             {
                 Logger.LogError(ex.ToString());
+            }
+            finally
+            {
+      
             }
         }
 

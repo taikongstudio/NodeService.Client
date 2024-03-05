@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
@@ -9,6 +10,7 @@ namespace JobsWorker.Shared.Models
 {
     public class NetworkInterfaceModel
     {
+
         public string Name { get; set; }
 
         public string PhysicalAddress { get; set; }

@@ -5,7 +5,7 @@ VisualStudioVersion = 17.8.34511.84
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobsWorkerDaemonService", "src\Client\JobsWorkerDaemonService\JobsWorkerDaemonService.csproj", "{387757E5-3A96-4CCA-A7D0-DF134DB35F05}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MaccorUploadTool", "src\Client\MaccorUploadTool\MaccorUploadTool.csproj", "{B40BEE54-26C8-4EB4-9437-75942AFFB5CA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MaccorDataUpload", "src\Client\MaccorDataUpload\MaccorDataUpload.csproj", "{B40BEE54-26C8-4EB4-9437-75942AFFB5CA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ProcessStatTool", "src\Client\ProcessStatTool\ProcessStatTool.csproj", "{BF804252-259D-4ACD-8F57-5AEB66BF5086}"
 EndProject
@@ -24,8 +24,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobsWorker.Shared", "src\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj", "{7FF4AF09-CD15-4B51-BE4D-F4BC27D8E4E6}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobsWorkerNodeService.Jobs", "src\Client\JobsWorkerNodeService.Jobs\JobsWorkerNodeService.Jobs.csproj", "{DEBDDB28-8D24-481E-9B65-946E618F888E}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobRunner", "src\Client\JobRunner\JobRunner.csproj", "{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobsWorkerWebService", "src\Server\JobsWorkerWebService\JobsWorkerWebService\JobsWorkerWebService.csproj", "{3DB57216-1FB3-4B11-AFDB-44348AD308E6}"
 EndProject
@@ -67,10 +65,6 @@ Global
 		{DEBDDB28-8D24-481E-9B65-946E618F888E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DEBDDB28-8D24-481E-9B65-946E618F888E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DEBDDB28-8D24-481E-9B65-946E618F888E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3DB57216-1FB3-4B11-AFDB-44348AD308E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3DB57216-1FB3-4B11-AFDB-44348AD308E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3DB57216-1FB3-4B11-AFDB-44348AD308E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -88,7 +82,6 @@ Global
 		{F1DA9FD8-C9FD-4597-85B6-E01E8D07E4D4} = {DCAB12AC-F6CB-4A1A-B3CA-D5937F8D1D56}
 		{7FF4AF09-CD15-4B51-BE4D-F4BC27D8E4E6} = {8D9D39F9-68FF-4306-9BA2-7A25E53EAF98}
 		{DEBDDB28-8D24-481E-9B65-946E618F888E} = {DCAB12AC-F6CB-4A1A-B3CA-D5937F8D1D56}
-		{1BBC9C2F-75E0-4B9B-AF4D-545B54E8C6B9} = {DCAB12AC-F6CB-4A1A-B3CA-D5937F8D1D56}
 		{3DB57216-1FB3-4B11-AFDB-44348AD308E6} = {80AA5F8C-8DB7-4E9C-B880-FEA3287B4DC5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution

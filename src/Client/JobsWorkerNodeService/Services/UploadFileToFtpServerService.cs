@@ -1,5 +1,5 @@
 ﻿using FluentFTP;
-using JobsWorker.Shared.MessageQueue;
+using JobsWorker.Shared.MessageQueues;
 using JobsWorkerNodeService.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

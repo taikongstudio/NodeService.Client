@@ -1,26 +1,7 @@
-using AntDesign.ProLayout;
-using CommandLine;
-using FluentFTP;
-using Grpc.Core;
-using Grpc.Net.Client;
-using Grpc.Net.Client.Web;
-using JobsWorker.Shared;
-using JobsWorker.Shared.MessageQueue;
-using JobsWorker.Shared.MessageQueue.Models;
-using JobsWorkerWebService.Data;
-using JobsWorkerWebService.GrpcServices;
-using JobsWorkerWebService.Models.Configurations;
-using JobsWorkerWebService.Services;
-using JobsWorkerWebService.Services.VirtualSystem;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.EntityFrameworkCore;
-using NLog.Extensions.Logging;
-using System.Net;
-using System.Runtime.CompilerServices;
-using JobsWorkerWebService;
-using System.Text.Json;
 
+using JobsWorker.Shared.MessageQueues;
+using JobsWorker.Shared.MessageQueues.Models;
+using Microsoft.IdentityModel.Abstractions;
 
 public class Program
 {
@@ -30,16 +11,18 @@ public class Program
     public static void Main(string[] args)
     {
 
-        Parser.Default.ParseArguments<Options>(args)
-                         .WithParsed((options) =>
-                         {
-                             Console.WriteLine(JsonSerializer.Serialize(options));
-                             if (string.IsNullOrEmpty(options.env))
-                             {
-                                 options.env = Environments.Development;
-                             }
-                             RunWithOptions(options, args);
-                         });
+        Parser
+            .Default
+            .ParseArguments<Options>(args)
+            .WithParsed((options) =>
+            {
+                Console.WriteLine(JsonSerializer.Serialize(options));
+                if (string.IsNullOrEmpty(options.env))
+                {
+                    options.env = Environments.Development;
+                }
+                RunWithOptions(options, args);
+            });
 
     }
 
@@ -117,11 +100,10 @@ public class Program
         app.MapBlazorHub();
         app.MapFallbackToPage("/_Host");
 
-        using (var serviceScope = app.Services.GetService<IServiceScopeFactory>().CreateScope())
-        {
-            var context = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            context.Database.EnsureCreated();
-        }
+        using var serviceScope = app.Services.GetService<IServiceScopeFactory>().CreateScope();
+        using var context = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        //context.Database.EnsureDeleted();
+        context.Database.EnsureCreated();
     }
 
     private static void MapGrpcServices(WebApplication app)
@@ -145,7 +127,7 @@ public class Program
         {
             options.MultipartBodyLengthLimit = 1024 * 1024 * 1024;
         });
-     
+
 
         //builder.Services.AddGrpcClient<FileSystem.FileSystemClient>(options =>
         //    {
@@ -154,6 +136,12 @@ public class Program
         //    })
         //    .ConfigurePrimaryHttpMessageHandler(
         //        () => new GrpcWebHandler(new HttpClientHandler() { }));
+
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+        {
+
+        });
+
 
         builder.Services.AddLogging(logger =>
         {
@@ -165,10 +153,11 @@ public class Program
         if (builder.Environment.IsDevelopment())
         {
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlite(
-                builder.Configuration.GetConnectionString("Sqlite"), (optionsBuilder) =>
+            options.UseSqlServer(
+                builder.Configuration.GetConnectionString("MSSqlLocaldb"), (optionsBuilder) =>
                 {
-
+                    optionsBuilder.EnableRetryOnFailure();
+                    optionsBuilder.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
                 }));
 
         }
@@ -182,14 +171,12 @@ public class Program
             }));
         }
 
-        builder.Services.AddDbContext<ApplicationProfileDbContext>(options => {
+        builder.Services.AddDbContext<ApplicationProfileDbContext>(options =>
             options.UseMySql(builder.Configuration.GetConnectionString("MyProfileSQL"),
             MySqlServerVersion.LatestSupportedServerVersion, mySqlOptionBuilder =>
             {
                 mySqlOptionBuilder.EnableStringComparisonTranslations();
-            });
-            options.EnableThreadSafetyChecks(true);
-        });
+            }));
 
 
 
@@ -250,6 +237,7 @@ public class Program
             nodeConfigPathFormat = builder.Configuration.GetSection("VirtualFileSystemConfig")["fileCachesPathDir"],
             fileCachesPathDir = builder.Configuration.GetSection("VirtualFileSystemConfig")["fileCachesPathDir"],
             pluginPathFormat = builder.Configuration.GetSection("VirtualFileSystemConfig")["pluginPathFormat"],
+            taskLogsPathFormat = builder.Configuration.GetSection("VirtualFileSystemConfig")["taskLogPathFormat"],
             RequestUri = builder.Configuration.GetValue<string>("Kestrel:Endpoints:MyHttpEndpoint:Url")
         });
 
@@ -279,6 +267,23 @@ public class Program
             string,
             Message>>(new InprocMessageQueue<string, string, Message>());
 
+        builder.Services.AddKeyedSingleton<NodeConfigTemplateNotificationMessageQueue>(nameof(JobScheduleService),
+            (serviceProvider, key) =>
+            {
+                return new NodeConfigTemplateNotificationMessageQueue();
+            });
+
+        builder.Services.AddKeyedSingleton<GlobalNodeTaskDictionary>("GlobalNodeTaskDictionary");
+
+        builder.Services.AddSingleton<ISchedulerFactory>(new StdSchedulerFactory());
+
+        builder.Services.AddScoped<ApiService>((serviceProvider) =>
+        {
+            var httpClient = serviceProvider.GetService<HttpClient>();
+            return new ApiService(httpClient);
+        });
+
+        builder.Services.AddHostedService<JobScheduleService>();
 
         builder.Services.AddGrpc(grpcServiceOptions =>
         {

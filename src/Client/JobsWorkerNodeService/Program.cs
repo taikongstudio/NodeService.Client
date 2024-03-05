@@ -1,18 +1,12 @@
 using CommandLine;
-using JobsWorker.Shared.MessageQueue;
-using JobsWorker.Shared.MessageQueue.Models;
+using JobsWorker.Shared.MessageQueues;
+using JobsWorker.Shared.MessageQueues.Models;
 using JobsWorkerNodeService.Models;
 using JobsWorkerNodeService.Services;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Web;
 using Quartz;
 using Quartz.Impl;
-using System;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace JobsWorkerNodeService
@@ -65,9 +59,9 @@ namespace JobsWorkerNodeService
                 builder.ConfigureServices(services =>
                 {
                     services.AddSingleton<Options>(options);
-                    services.AddHostedService<GrpcService>();
-                    services.AddHostedService<NodeConfigService>();
+                    services.AddHostedService<NodeClientService>();
                     services.AddHostedService<ProcessService>();
+                    services.AddHostedService<JobExecutionService>();
                     services.AddHostedService<UploadFileToFtpServerService>();
                     services.AddSingleton<ISchedulerFactory>(new StdSchedulerFactory());
                     services.AddSingleton<IConfigurationStore>(new ConfigurationStore());
@@ -85,7 +79,8 @@ namespace JobsWorkerNodeService
                     services.AddSingleton<
                         IInprocMessageQueue<string,
                         string,
-                        NodeConfigChangedEvent>>(new InprocMessageQueue<string, string, NodeConfigChangedEvent>());
+                        JobExecutionTriggerEvent>>(new InprocMessageQueue<string, string, JobExecutionTriggerEvent>());
+
 
                     services.AddSingleton<
                         IInprocMessageQueue<string,

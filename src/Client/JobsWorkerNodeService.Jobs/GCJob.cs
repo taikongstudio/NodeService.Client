@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using JobsWorkerNodeService.Jobs.Models;
+using Microsoft.Extensions.Logging;
 using Quartz;
 
 namespace JobsWorkerNodeService.Jobs
@@ -20,12 +21,10 @@ namespace JobsWorkerNodeService.Jobs
         {
             try
             {
-                if (options != null)
+                GCJobOptions options = this.JobScheduleConfig.GetOptions<GCJobOptions>();
+                if (!options.GCEnabled)
                 {
-                    if (!bool.Parse(options["GCEnabled"]))
-                    {
-                        return;
-                    }
+                    return;
                 }
                 DeleteUnusedJobWorkerFiles();
                 DeleteDaemonServiceUnsedPlugins();
@@ -44,13 +43,7 @@ namespace JobsWorkerNodeService.Jobs
         {
             try
             {
-                Logger.LogInformation("GC Begin");
-                var configPath = Path.Combine(AppContext.BaseDirectory, "config", "server.bat");
-                if (!DeviceConfiguration.TryLoadServerConfig(configPath, Logger, out DeviceConfiguration ftpServerConfig))
-                {
-                    Logger.LogInformation("Load server config fail");
-                    return;
-                }
+                this.Logger.LogInformation("GC Begin");
 
                 var pluginRootDir = Path.Combine(AppContext.BaseDirectory, "plugins");
                 if (!Directory.Exists(pluginRootDir))
@@ -63,7 +56,7 @@ namespace JobsWorkerNodeService.Jobs
                     try
                     {
                         var pluginDirName = Path.GetFileName(pluginDir);
-                        if (!ftpServerConfig.plugins.Any(x => x.plugin_name == pluginDirName))
+                        if (!this.NodeConfigTemplate.PluginConfigTemplateBindingList.Any(x => x.Target.Name == pluginDirName))
                         {
                             Directory.Delete(pluginDir, true);
                             Logger.LogInformation($"[GC]Deleted:{pluginDir}");

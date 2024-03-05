@@ -12,18 +12,26 @@
   </ItemGroup>
 
   <ItemGroup>
+	<PackageReference Include="AntDesign" Version="0.18.0" />
+	<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.2" />
+	<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0-preview.1.24080.9" />
+	<PackageReference Include="Quartz" Version="3.8.0" />
 	<PackageReference Include="CommandLineParser" Version="2.9.1" />
-    <PackageReference Include="AntDesign.Charts" Version="0.4.0" />
-    <PackageReference Include="AntDesign.ProLayout" Version="0.16.2" />
+    <PackageReference Include="AntDesign.Charts" Version="0.5.1" />
+    <PackageReference Include="AntDesign.ProLayout" Version="0.17.3" />
     <PackageReference Include="Grpc.Net.Client.Web" Version="2.60.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.2" />
     <PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
 	<PackageReference Include="Grpc.AspNetCore.Server" Version="2.60.0" />
 	<PackageReference Include="Grpc.AspNetCore" Version="2.47.0" />
 	<PackageReference Include="Grpc.AspNetCore.Web" Version="2.47.0" />
 	  
-	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.1" />
+	<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.2" />
 	<PackageReference Include="NSwag.AspNetCore" Version="14.0.2" />
 	<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.0-beta.2" />
 	<PackageReference Include="NLog" Version="5.2.7" />
@@ -40,6 +48,11 @@
     <None Update="localhost.pfx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="BackgroundServices\MesageQueues\" />
+    <Folder Include="Pages\Plugins\" />
   </ItemGroup>
   
 </Project>

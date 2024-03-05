@@ -1,9 +1,9 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using JobsWorker.Shared;
-using JobsWorker.Shared.GrpcModels;
-using JobsWorker.Shared.MessageQueue;
-using JobsWorker.Shared.MessageQueue.Models;
+using JobsWorker.Shared.MessageQueues;
+using JobsWorker.Shared.MessageQueues.Models;
+using JobsWorkerWebService.GrpcServices.Models;
 using JobsWorkerWebService.Services.VirtualSystem;
 using Microsoft.Extensions.Logging;
 

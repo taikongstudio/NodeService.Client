@@ -8,6 +8,7 @@ namespace JobsWorker.Shared.Models
 {
     public static class ConfigurationKeys
     {
-        public const string NodeConfig = nameof(NodeConfig);
+        public const string NodeConfigTemplate = nameof(NodeConfigTemplate);
+        public const string JobScheduleConfig = nameof(JobScheduleConfig);
     }
 }

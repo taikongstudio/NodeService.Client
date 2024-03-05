@@ -1,9 +1,8 @@
 @namespace JobsWorkerWebService.Pages.Nodes.List
 @page "/nodes"
-@using System.ComponentModel
-@using AntDesign.TableModels
-@using System.Globalization
-@inject System.Net.Http.HttpClient HttpClient
+@using JobsWorker.Shared.DataModels
+
+@inject ApiService ApiService;
 @inject NotificationService _notice
 @inject NavigationManager NavigationManager
 
@@ -78,7 +77,7 @@
     </Drawer>
     <GridRow Gutter="(8, 0)">
         <GridCol Span="24">
-             <Table @ref="_table" Size="TableSize.Small" EnableVirtualization="true" OnChange="OnTableChange" TItem="NodeInfo" DataSource="@_nodesDataSource" OnRowClick="OnRowClick">
+             <Table Loading="@_loading" @ref="_table" Size="TableSize.Small" EnableVirtualization="true" OnChange="OnTableChange" TItem="NodeInfoModel" DataSource="@_nodesDataSource" OnRowClick="OnRowClick">
                  <TitleTemplate>
                      <GridRow>
                          <GridCol Span="4">
@@ -87,7 +86,7 @@
                          <GridCol Span="16" Offset="4">
                             <Space>
                                 <SpaceItem>
-                                    <Button OnClick="RefreshNodeListAsync">刷新节点</Button>
+                                    <Button OnClick="QueryNodeListAsync">刷新节点</Button>
                                 </SpaceItem>
                                 <SpaceItem>
                                     <RadioGroup @bind-Value="_factoryType" Size="middle">
@@ -105,18 +104,15 @@
                                      </RadioGroup>
                                 </SpaceItem>
                                 <SpaceItem>
-                                    <Input Placeholder="搜索节点" @bind-Value="_keywords" />
+                                     <Search Placeholder="搜索节点" @bind-Value="@_keywords" OnSearch="()=>_table?.ReloadData()" />
                                 </SpaceItem>
-                                 <SpaceItem>
-                                     <Button OnClick="()=>_table?.ReloadData()">搜索</Button>
-                                 </SpaceItem>
                             </Space>
                          </GridCol>
                      </GridRow>
                  </TitleTemplate>
                  <ColumnDefinitions>
-                     <PropertyColumn Title="厂区" Filters="factory_name_Filters" OnFilter="((name,value)=>OnFilterFactoryName(value,name))" Sortable="true" Filterable="true" Property="c=>c.factory_name">
-                         @switch (context.factory_name)
+                     <PropertyColumn Title="厂区" Filters="factory_name_Filters" OnFilter="((name,value)=>OnFilterFactoryName(value,name))" Sortable="true" Filterable="true" Property="c=>c.Profile.FactoryName">
+                         @switch (context.Profile.FactoryName)
                         {
                             case "BL":
                                 <p>博罗</p>
@@ -129,18 +125,23 @@
                                 break;
                         }
                      </PropertyColumn>
-                     <PropertyColumn Title="节点名称" Sortable="true" Property="c=>c.node_name">
-                         <NavLink href="@("/nodes/"+context.node_name)">@context.node_name</NavLink>
+                     <PropertyColumn Title="节点名称" Sortable="true" Property="c=>c.Name">
+                         <NavLink href="@("/nodes/"+context.Id)">@context.Name</NavLink>
                          <br />
-                            @if (context.is_online)
-                            {
+                            @switch (context.Status)
+                        {
+                            case NodeStatus.Online:
                                 <Badge Status="@BadgeStatus.Processing" Text="在线"></Badge>
-                            }else
-                            {
+                                break;
+                            case NodeStatus.Offline:
                                 <Badge Status="@BadgeStatus.Warning" Text="离线"></Badge>
-                            }
+                                break;
+                            case NodeStatus.NotConfigured:
+                                <Badge Status="@BadgeStatus.Warning" Text="未配置"></Badge>
+                                break;
+                        }
                         </PropertyColumn>
-                        <PropertyColumn Title="最后在线时间" Sortable="true" Property="c=>c.update_time">
+                        <PropertyColumn Title="最后在线时间" Sortable="true" Property="c=>c.Profile.UpdateTime">
 @*                             @if (DateTime.TryParseExact(context.update_time, "yyyy-MM-dd hh:mm:ss:fff",CultureInfo.InvariantCulture, DateTimeStyles.AllowInnerWhite,out var dateTime))
                             {
                                     <p>@dateTime.Date.ToString("yyyy/MM/dd")</p>
@@ -151,17 +152,17 @@
                                 <p>未知</p>
                             } *@
                         </PropertyColumn>
-                        <PropertyColumn Title="测试分类" Sortable="true" Property="c=>c.test_info"></PropertyColumn>
-                        <PropertyColumn Title="实验室区域" Sortable="true" Property="c=>c.lab_area"></PropertyColumn>
-                        <PropertyColumn Title="实验室名称" Sortable="true" Property="c=>c.lab_name"></PropertyColumn>
+                        <PropertyColumn Title="测试分类" Sortable="true" Property="c=>c.Profile.TestInfo"></PropertyColumn>
+                    <PropertyColumn Title="实验室区域" Sortable="true" Property="c=>c.Profile.LabArea"></PropertyColumn>
+                    <PropertyColumn Title="实验室名称" Sortable="true" Property="c=>c.Profile.LabName"></PropertyColumn>
 
-                        <PropertyColumn Title="用途" Sortable="true" Property="c=>c.usages"><Tag>@(string.IsNullOrEmpty(context.usages) ? "（空）" : context.usages)</Tag></PropertyColumn>
-                        <PropertyColumn Title="备注" Sortable="true" Property="c=>c.remarks"><Tag>@(string.IsNullOrEmpty(context.remarks) ? "（空）" : context.remarks)</Tag></PropertyColumn>
-                        <PropertyColumn Title="IP地址" Sortable="true" Property="c=>c.ip_addresses"><Tag>@context.ip_addresses</Tag></PropertyColumn>
-                        <ActionColumn Title="操作">
+                    <PropertyColumn Title="用途" Sortable="true" Property="c=>c.Profile.Usages"><Tag>@(string.IsNullOrEmpty(context.Profile.Usages) ? "（空）" : context.Profile.Usages)</Tag></PropertyColumn>
+                    <PropertyColumn Title="备注" Sortable="true" Property="c=>c.Profile.Remarks"><Tag>@(string.IsNullOrEmpty(context.Profile.Remarks) ? "（空）" : context.Profile.Remarks)</Tag></PropertyColumn>
+                    <PropertyColumn Title="IP地址" Sortable="true" Property="c=>c.Profile.IpAddress"><Tag>@context.Profile.IpAddress</Tag></PropertyColumn>
+                        <ActionColumn Fixed="right" Title="操作">
                             <Space Size=@("middle")>
                             <SpaceItem>
-                                <Button Type="@ButtonType.Link" OnClick="()=>OpenModifyNodeInfoDrawer(context)">修改</Button>
+                                    <Button Shape="@ButtonShape.Circle" Type="@ButtonType.Primary" Icon="@IconType.Outline.Edit" OnClick="()=>OpenModifyNodeInfoDrawer(context)"></Button>
                             </SpaceItem>
                         </Space>
                     </ActionColumn>
@@ -195,7 +196,7 @@
     NodeState _nodeState;
     FactoryType _factoryType;
 
-    IEnumerable<NodeInfo>? _nodesDataSource = Array.Empty<NodeInfo>();
+    IEnumerable<NodeInfoModel>? _nodesDataSource = Array.Empty<NodeInfoModel>();
 
     bool _loading;
 
@@ -203,19 +204,19 @@
 
     string? _modifyErrorMsg;
 
-    UpdateNodeInfoModel? _editingNodeInfoModel;
+    UpdateNodeProfileModel? _editingNodeInfoModel;
 
 
-    void OpenModifyNodeInfoDrawer(NodeInfo nodeInfo)
+    void OpenModifyNodeInfoDrawer(NodeInfoModel nodeInfo)
     {
-        this._editingNodeInfoModel = new UpdateNodeInfoModel()
+        this._editingNodeInfoModel = new UpdateNodeProfileModel()
             {
-                NodeName = nodeInfo.node_name,
-                LabArea = nodeInfo.lab_area,
-                LabName = nodeInfo.lab_name,
-                Remarks = nodeInfo.remarks,
-                TestInfo = nodeInfo.test_info,
-                Usages = nodeInfo.usages
+                NodeId = nodeInfo.Id,
+                LabArea = nodeInfo.Profile.LabArea,
+                LabName = nodeInfo.Profile.LabName,
+                Remarks = nodeInfo.Profile.Remarks,
+                TestInfo = nodeInfo.Profile.TestInfo,
+                Usages = nodeInfo.Profile.Usages
             };
         this.nodeInfoDrawerVisible = true;
     }
@@ -231,15 +232,12 @@
     {
         try
         {
-            string requestUri = $"{this.NavigationManager.BaseUri}api/nodes/update";
-            var httpRsp = await this.HttpClient.PostAsJsonAsync(requestUri, this._editingNodeInfoModel);
-            httpRsp.EnsureSuccessStatusCode();
-            var apiResult = await httpRsp.Content.ReadFromJsonAsync<ApiResult>();
+            var apiResult = await this.ApiService.UpdateNodeProfileAsync(this._editingNodeInfoModel);
             if (apiResult.ErrorCode == 0)
             {
                 this._editingNodeInfoModel = null;
                 this.nodeInfoDrawerVisible = false;
-                await this.RefreshNodeListAsync();
+                await this.QueryNodeListAsync();
             }
             else
             {
@@ -256,8 +254,8 @@
 
 
     public TableFilter<string?>[] factory_name_Filters = new TableFilter<string?>[] {
-        new() { Text = "光明", Value = "光明" },
-        new() { Text = "博罗", Value = "博罗" },
+        new() { Text = "光明", Value = "GM" },
+        new() { Text = "博罗", Value = "BL" },
         new() { Text = "未知", Value = "Unknown" },
     };
 
@@ -276,28 +274,39 @@
         return string.IsNullOrEmpty(value) ? string.IsNullOrEmpty(name) : name.StartsWith(value);
     }
 
-    void OnRowClick(RowData<NodeInfo> row)
+    void OnRowClick(RowData<NodeInfoModel> row)
     {
-        Console.WriteLine($"row {row.Data.node_name} was clicked.");
+
     }
 
-    async void OnRefreshClick()
+    private async Task OnRefreshClick()
     {
-        await this.RefreshNodeListAsync();
+        this._loading = true;
+        await this.QueryNodeListAsync().ConfigureAwait(false);
+        this._loading = false;
     }
 
-    async Task RefreshNodeListAsync()
+    async Task QueryNodeListAsync()
     {
         try
         {
-            this._loading = true;
-            this._nodesDataSource = await this.HttpClient.GetFromJsonAsync<List<NodeInfo>>($"/api/nodes/list?rdm={Random.Shared.Next()}");
-            this._loading = false;
-            this.StateHasChanged();
+
+            var apiResult = await this.ApiService.QueryNodeListAsync();
+            if (apiResult.ErrorCode == 0)
+            {
+                this._nodesDataSource = apiResult.Result ?? Array.Empty<NodeInfoModel>();
+            }
+            else
+            {
+                await this._notice.Open(new NotificationConfig()
+                    {
+                        Message = "加载失败",
+                        Description = apiResult.Message,
+                    });
+            }
         }
         catch (Exception ex)
         {
-            this._nodesDataSource = Array.Empty<NodeInfo>();
             await this._notice.Open(new NotificationConfig()
                 {
                     Message = "加载失败",
@@ -306,9 +315,11 @@
         }
     }
 
-    protected override async Task OnInitializedAsync(){
-
-        await this.RefreshNodeListAsync();
+    protected override async Task OnInitializedAsync()
+    {
+            this._loading = true;
+            await this.QueryNodeListAsync().ConfigureAwait(false);
+            this._loading = false;
     }
 
     private void OnNodeStatusChanged(NodeState nodeState)
@@ -317,13 +328,13 @@
         this._table?.ReloadData();
     }
 
-    private void OnTableChange(QueryModel<NodeInfo> query)
+    private void OnTableChange(QueryModel<NodeInfoModel> query)
     {
         this._nodesDataSource = query.ExecuteQuery(this._nodesDataSource.AsQueryable())
          .Where(FilterNodeInfo);
     }
 
-    private bool IsNodeStatusMatched(NodeInfo nodeInfo)
+    private bool IsNodeStatusMatched(NodeInfoModel nodeInfo)
     {
         switch (this._nodeState)
         {
@@ -331,13 +342,13 @@
                 return true;
                 break;
             case NodeState.Online:
-                if (nodeInfo.is_online)
+                if (nodeInfo.Status == NodeStatus.Online)
                 {
                     return true;
                 }
                 break;
             case NodeState.Offline:
-                if (!nodeInfo.is_online)
+                if (nodeInfo.Status == NodeStatus.Offline)
                 {
                     return true;
                 }
@@ -348,7 +359,7 @@
         return false;
     }
 
-    private bool IsNodeInfoFactoryTypeMatched(NodeInfo nodeInfo)
+    private bool IsNodeInfoFactoryTypeMatched(NodeInfoModel nodeInfo)
     {
         switch (this._factoryType)
         {
@@ -356,19 +367,19 @@
                 return true;
                 break;
             case FactoryType.GM:
-                if (nodeInfo.factory_name == "GM")
+                if (nodeInfo.Profile.FactoryName == "GM")
                 {
                     return true;
                 }
                 break;
             case FactoryType.BL:
-                if (nodeInfo.factory_name == "BL")
+                if (nodeInfo.Profile.FactoryName == "BL")
                 {
                     return true;
                 }
                 break;
             default:
-                if (nodeInfo.factory_name == "Unknown")
+                if (nodeInfo.Profile.FactoryName == "Unknown")
                 {
                     return true;
                 }
@@ -377,40 +388,40 @@
         return false;
     }
 
-    private bool IsKeywordsMatch(NodeInfo nodeInfo)
+    private bool IsKeywordsMatch(NodeInfoModel nodeInfo)
     {
         if (string.IsNullOrEmpty(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.factory_name != null && nodeInfo.factory_name.Contains(this._keywords))
+        if (nodeInfo.Profile.FactoryName != null && nodeInfo.Profile.FactoryName.Contains(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.node_name != null && nodeInfo.node_name.Contains(this._keywords))
+        if (nodeInfo.Name != null && nodeInfo.Name.Contains(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.ip_addresses != null && nodeInfo.ip_addresses.Contains(this._keywords))
+        if (nodeInfo.Profile.IpAddress != null && nodeInfo.Profile.IpAddress.Contains(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.version != null && nodeInfo.version.Contains(this._keywords))
+        if (nodeInfo.Profile.ClientVersion != null && nodeInfo.Profile.ClientVersion.Contains(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.usages != null && nodeInfo.usages.Contains(this._keywords))
+        if (nodeInfo.Profile.Usages != null && nodeInfo.Profile.Usages.Contains(this._keywords))
         {
             return true;
         }
-        if (nodeInfo.remarks != null && nodeInfo.remarks.Contains(this._keywords))
+        if (nodeInfo.Profile.Remarks != null && nodeInfo.Profile.Remarks.Contains(this._keywords))
         {
             return true;
         }
         return false;
     }
 
-    private bool FilterNodeInfo(NodeInfo nodeInfo)
+    private bool FilterNodeInfo(NodeInfoModel nodeInfo)
     {
         return this.IsNodeInfoFactoryTypeMatched(nodeInfo) && this.IsNodeStatusMatched(nodeInfo) && this.IsKeywordsMatch(nodeInfo);
     }

@@ -7,16 +7,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="NLog.config" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="CommandLineParser" Version="2.9.1" />
+		<PackageReference Include="Quartz" Version="3.8.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Content Include="NLog.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\..\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj" />
+	  <ProjectReference Include="..\JobsWorkerNodeService.Jobs\JobsWorkerNodeService.Jobs.csproj" />
+	</ItemGroup>
 
 </Project>

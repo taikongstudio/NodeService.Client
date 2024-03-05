@@ -1,13 +1,4 @@
-﻿using FluentFTP;
-using JobsWorker.Shared.Models;
-using JobsWorkerWebService.Models.Configurations;
-using JobsWorkerWebService.Server.Models;
-using JobsWorkerWebService.Services.VirtualSystem;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using System.Buffers.Text;
-
-namespace JobsWorkerWebService.Controllers
+﻿namespace JobsWorkerWebService.Controllers
 {
     [ApiController]
     [Route("api/[controller]/[action]")]
@@ -48,11 +39,11 @@ namespace JobsWorkerWebService.Controllers
         {
             ApiResult<UploadFileResult> uploadFileResult = new ApiResult<UploadFileResult>()
             {
-                Value = new UploadFileResult()
+                Result = new UploadFileResult()
             };
             try
             {
-                uploadFileResult.Value.UploadedFiles = new List<UploadedFile>();
+                uploadFileResult.Result.UploadedFiles = new List<UploadedFile>();
                 var nodeCachePath = this._virtualFileSystemConfig.GetFileCachePath(nodeName);
                 foreach (var formFile in files)
                 {
@@ -62,7 +53,7 @@ namespace JobsWorkerWebService.Controllers
                     if (await this._virtualFileSystem.UploadStream(
                         remotePath, formFile.OpenReadStream()))
                     {
-                        uploadFileResult.Value.UploadedFiles.Add(new UploadedFile()
+                        uploadFileResult.Result.UploadedFiles.Add(new UploadedFile()
                         {
                             DownloadUrl = downloadUrl,
                             Name = formFile.FileName,

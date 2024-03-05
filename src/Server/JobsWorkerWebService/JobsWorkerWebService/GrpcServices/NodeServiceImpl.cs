@@ -1,20 +1,9 @@
-using AntDesign.Charts;
-using FluentFTP;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
-using JobsWorker.Shared;
-using JobsWorker.Shared.GrpcModels;
-using JobsWorker.Shared.MessageQueue;
-using JobsWorker.Shared.MessageQueue.Models;
-using JobsWorker.Shared.Models;
-using JobsWorkerWebService.Data;
-using JobsWorkerWebService.Extensions;
-using JobsWorkerWebService.Models.Configurations;
-using JobsWorkerWebService.Services;
-using JobsWorkerWebService.Services.VirtualSystem;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
-using System.Text.Json;
+
+
+using JobsWorker.Shared.DataModels;
+using JobsWorker.Shared.MessageQueues;
+using JobsWorker.Shared.MessageQueues.Models;
+using System.Globalization;
 
 namespace JobsWorkerWebService.GrpcServices
 {
@@ -22,23 +11,28 @@ namespace JobsWorkerWebService.GrpcServices
     {
         private readonly ILogger<NodeServiceImpl> Logger;
         private readonly IHeartBeatResponseHandler _heartBeatResponseHandler;
+        private readonly ApplicationDbContext _applicationDbContext;
         private readonly IInprocRpc<string, string, RequestMessage, ResponseMessage> _inprocRpc;
         private readonly IInprocMessageQueue<string, string, Message> _inprocMessageQueue;
         private readonly Dictionary<System.Type, Func<RequestMessage, SubscribeEvent, SubscribeEvent>> _builders;
         private readonly IVirtualFileSystem _virtualFileSystem;
         private readonly VirtualFileSystemConfig _virtualFileSystemConfig;
         private readonly IMemoryCache _memoryCache;
+        private readonly ConcurrentDictionary<(string NodeName, string InstanceId), JobExecutionLog> _JobExecutionLogDict;
+        private readonly ActionBlock<JobExecutionLog> _writeLogActionBlock;
 
         public NodeServiceImpl(
+            ApplicationDbContext applicationDbContext,
             IInprocRpc<string, string, RequestMessage, ResponseMessage> inprocRpc,
             IInprocMessageQueue<string, string, Message> inprocMessageQueue,
-            IVirtualFileSystem  virtualFileSystem,
-            VirtualFileSystemConfig  virtualFileSystemConfig,
+            IVirtualFileSystem virtualFileSystem,
+            VirtualFileSystemConfig virtualFileSystemConfig,
             IMemoryCache memoryCache,
             ILogger<NodeServiceImpl> logger,
             IHeartBeatResponseHandler heartBeatResponseHandler
             )
         {
+            this._applicationDbContext = applicationDbContext;
             this._inprocRpc = inprocRpc;
             this._virtualFileSystem = virtualFileSystem;
             this._inprocMessageQueue = inprocMessageQueue;
@@ -49,10 +43,51 @@ namespace JobsWorkerWebService.GrpcServices
                 { typeof(HeartBeatRequest),BuildHeartBeatEvent},
                 { typeof(FileSystemListDirectoryRequest),BuildFileSystemListDirectoryRequest},
                 { typeof(FileSystemListDriveRequest),BuildFileSystemListDriveRequest},
-                { typeof(FileSystemBulkOperationRequest),BuildFileSystemBulkOperationRequest}
+                { typeof(FileSystemBulkOperationRequest),BuildFileSystemBulkOperationRequest},
+                { typeof(NodeConfigTemplateChangedMessage),BuildNodeConfigurationChangedRequest},
+                { typeof(JobExecutionTriggerRequest),BuildTaskTriggerRequest}
             };
             this.Logger = logger;
             this._heartBeatResponseHandler = heartBeatResponseHandler;
+            this._JobExecutionLogDict = new ConcurrentDictionary<(string NodeName, string InstanceId), JobExecutionLog>();
+            this._writeLogActionBlock = new ActionBlock<JobExecutionLog>(OnProcessWriteLogActionBlock);
+        }
+
+        private async Task OnProcessWriteLogActionBlock(JobExecutionLog JobExecutionLog)
+        {
+            try
+            {
+                var key = (JobExecutionLog.NodeName, JobExecutionLog.InstanceId);
+                using var memoryStream = new MemoryStream();
+                using var streamWriter = new StreamWriter(memoryStream);
+                foreach (var log in JobExecutionLog.Logs)
+                {
+                    streamWriter.WriteLine(log);
+                }
+                JobExecutionLog.Logs.Clear();
+                memoryStream.Position = 0;
+                await this._virtualFileSystem.UploadStream(JobExecutionLog.LogPath, memoryStream);
+                this._JobExecutionLogDict.TryRemove(key, out _);
+            }
+            catch (Exception ex)
+            {
+                this.Logger.LogError(ex.ToString());
+            }
+
+        }
+
+        private SubscribeEvent BuildNodeConfigurationChangedRequest(RequestMessage message, SubscribeEvent subscribeEvent)
+        {
+            subscribeEvent.Topic = "nodeconfig";
+            subscribeEvent.ConfigurationChangedReport = (message as NodeConfigTemplateChangedMessage).Content;
+            return subscribeEvent;
+        }
+
+        private SubscribeEvent BuildTaskTriggerRequest(RequestMessage message, SubscribeEvent subscribeEvent)
+        {
+            subscribeEvent.Topic = "task";
+            subscribeEvent.JobExecutionTriggerReq = (message as JobExecutionTriggerRequest).Content;
+            return subscribeEvent;
         }
 
         private SubscribeEvent BuildHeartBeatEvent(RequestMessage request, SubscribeEvent subscribeEvent)
@@ -125,7 +160,7 @@ namespace JobsWorkerWebService.GrpcServices
                                 NodeName = subscribeRequest.NodeName,
                             };
                             subscribeEvent.Properties.Add("DateTime", DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss:fff"));
-                            subscribeEvent = _builders[request.GetType()].Invoke(request, subscribeEvent);
+                            subscribeEvent = this._builders[request.GetType()].Invoke(request, subscribeEvent);
                             await responseStream.WriteAsync(subscribeEvent);
                         }
                         catch (Exception ex)
@@ -153,10 +188,11 @@ namespace JobsWorkerWebService.GrpcServices
                     Content = new HeartBeatReq()
                     {
                         RequestId = id,
+                        NodeName = subscribeRequest.NodeName,
                     },
                     DateTime = DateTime.Now
                 }, context.CancellationToken);
-                await Task.Delay(TimeSpan.FromSeconds(60), context.CancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), context.CancellationToken);
             }
         }
 
@@ -186,7 +222,6 @@ namespace JobsWorkerWebService.GrpcServices
 
         public override Task<Empty> SendHeartBeatResponse(HeartBeatRsp request, ServerCallContext context)
         {
-            this.Logger.LogInformation(request.ToString());
             this._inprocRpc.WriteResponseAsync(request.NodeName, new HeartBeatResponse()
             {
                 Key = request.RequestId,
@@ -228,30 +263,23 @@ namespace JobsWorkerWebService.GrpcServices
 
             try
             {
-                foreach (var configKey in request.ConfigurationKeys)
+                var configName = request.Parameters["ConfigName"];
+                var nodeInfo = await this._applicationDbContext.NodeInfoDbSet.FindAsync(queryConfigurationRsp.NodeName);
+                await this._applicationDbContext.LoadAsync(nodeInfo);
+                if (nodeInfo == null)
                 {
-                    string remotePath = this._virtualFileSystemConfig.GetConfigPath(request.NodeName, configKey);
-
-                    var config = await this._memoryCache.GetOrCreateAsync(remotePath, async (cacheEntry) =>
-                    {
-                        if (!this._memoryCache.TryGetValue(remotePath, out var configCache))
-                        {
-                            using var stream = await this._virtualFileSystem.ReadFileAsync(remotePath, context.CancellationToken);
-                            configCache = JsonSerializer.Deserialize<object>(stream);
-                            if (configCache != null)
-                            {
-                                cacheEntry.Value = configCache;
-                                cacheEntry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-                            }
-                        }
-                        return configCache;
-                    });
-                    if (config != null)
-                    {
-                        queryConfigurationRsp.Configurations.Add(configKey, JsonSerializer.Serialize(config));
-                    }
+                    queryConfigurationRsp.ErrorCode = -1;
+                    queryConfigurationRsp.Message = $"Could not found node info:{queryConfigurationRsp.NodeName}";
                 }
-
+                else if (nodeInfo.ActiveNodeConfigTemplateForeignKey == null)
+                {
+                    queryConfigurationRsp.ErrorCode = -1;
+                    queryConfigurationRsp.Message = $"{queryConfigurationRsp.NodeName}`s config is not configured yet";
+                }
+                else
+                {
+                    queryConfigurationRsp.Configurations.Add(configName, nodeInfo.ActiveNodeConfigTemplate?.ToJsonString<NodeConfigTemplateModel>());
+                }
             }
             catch (Exception ex)
             {
@@ -264,5 +292,88 @@ namespace JobsWorkerWebService.GrpcServices
             return queryConfigurationRsp;
         }
 
+
+        public override async Task<Empty> SendJobExecutionReport(IAsyncStreamReader<JobExecutionReport> requestStream, ServerCallContext context)
+        {
+
+            while (await requestStream.MoveNext())
+            {
+                var JobExecutionReport = requestStream.Current;
+                var nodeName = JobExecutionReport.NodeName;
+                var id = JobExecutionReport.Properties[nameof(JobExecutionInstanceModel.Id)];
+                var JobExecutionStatus = JobExecutionReport.Status;
+                var key = (nodeName, id);
+                JobExecutionInstanceModel? JobExecutionRecord =
+                    await this._applicationDbContext
+                    .JobExecutionInstancesDbSet
+                    .FindAsync(nodeName, id);
+                if (JobExecutionRecord.LogPath == null)
+                {
+                    JobExecutionRecord.LogPath = this._virtualFileSystemConfig.GetTaskLogsPath(nodeName, id);
+                }
+                JobExecutionLog? JobExecutionLog = EnsureJobExecutionLog(key);
+                foreach (var log in JobExecutionReport.Logs)
+                {
+                    JobExecutionLog.Logs.Add(log);
+                }
+                switch (JobExecutionStatus)
+                {
+                    case JobExecutionStatus.Unknown:
+                        break;
+                    case JobExecutionStatus.Triggered:
+                        break;
+                    case JobExecutionStatus.Started:
+                        var begin_time = JobExecutionReport.Properties[nameof(JobExecutionInstanceModel.ExecutionBeginTime)];
+                        JobExecutionRecord.ExecutionBeginTime =
+                            DateTime.ParseExact(begin_time, 
+                            NodePropertyModel.DateTimeFormatString,
+                            DateTimeFormatInfo.InvariantInfo);
+                        break;
+                    case JobExecutionStatus.Running:
+                        break;
+                    case JobExecutionStatus.Failed:
+                    case JobExecutionStatus.Finished:
+                        var end_time = JobExecutionReport.Properties[nameof(JobExecutionInstanceModel.ExecutionEndTime)];
+                        JobExecutionRecord.ExecutionEndTime = DateTime.ParseExact(end_time,
+                            NodePropertyModel.DateTimeFormatString,
+                            DateTimeFormatInfo.InvariantInfo);
+                        this._writeLogActionBlock.Post(JobExecutionLog);
+                        break;
+                    default:
+                        break;
+                }
+
+                JobExecutionRecord.Status = (JobExecutionInstanceStatus)JobExecutionStatus;
+                await this._applicationDbContext.SaveChangesAsync();
+            }
+            return new Empty();
+        }
+
+        private JobExecutionLog EnsureJobExecutionLog((string nodeName, string instance_id) key)
+        {
+            if (!this._JobExecutionLogDict.TryGetValue(key, out var JobExecutionLog))
+            {
+                JobExecutionLog = new JobExecutionLog()
+                {
+                    NodeName = key.nodeName,
+                    Logs = new List<string>()
+                };
+                this._JobExecutionLogDict.TryAdd(key, JobExecutionLog);
+            }
+
+            return JobExecutionLog;
+        }
+
+        public override async Task<Empty> SendJobExecutionTriggerResponse(JobExecutionTriggerRsp request, ServerCallContext context)
+        {
+            this.Logger.LogInformation(request.ToString());
+            await this._inprocRpc.WriteResponseAsync(request.NodeName, new JobExecutionTriggerResponse()
+            {
+                Key = request.RequestId,
+                Content = request,
+                DateTime = DateTime.Now
+            });
+            return new Empty();
+        }
     }
 }

@@ -1,8 +1,4 @@
-﻿using JobsWorker.Shared.GrpcModels;
-using JobsWorker.Shared.Models;
-using JobsWorkerWebService.Data;
-using Microsoft.AspNetCore.Mvc;
-using OneOf.Types;
+﻿using JobsWorker.Shared.DataModels;
 
 namespace JobsWorkerWebService.Controllers
 {
@@ -11,22 +7,23 @@ namespace JobsWorkerWebService.Controllers
     public class ManagementController : Controller
     {
         private readonly ApplicationDbContext _applicationDbContext;
-        private readonly ApplicationProfileDbContext _applicationProfileDbContext;
+        private readonly IServiceProvider  _serviceProvider;
         public ManagementController(
-            ApplicationDbContext applicationDbContext,
-            ApplicationProfileDbContext applicationProfileDbContext
+            IServiceProvider serviceProvider,
+            ApplicationDbContext applicationDbContext
             )
         {
+            this._serviceProvider = serviceProvider;
             this._applicationDbContext = applicationDbContext;
-            this._applicationProfileDbContext = applicationProfileDbContext;
         }
 
         [HttpGet("/api/management/sync")]
         public async Task<ApiResult<int>> SyncNodeInfoFromMachineInfoAsync()
         {
             ApiResult<int> apiResult = new ApiResult<int>();
-            var machineInfoList = this._applicationProfileDbContext
-                     .MachineInfoDbSet.ToArray();
+            using var scope = this._serviceProvider.CreateScope();
+            using var profileDbContext = this._serviceProvider.GetService<ApplicationProfileDbContext>();
+            var machineInfoList = profileDbContext.MachineInfoDbSet.ToArray();
 
             var nodesList = this._applicationDbContext.NodeInfoDbSet.ToList();
 
@@ -35,25 +32,44 @@ namespace JobsWorkerWebService.Controllers
                 string computerName = machineInfo.computer_name;
                 var nodeInfo = nodesList.FirstOrDefault(
                     x =>
-                    string.Equals(x.node_name, computerName, StringComparison.OrdinalIgnoreCase)
+                    string.Equals(x.Name, computerName, StringComparison.OrdinalIgnoreCase)
                     );
 
 
                 if (nodeInfo == null)
                 {
-                    nodeInfo = NodeInfo.Create(machineInfo.computer_name);
+                    nodeInfo = NodeInfoModel.Create(machineInfo.computer_name);
                     this._applicationDbContext.NodeInfoDbSet.Add(nodeInfo);
                     nodesList.Add(nodeInfo);
                 }
-                nodeInfo.test_info = machineInfo.test_info;
-                nodeInfo.remarks = machineInfo.remarks;
-                nodeInfo.lab_name = machineInfo.lab_name;
-                nodeInfo.usages = machineInfo.usages;
-                nodeInfo.lab_area = machineInfo.lab_area;
+                nodeInfo.Profile.TestInfo = machineInfo.test_info;
+                nodeInfo.Profile.Remarks = machineInfo.remarks;
+                nodeInfo.Profile.LabName = machineInfo.lab_name;
+                nodeInfo.Profile.Usages = machineInfo.usages;
+                nodeInfo.Profile.LabArea = machineInfo.lab_area;
             }
 
             var changesCount = await this._applicationDbContext.SaveChangesAsync();
-            apiResult.Value = changesCount;
+            apiResult.Result = changesCount;
+            return apiResult;
+        }
+
+        [HttpGet("/api/management/test")]
+        public async Task<ApiResult<int>> TestAsync()
+        {
+            ApiResult<int> apiResult = new ApiResult<int>();
+
+            for (int i = 0; i < 1000; i++)
+            {
+
+
+
+                var nodeInfo = NodeInfoModel.Create(Guid.NewGuid().ToString());
+                this._applicationDbContext.NodeInfoDbSet.Add(nodeInfo);
+            }
+
+            var changesCount = await this._applicationDbContext.SaveChangesAsync();
+            apiResult.Result = changesCount;
             return apiResult;
         }
 

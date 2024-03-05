@@ -1,0 +1,301 @@
+﻿@foreach (var kv in this.OptionEditors)
+{
+    var editorBase = kv.Value;
+    <FormItem Style="border:1px;border-color:dodgerblue" Label="@(string.Format($"任务选项：{kv.Key}"))">
+        @if (true)
+        {
+            switch (editorBase.EditorType)
+            {
+                case OptionValueType.TextValue:
+                    var textValueEditor = editorBase as TextValueEditor;
+                    <Input Disabled="@disabled" @bind-Value="@textValueEditor.Value" Type="text"></Input>
+                    break;
+                case OptionValueType.NumberValue:
+                    var numberValueEditor = editorBase as NumberValueEditor;
+                    <Input Disabled="@disabled" @bind-Value="@numberValueEditor.Value" Type="number"></Input>
+                    break;
+                case OptionValueType.BooleanValue:
+                    var booleanValueEditor = editorBase as BooleanValueEditor;
+                    <Switch Disabled="@disabled" @bind-Value="@booleanValueEditor.Value"></Switch>
+                    break;
+                case OptionValueType.TextArrayValue:
+                    var textArrayValueEditor = editorBase as TextArrayValueEditor;
+                    <Button Disabled="@disabled" OnClick="()=>textArrayValueEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@disabled" OnClick="()=>textArrayValueEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <StringEntryTable DataSource="@textArrayValueEditor.Value"
+                                      NameTitle="备注"
+                                      IsNameHidden
+                                      ValueTitle="文本值"
+                                      IsEditable="@IsEditable"
+                                      @bind-SelectedItems="@textArrayValueEditor.SelectedItems" />
+                    break;
+                case OptionValueType.ScriptCodeValue:
+                    var scriptCodeEditor = editorBase as ScriptCodeEditor;
+                    <TextArea Disabled="@disabled" @bind-Value="@scriptCodeEditor.Value"></TextArea>
+                    break;
+                case OptionValueType.FtpConfigListValue:
+                    var ftpConfigListEditor = editorBase as FtpConfigListEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@ftpConfigListEditor.Configs"
+                            @bind-Value="@ftpConfigListEditor.SelectedConfig"
+                            TItem="FtpConfigModel"
+                            TItemValue="FtpConfigModel"
+                            LabelName="@nameof(FtpConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||ftpConfigListEditor.SelectedConfig==null)" OnClick="()=>ftpConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||ftpConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>ftpConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@ftpConfigListEditor.Value"
+                                TItem="FtpConfigModel"
+                                IsEditable="@IsEditable"
+                                @bind-SelectedItems="@ftpConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.MysqlConfigListValue:
+                    var mysqlConfigListEditor = editorBase as MysqlConfigListEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@mysqlConfigListEditor.Configs"
+                            @bind-Value="@mysqlConfigListEditor.SelectedConfig"
+                            TItem="MysqlConfigModel"
+                            TItemValue="MysqlConfigModel"
+                            LabelName="@nameof(FtpConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||mysqlConfigListEditor.SelectedConfig==null)" OnClick="()=>mysqlConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||mysqlConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>mysqlConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@mysqlConfigListEditor.Value"
+                                TItem="MysqlConfigModel" IsEditable="@IsEditable"
+                                       @bind-SelectedItems="@mysqlConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.KafkaConfigListValue:
+                    var kafkaConfigListEditor = editorBase as KafkaConfigListEditor;
+                    <Select Disabled="@disabled" DataSource="@kafkaConfigListEditor.Configs"
+                            @bind-Value="@kafkaConfigListEditor.SelectedConfig"
+                            TItem="KafkaConfigModel"
+                            TItemValue="KafkaConfigModel"
+                            LabelName="@nameof(FtpConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||kafkaConfigListEditor.SelectedConfig==null)" OnClick="()=>kafkaConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||kafkaConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>kafkaConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@kafkaConfigListEditor.Value"
+                             TItem="KafkaConfigModel"
+                                       IsEditable="@IsEditable"
+                                       @bind-SelectedItems="@kafkaConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.FtpConfigValue:
+                    var ftpConfigEditor = editorBase as FtpConfigEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@FtpConfigs"
+                            @bind-Value="@ftpConfigEditor.Value"
+                            TItem="FtpConfigModel"
+                            TItemValue="FtpConfigModel"
+                            LabelName="@nameof(FtpConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.MysqlConfigValue:
+                    var mysqlConfigEditor = editorBase as MysqlConfigEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@MysqlConfigs"
+                            @bind-Value="@mysqlConfigEditor.Value"
+                            TItem="MysqlConfigModel"
+                            TItemValue="MysqlConfigModel"
+                            LabelName="@nameof(MysqlConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.KafkaConfigValue:
+                    var kafkaConfigEditor = editorBase as KafkaConfigEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@KafkaConfigs"
+                            @bind-Value="@kafkaConfigEditor.Value"
+                            TItem="KafkaConfigModel"
+                            TItemValue="KafkaConfigModel"
+                            LabelName="@nameof(KafkaConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.FtpUploadConfigValue:
+                    var ftpUploadConfigEditor = editorBase as FtpUploadConfigEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@FtpUploadConfigs"
+                            @bind-Value="@ftpUploadConfigEditor.Value"
+                            TItem="FtpUploadConfigModel"
+                            TItemValue="FtpUploadConfigModel"
+                            LabelName="@nameof(FtpUploadConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.FtpUploadConfigListValue:
+                    var ftpUploadConfigListEditor = editorBase as FtpUploadConfigListEditor;
+                    <Select Disabled="@disabled" DataSource="@ftpUploadConfigListEditor.Configs"
+                            @bind-Value="@ftpUploadConfigListEditor.SelectedConfig"
+                            TItem="FtpUploadConfigModel"
+                            TItemValue="FtpUploadConfigModel"
+                            LabelName="@nameof(FtpUploadConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||ftpUploadConfigListEditor.SelectedConfig==null)" OnClick="()=>ftpUploadConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||ftpUploadConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>ftpUploadConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@ftpUploadConfigListEditor.Value"
+                                 TItem="FtpUploadConfigModel"
+                                       IsEditable="@IsEditable"
+                                       @bind-SelectedItems="@ftpUploadConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.LogUploadConfigValue:
+                    var logUploadConfigEditor = editorBase as LogUploadConfigEditor;
+                    <Select Disabled="@disabled" DataSource="@LogUploadConfigs"
+                            @bind-Value="@logUploadConfigEditor.Value"
+                            TItem="LogUploadConfigModel"
+                            TItemValue="LogUploadConfigModel"
+                            LabelName="@nameof(LogUploadConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.LogUploadConfigListValue:
+                    var logUploadConfigListEditor = editorBase as LogUploadConfigListEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@logUploadConfigListEditor.Configs"
+                            @bind-Value="@logUploadConfigListEditor.SelectedConfig"
+                            TItem="LogUploadConfigModel"
+                            TItemValue="LogUploadConfigModel"
+                            LabelName="@nameof(LogUploadConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||logUploadConfigListEditor.SelectedConfig==null)" OnClick="()=>logUploadConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||logUploadConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>logUploadConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@logUploadConfigListEditor.Value"
+                                TItem="LogUploadConfigModel"
+                                       IsEditable="@IsEditable"
+                                       @bind-SelectedItems="@logUploadConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.LocalDirectoryMappingConfigValue:
+                    var localDirectoryMappingConfigEditor = editorBase as LocalDirectoryMappingConfigEditor;
+                    <Select Disabled="@disabled" DataSource="@LocalDirectoryMappingConfigs"
+                            @bind-Value="@localDirectoryMappingConfigEditor.Value"
+                            TItem="LocalDirectoryMappingConfigModel"
+                            TItemValue="LocalDirectoryMappingConfigModel"
+                            LabelName="@nameof(LocalDirectoryMappingConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.LocalDirectoryMappingConfigListValue:
+                    var localDirectoryMappingConfigListEditor = editorBase as LocalDirectoryMappingConfigListEditor;
+                    <Select Disabled="@disabled" DataSource="@localDirectoryMappingConfigListEditor.Configs"
+                            @bind-Value="@localDirectoryMappingConfigListEditor.SelectedConfig"
+                            TItem="LocalDirectoryMappingConfigModel"
+                            TItemValue="LocalDirectoryMappingConfigModel"
+                            LabelName="@nameof(LocalDirectoryMappingConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||localDirectoryMappingConfigListEditor.SelectedConfig==null)" OnClick="()=>localDirectoryMappingConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||localDirectoryMappingConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>localDirectoryMappingConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@localDirectoryMappingConfigListEditor.Value"
+                      
+                                    TItem="LocalDirectoryMappingConfigModel"
+                                       IsEditable="@IsEditable"
+                                       @bind-SelectedItems="@localDirectoryMappingConfigListEditor.SelectedItems" />
+                    break;
+                case OptionValueType.PluginConfigValue:
+                    var pluginConfigEditor = editorBase as PluginConfigEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@PluginConfigs"
+                            @bind-Value="@pluginConfigEditor.Value"
+                            TItem="PluginConfigModel"
+                            TItemValue="PluginConfigModel"
+                            LabelName="@nameof(PluginConfigModel.Name)"
+                            Style="width:200px" />
+                    break;
+                case OptionValueType.PluginConfigListValue:
+                    var pluginConfigListEditor = editorBase as PluginConfigListEditor;
+                    <Select Disabled="@disabled"
+                            DataSource="@pluginConfigListEditor.Configs"
+                            @bind-Value="@pluginConfigListEditor.SelectedConfig"
+                            TItem="PluginConfigModel"
+                            TItemValue="PluginConfigModel"
+                            LabelName="@nameof(PluginConfigModel.Name)"
+                            Style="width:200px" />
+                    <Button Disabled="@(this.disabled||pluginConfigListEditor.SelectedConfig==null)" OnClick="()=>pluginConfigListEditor.AddNewItem()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        添加
+                    </Button>
+                    <Button Disabled="@(this.disabled||pluginConfigListEditor.SelectedItems.IsNullOrEmpty())" OnClick="()=>pluginConfigListEditor.RemoveSelectedItems()" Type="primary" Style="margin-bottom:16px;margin-left:16px;">
+                        删除
+                    </Button>
+                    <ModelTable DataSource="@pluginConfigListEditor.Value"
+                                
+                                      TItem="PluginConfigModel"
+                             
+                                       IsEditable="@IsEditable"
+                                
+                                       @bind-SelectedItems="@pluginConfigListEditor.SelectedItems" />
+                    break;
+                default:
+                    break;
+            }
+        }
+
+    </FormItem>
+}
+
+@code {
+
+    [Parameter]
+    public Dictionary<string, EditorBase> OptionEditors { get; set; } = [];
+
+    [Parameter]
+    public bool IsEditable { get; set; } = true;
+
+    private bool disabled = false;
+
+    [Parameter]
+    public IEnumerable<FtpUploadConfigModel> FtpUploadConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<FtpConfigModel> FtpConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<MysqlConfigModel> MysqlConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<LogUploadConfigModel> LogUploadConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<PluginConfigModel> PluginConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<LocalDirectoryMappingConfigModel> LocalDirectoryMappingConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<RestApiConfigModel> RestApiConfigs { get; set; } = [];
+
+    [Parameter]
+    public IEnumerable<KafkaConfigModel> KafkaConfigs { get; set; } = [];
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (this.IsEditable)
+        {
+            this.disabled = false;
+        }else
+        {
+            this.disabled = true;
+        }
+        return base.OnParametersSetAsync();
+    }
+}

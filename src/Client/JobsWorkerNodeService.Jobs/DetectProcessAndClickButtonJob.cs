@@ -1,4 +1,5 @@
 ﻿using JobsWorkerNodeService.Jobs.Helpers;
+using JobsWorkerNodeService.Jobs.Models;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using System.Diagnostics;
@@ -13,14 +14,15 @@ namespace JobsWorkerNodeService.Jobs
         {
             try
             {
-                Logger.LogInformation("Start check");
-                var processName = options["processName"];
-                var exePath = options["exePath"];
+                DetectProcessAndClickButtonJobOptions options = this.JobScheduleConfig.GetOptions<DetectProcessAndClickButtonJobOptions>();
+                this.Logger.LogInformation("Start check");
+                var processName = options.processName;
+                var exePath = options.exePath;
                 var processes = Process.GetProcessesByName(processName);
-                var workingDirectory = options["workingDirectory"];
+                var workingDirectory = options.workingDirectory;
                 foreach (var p in processes)
                 {
-                    Logger.LogInformation($"[Process]{p.ProcessName},{p.Id}");
+                    this.Logger.LogInformation($"[Process]{p.ProcessName},{p.Id}");
                 }
 
                 var process = processes.FirstOrDefault();
@@ -28,21 +30,21 @@ namespace JobsWorkerNodeService.Jobs
 
                 if (process == null)
                 {
-                    Logger.LogInformation($"{processName}:process not found");
-                    if (!ProcessHelper.StartProcessAsCurrentUser(exePath, Logger, out var processId, null, workingDirectory, true))
+                    this.Logger.LogInformation($"{processName}:process not found");
+                    if (!ProcessHelper.StartProcessAsCurrentUser(exePath, this.Logger, out var processId, null, workingDirectory, true))
                     {
-                        Logger.LogInformation($"start process fail:{exePath}");
+                        this.Logger.LogInformation($"start process fail:{exePath}");
                         process = RunUIProcess(exePath, "", workingDirectory);
-                        Logger.LogInformation($"start process default:{process.Id}");
+                        this.Logger.LogInformation($"start process default:{process.Id}");
                     }
                     else
                     {
                         process = Process.GetProcessById((int)processId);
                     }
-                    Logger.LogInformation($"start process:{process.Id}");
+                    this.Logger.LogInformation($"start process:{process.Id}");
                 }
 
-                string? buttonName = options["ButtonText"];
+                string? buttonName = options.buttonText;
                 int waitCount = 0;
                 while (process.MainWindowHandle == nint.Zero)
                 {
@@ -66,7 +68,7 @@ namespace JobsWorkerNodeService.Jobs
                             {
                                 const int BM_CLICK = 0x00F5;
                                 hwnd.SendMessage(BM_CLICK);
-                                Logger.LogInformation($"Clicked {hwnd.Handle}");
+                                this.Logger.LogInformation($"Clicked {hwnd.Handle}");
                                 return false;
                             }
                         }
@@ -85,9 +87,12 @@ namespace JobsWorkerNodeService.Jobs
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                this.Logger.LogError(ex.ToString());
             }
+            finally
+            {
 
+            }
         }
 
 

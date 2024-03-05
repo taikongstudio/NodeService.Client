@@ -5,8 +5,15 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<OutputType>WinExe</OutputType>
+		<OutputType>Exe</OutputType>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="config\**" />
+	  <Content Remove="config\**" />
+	  <EmbeddedResource Remove="config\**" />
+	  <None Remove="config\**" />
+	</ItemGroup>
 
 
 	<ItemGroup>
@@ -23,6 +30,7 @@
 	  <ProjectReference Include="..\..\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj" />
 	</ItemGroup>
 	<ItemGroup>
+	  <Folder Include="Jobs\" />
 	  <Folder Include="Properties\PublishProfiles\" />
 	</ItemGroup>
 	<ItemGroup>

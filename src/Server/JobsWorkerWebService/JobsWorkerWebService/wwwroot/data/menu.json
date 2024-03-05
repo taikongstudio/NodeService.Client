@@ -24,27 +24,86 @@
   },
   {
     "path": "/nodes",
-    "name": "Nodes",
+    "name": "节点",
     "key": "nodes",
     "icon": "dashboard",
     "children": [
       {
         "path": "/nodes",
-        "name": "node list",
-        "key": "node.list"
+        "name": "节点列表",
+        "key": "Nodes.List"
+      },
+      {
+        "path": "/CommonConfig/NodeConfigTemplates",
+        "name": "节点配置模板",
+        "key": "CommonConfig.NodeConfigTemplates"
       }
     ]
   },
   {
-    "path": "/plugins",
-    "name": "Plugins",
-    "key": "plugins",
+    "path": "/jobs",
+    "name": "作业",
+    "key": "jobs",
     "icon": "dashboard",
     "children": [
       {
-        "path": "/plugins",
-        "name": "plugin list",
-        "key": "plugin.list"
+        "path": "/CommonConfig/JobScheduleConfigs",
+        "name": "作业调度配置",
+        "key": "CommonConfig.JobScheduleConfigs"
+      },
+      {
+        "path": "/jobs/instances",
+        "name": "作业执行实例",
+        "key": "Jobs.Instances"
+      }
+    ]
+  },
+  {
+    "path": "/CommonConfig",
+    "name": "通用配置",
+    "key": "CommonConfig",
+    "icon": "setting",
+    "children": [
+
+      {
+        "path": "/CommonConfig/MysqlConfigs",
+        "name": "MySql配置",
+        "key": "CommonConfig.MysqlConfigs"
+      },
+      {
+        "path": "/CommonConfig/FtpConfigs",
+        "name": "Ftp配置",
+        "key": "CommonConfig.FtpConfigs"
+      },
+      {
+        "path": "/CommonConfig/KafkaConfigs",
+        "name": "Kafka配置",
+        "key": "CommonConfig.KafkaConfigs"
+      },
+      {
+        "path": "/CommonConfig/LocalDirectoryMappingConfigs",
+        "name": "文件目录映射配置",
+        "key": "CommonConfig.LocalDirectoryMappingConfigs"
+      },
+      {
+        "path": "/CommonConfig/PluginConfigs",
+        "name": "插件配置",
+        "key": "CommonConfig.PluginConfigs"
+      },
+      {
+        "path": "/CommonConfig/LogUploadConfigs",
+        "name": "日志上传配置",
+        "key": "CommonConfig.LogUploadConfigs"
+      },
+      {
+        "path": "/CommonConfig/FtpUploadConfigs",
+        "name": "Ftp上传配置",
+        "key": "CommonConfig.FtpUploadConfigs"
+      },
+      {
+        "path": "/CommonConfig/JobTypeDescConfigs",
+        "name": "作业类型描述配置",
+        "key": "CommonConfig.JobTypeDescConfigs"
       }
     ]
   },

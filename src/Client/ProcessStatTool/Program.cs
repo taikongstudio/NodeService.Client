@@ -306,7 +306,7 @@ namespace ProcessStatTool
 
                 var processStatFiles = ftpClient.GetListing(options.input);
                 var hashSet = new HashSet<(string FileName, string ProcessName)>();
-                foreach (var processListFileItem in processStatFiles)
+                foreach (var processListFileItem in processStatFiles.SkipWhile(FilterTime))
                 {
                     try
                     {
@@ -371,6 +371,11 @@ namespace ProcessStatTool
                 }
             }
             return string.Empty;
+        }
+
+        private static bool FilterTime(FtpListItem ftpListItem)
+        {
+            return ftpListItem.Modified < DateTime.Today.Date.AddDays(-3);
         }
 
     }

@@ -1,4 +1,4 @@
-﻿using JobsWorker.Shared.Models;
+﻿using JobsWorker.Shared.DataModels;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using System;
@@ -11,11 +11,11 @@ namespace JobsWorkerNodeService.Jobs
 {
     public abstract class JobBase : IJob
     {
-        public Dictionary<string, string> options { get; set; }
+        public JobScheduleConfigModel JobScheduleConfig { get; set; }
 
         public ILogger Logger { get; set; }
 
-        public NodeConfig NodeConfig { get; set; }
+        public NodeConfigTemplateModel NodeConfigTemplate { get; set; }
 
         public abstract Task Execute(IJobExecutionContext context);
 

@@ -50,7 +50,7 @@ namespace ftptool
             {
                 ftpClient.AutoConnect();
                 Console.WriteLine($"Execute config on host {ftpTaskConfig.host} port {ftpTaskConfig.port}" +
-                    $" username{ftpTaskConfig.username} password{ftpTaskConfig.password}");
+                    $" username {ftpTaskConfig.username} password {ftpTaskConfig.password}");
                 using var memoryStream = new MemoryStream();
                 if (!ftpClient.DownloadStream(memoryStream, this.Response.machineDirectoryMappingConfigPath))
                 {

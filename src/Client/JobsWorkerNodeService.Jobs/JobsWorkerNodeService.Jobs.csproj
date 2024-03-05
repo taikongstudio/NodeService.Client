@@ -19,6 +19,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\Shared\JobsWorker.Shared\JobsWorker.Shared.csproj" />
+	  <ProjectReference Include="..\MaccorDataUpload\MaccorDataUpload.csproj" />
 	</ItemGroup>
 
 </Project>
