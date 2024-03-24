@@ -13,14 +13,13 @@ namespace NodeService.WindowsService.Services
         private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
             HeartBeatResponse heartBeatRsp = new HeartBeatResponse();
-            heartBeatRsp.NodeName = subscribeEvent.NodeName;
             heartBeatRsp.RequestId = subscribeEvent.HeartBeatRequest.RequestId;
 
             Stopwatch stopwatch = Stopwatch.StartNew();
 
             try
             {
-                heartBeatRsp.Properties.Add(NodePropertyModel.NodeName_Key, subscribeEvent.NodeName);
+                heartBeatRsp.Properties.Add(NodePropertyModel.HostName_Key, Dns.GetHostName());
                 heartBeatRsp.Properties.Add(NodePropertyModel.ClientVersion_Key, Constants.Version);
                 heartBeatRsp.Properties.Add(NodePropertyModel.Environment_UserName_Key, Environment.UserName);
                 heartBeatRsp.Properties.Add(NodePropertyModel.Environment_ProcessorCount_Key, Environment.ProcessorCount.ToString());
@@ -52,15 +51,14 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
 
 
             stopwatch.Stop();
 
             heartBeatRsp.Properties.Add("CollectTimeSpan", stopwatch.Elapsed.ToString());
-
-            await client.SendHeartBeatResponseAsync(heartBeatRsp, null, null, cancellationToken);
+            await client.SendHeartBeatResponseAsync(heartBeatRsp, _headers, null, cancellationToken);
 
             void CollectNetworkInterfaces(HeartBeatResponse heartBeatRsp)
             {
@@ -93,13 +91,13 @@ namespace NodeService.WindowsService.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex.ToString());
+                    _logger.LogError(ex.ToString());
                 }
             }
 
             void CollectProcessList(HeartBeatResponse heartBeatRsp)
             {
-                var processList = CommonHelper.CollectProcessList(Logger);
+                var processList = CommonHelper.CollectProcessList(_logger);
 
                 heartBeatRsp.Properties.Add(NodePropertyModel.Process_Processes_Key, JsonSerializer.Serialize(processList));
             }
@@ -122,7 +120,7 @@ namespace NodeService.WindowsService.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex.ToString());
+                    _logger.LogError(ex.ToString());
                 }
 
                 heartBeatRsp.Properties.Add(
@@ -139,7 +137,7 @@ namespace NodeService.WindowsService.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex.ToString());
+                    _logger.LogError(ex.ToString());
                 }
 
             }
@@ -153,7 +151,7 @@ namespace NodeService.WindowsService.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex.ToString());
+                    _logger.LogError(ex.ToString());
                 }
 
             }

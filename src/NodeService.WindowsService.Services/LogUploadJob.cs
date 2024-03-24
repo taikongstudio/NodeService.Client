@@ -40,123 +40,12 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private async Task<HashSet<string>> DownloadUploadFilesRecordFromFtpServer(AsyncFtpClient ftpClient, string remoteLogRootDir)
-        {
-            HashSet<string> pathHashSet = new HashSet<string>();
-            try
-            {
-                string exclude = $"-{DateTime.Now.ToString("yyyy-MM-dd")}";
-                var allFileNames = await ftpClient.GetListing(remoteLogRootDir);
-                pathHashSet = allFileNames
-                    .Where(x => !x.Name.Contains(exclude))
-                    .Select(x => Path.GetRelativePath(remoteLogRootDir, x.FullName))
-                    .ToHashSet();
 
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex.ToString());
-            }
-
-            return pathHashSet;
-        }
 
 
         private async Task ExecuteLogUploadConfigAsync(AsyncFtpClient ftpClient, LogUploadConfigModel? logUploadConfig)
         {
-            var localLogDirectories = logUploadConfig.LocalDirectories;
 
-            string remoteLogRootDir = logUploadConfig.RemoteDirectory.Replace("$(HostName)", _dnsName);
-            if (!await ftpClient.DirectoryExists(remoteLogRootDir))
-            {
-                await ftpClient.CreateDirectory(remoteLogRootDir);
-            }
-
-            await ftpClient.AutoConnect();
-            foreach (var localLogDirectory in localLogDirectories)
-            {
-                string myLocalLogDirectory = localLogDirectory.Value;
-                if (!Directory.Exists(myLocalLogDirectory))
-                {
-                    myLocalLogDirectory = Path.Combine(AppContext.BaseDirectory, myLocalLogDirectory);
-                }
-
-                if (!Directory.Exists(myLocalLogDirectory))
-                {
-                    Logger.LogWarning($"Cound not find directory:{myLocalLogDirectory}");
-                    continue;
-                }
-
-                string[] localLogFiles = Directory.GetFiles(myLocalLogDirectory, logUploadConfig.SearchPattern, new EnumerationOptions()
-                {
-                    MatchCasing = logUploadConfig.MatchCasing,
-                    RecurseSubdirectories = logUploadConfig.IncludeSubDirectories,
-                }).Select(x => x.Replace("\\", "/")).ToArray();
-
-                HashSet<string> pathHashSet = await DownloadUploadFilesRecordFromFtpServer(ftpClient, remoteLogRootDir);
-
-                int addedCount = 0;
-
-                foreach (var localFilePath in localLogFiles)
-                {
-                    FileInfo fileInfo = new FileInfo(localFilePath);
-                    if (logUploadConfig.SizeLimitInBytes > 0 && fileInfo.Length > logUploadConfig.SizeLimitInBytes)
-                    {
-                        Logger.LogInformation($"Skip upload {localFilePath} sizelimit:{logUploadConfig.SizeLimitInBytes} filesize:{fileInfo.Length}");
-                        continue;
-                    }
-                    var timeSpan = DateTime.Now - fileInfo.LastWriteTime;
-                    if (logUploadConfig.TimeLimitInSeconds > 0 && timeSpan.TotalSeconds > logUploadConfig.TimeLimitInSeconds)
-                    {
-                        Logger.LogInformation($"Skip upload {localFilePath} timeSecondsLimit:{logUploadConfig.TimeLimitInSeconds} timeSpan:{timeSpan}");
-                        continue;
-                    }
-                    string releativePath = Path.GetRelativePath(myLocalLogDirectory, localFilePath).Replace("\\", "/");
-                    if (pathHashSet.Contains(releativePath))
-                    {
-                        continue;
-                    }
-
-                    var remoteFilePath = Path.Combine(remoteLogRootDir, releativePath);
-
-                    bool retry = false;
-                    try
-                    {
-
-                        var ftpStatus = await ftpClient.UploadFile(localFilePath, remoteFilePath, FtpRemoteExists.Overwrite, true, FtpVerify.None, _myFtpProgress);
-                        if (ftpStatus == FtpStatus.Success)
-                        {
-                            Logger.LogInformation($"Upload log:{localFilePath} to ftp {remoteFilePath}");
-                            pathHashSet.Add(releativePath);
-                            addedCount++;
-                        }
-
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError(ex.ToString());
-                        retry = true;
-                    }
-
-
-
-                    if (retry)
-                    {
-                        try
-                        {
-
-                            using (var fileStream = File.Open(localFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            {
-                                await ftpClient.UploadStream(fileStream, remoteFilePath, FtpRemoteExists.Resume, true, _myFtpProgress);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogError(ex.ToString());
-                        }
-                    }
-                }
-            }
         }
 
         public override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -164,31 +53,12 @@ namespace NodeService.WindowsService.Services
             try
             {
                 LogUploadJobOptions logUploadOptions = new LogUploadJobOptions();
-                await logUploadOptions.InitAsync(this.JobScheduleConfig, ApiService);
+                await logUploadOptions.InitAsync(this.JobScheduleConfig, ApiService, stoppingToken);
 
-                foreach (var uploadLogConfigGroup in logUploadOptions.LogUploadConfigs.GroupBy(x => x.FtpConfig))
+                foreach (var uploadLogConfig in logUploadOptions.LogUploadConfigs)
                 {
-                    var ftpConfig = uploadLogConfigGroup.Key;
-                    using (var ftpClient = new AsyncFtpClient(
-                        ftpConfig.Host,
-                        ftpConfig.Username,
-                        ftpConfig.Password,
-                       ftpConfig.Port,
-                       new FtpConfig()
-                       {
-                           ReadTimeout = ftpConfig.ReadTimeout,
-                           ConnectTimeout = ftpConfig.ConnectTimeout,
-                           DataConnectionConnectTimeout = ftpConfig.DataConnectionConnectTimeout,
-                           DataConnectionReadTimeout = ftpConfig.DataConnectionReadTimeout,
-                       }))
-                    {
-                        foreach (var logUploadConfig in uploadLogConfigGroup)
-                        {
-                            await ExecuteLogUploadConfigAsync(ftpClient, logUploadConfig);
-
-                        }
-                    }
-
+                    LogUploadConfigExecutor logUploadConfigExecutor = new LogUploadConfigExecutor(this.EventId, this._myFtpProgress, uploadLogConfig, this.Logger);
+                    await logUploadConfigExecutor.ExecutionAsync(stoppingToken);
                 }
 
 

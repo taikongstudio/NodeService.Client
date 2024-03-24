@@ -14,9 +14,11 @@ namespace NodeService.WindowsService.Services
     {
         public ILogger Logger { get; private set; }
 
-        public JobScheduleConfigModel JobScheduleConfig { get; set; }
+        public JobScheduleConfigModel JobScheduleConfig { get; private set; }
 
         public ApiService ApiService { get; private set; }
+
+        public EventId EventId { get; private set; }
 
         protected Job(ApiService apiService, ILogger<Job> logger)
         {
@@ -26,8 +28,11 @@ namespace NodeService.WindowsService.Services
 
         public abstract Task ExecuteAsync(CancellationToken cancellationToken = default);
 
-
-
+        public void SetJobScheduleConfig(JobScheduleConfigModel jobScheduleConfig)
+        {
+            this.JobScheduleConfig = jobScheduleConfig;
+            this.EventId = new EventId(0, jobScheduleConfig.Id);
+        }
 
     }
 

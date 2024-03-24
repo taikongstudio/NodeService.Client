@@ -25,8 +25,8 @@ namespace NodeService.WindowsService.Services
         public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
             FtpDownloadJobOptions options = new FtpDownloadJobOptions();
-            await options.InitAsync(this.JobScheduleConfig, ApiService);
-            FtpDownloadConfigExecutor ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(_myFtpProgress, options.FtpDownloadConfig, this.Logger);
+            await options.InitAsync(this.JobScheduleConfig, ApiService, cancellationToken);
+            FtpDownloadConfigExecutor ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(EventId,_myFtpProgress, options.FtpDownloadConfig, this.Logger);
             await ftpDownloadConfigExecutor.ExecuteAsync(cancellationToken);
 
         }

@@ -26,7 +26,7 @@ namespace NodeService.WindowsService.Services
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {
                 FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(_myFtpProgress, ftpUploadConfig, Logger);
-                await ftpTaskExecutor.ExecuteAsync();
+                await ftpTaskExecutor.ExecuteAsync(stoppingToken);
             }
         }
     }

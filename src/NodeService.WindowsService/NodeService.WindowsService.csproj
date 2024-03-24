@@ -30,7 +30,6 @@
 		<PackageReference Include="System.DirectoryServices" Version="8.0.0" />
 	</ItemGroup>
 	<ItemGroup>
-	  <Folder Include="Models\" />
 	  <Folder Include="Properties\PublishProfiles\" />
 	</ItemGroup>
 	<ItemGroup>

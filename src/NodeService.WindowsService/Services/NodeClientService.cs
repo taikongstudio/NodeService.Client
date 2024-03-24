@@ -1,4 +1,5 @@
 ﻿using NodeService.Infrastructure.Interfaces;
+using NodeService.WindowsService.Collections;
 
 namespace NodeService.WindowsService.Services
 {
@@ -43,15 +44,16 @@ namespace NodeService.WindowsService.Services
 
         private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
+        private readonly NodeIdProvider _nodeIdProvider;
+        private readonly Metadata _headers;
         private readonly IConfiguration _configuration;
         private readonly ISchedulerFactory _schedulerFactory;
         private readonly IServiceProvider _serviceProvider;
         private readonly string? _activeGrpcAddress;
         private NodeServiceClient _nodeServiceClient;
-        private IInprocMessageQueue<string, string, JobExecutionEventRequest> _jobExecutionEventMessageQueue;
         private IScheduler _scheduler;
 
-        public ILogger<NodeClientService> Logger { get; private set; }
+        public ILogger<NodeClientService> _logger { get; private set; }
 
 
         public NodeClientService(
@@ -59,19 +61,23 @@ namespace NodeService.WindowsService.Services
             ILogger<NodeClientService> logger,
             IConfiguration configuration,
             ISchedulerFactory schedulerFactory,
-            IAsyncQueue<JobExecutionParameters> jobParamtersQueue,
-            IInprocMessageQueue<string, string, JobExecutionEventRequest> jobExecutionMessageQueue)
+            IAsyncQueue<JobExecutionContext> jobExecutionContextQueue,
+            IAsyncQueue<JobExecutionReport> reportQueue,
+            JobContextDictionary jobContextDictionary,
+            NodeIdProvider machineIdProvider
+            )
         {
-            _jobExecutionContextDict = new();
-            _jobExecutionEventMessageQueue = jobExecutionMessageQueue;
+            _jobContextDictionary = jobContextDictionary;
             _serviceProvider = serviceProvider;
             _configuration = configuration;
             _schedulerFactory = schedulerFactory;
-            _jobExecutionParamtersQueue = jobParamtersQueue;
-            Logger = logger;
+            _jobExecutionContextQueue = jobExecutionContextQueue;
+            _reportQueue = reportQueue;
+            _jobContextDictionary = jobContextDictionary;
+            _logger = logger;
             _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, new ExecutionDataflowBlockOptions()
             {
-                MaxDegreeOfParallelism = Debugger.IsAttached ? 1 : 8,
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
                 EnsureOrdered = true,
             });
 
@@ -80,19 +86,21 @@ namespace NodeService.WindowsService.Services
             {
                 MaxDegreeOfParallelism = Debugger.IsAttached ? 1 : 8,
             });
-
-            InitReportActionBlock();
+            _nodeIdProvider = machineIdProvider;
+            _headers = new Metadata();
         }
 
         private async Task ProcessSubscribeEventAsync(SubscribeEventInfo subscribeEventInfo)
         {
             try
             {
-                await ProcessSubscribeEventAsync(subscribeEventInfo.Client, subscribeEventInfo.SubscribeEvent);
+                await ProcessSubscribeEventAsync(subscribeEventInfo.Client,
+                                                 subscribeEventInfo.SubscribeEvent,
+                                                 subscribeEventInfo.CancellationToken);
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
 
         }
@@ -117,7 +125,7 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
                 op.Exception = ex;
                 await op.SendExceptionReportAsync();
             }
@@ -133,9 +141,16 @@ namespace NodeService.WindowsService.Services
             try
             {
                 _scheduler = await _schedulerFactory.GetScheduler();
+                if (!_scheduler.IsStarted)
+                {
+                    await _scheduler.Start(stoppingToken);
+                }
 
-
-                StartServiceHost(stoppingToken);
+                _headers.AppendNodeClientHeaders(new NodeClientHeaders()
+                {
+                    HostName = Dns.GetHostName(),
+                    NodeId = _nodeIdProvider.GetNodeId()
+                });
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -144,13 +159,12 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
         }
 
         private async Task RunGrpcLoopAsync(CancellationToken cancellationToken = default)
         {
-
             try
             {
                 using var handler = new HttpClientHandler();
@@ -158,35 +172,36 @@ namespace NodeService.WindowsService.Services
                     HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
                 var dnsName = Dns.GetHostName();
                 string? address = GetAddressFromConfiguration();
-                Logger.LogInformation($"Grpc Address:{address}");
+                _logger.LogInformation($"Grpc Address:{address}");
 
                 using var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions()
                 {
                     HttpHandler = handler,
-                    Credentials = ChannelCredentials.SecureSsl
+                    Credentials = ChannelCredentials.SecureSsl,
                 });
 
                 _nodeServiceClient = new NodeServiceClient(channel);
-
                 var subscribeCall = _nodeServiceClient.Subscribe(new SubscribeRequest()
                 {
-                    NodeName = dnsName
-                }, cancellationToken: cancellationToken);
+                    RequestId = Guid.NewGuid().ToString(),
+                }, _headers, cancellationToken: cancellationToken);
 
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(cancellationToken: cancellationToken);
-                        while (true)
+
+                        var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(_headers, cancellationToken: cancellationToken);
+                        while (!cancellationToken.IsCancellationRequested)
                         {
-                            var reportMessage = await _reportChannel.Reader.ReadAsync(cancellationToken);
+                            var reportMessage = await _reportQueue.DeuqueAsync(cancellationToken);
                             await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
                         }
+
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogError(ex.ToString());
+                        _logger.LogError(ex.ToString());
                     }
 
 
@@ -194,7 +209,7 @@ namespace NodeService.WindowsService.Services
 
                 await foreach (var subscribeEvent in subscribeCall.ResponseStream.ReadAllAsync(cancellationToken))
                 {
-                    Logger.LogInformation(subscribeEvent.ToString());
+                    _logger.LogInformation(subscribeEvent.ToString());
                     _subscribeEventActionBlock.Post(new SubscribeEventInfo()
                     {
                         Client = _nodeServiceClient,
@@ -206,17 +221,17 @@ namespace NodeService.WindowsService.Services
             }
             catch (RpcException ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
                 if (ex.StatusCode == StatusCode.Cancelled)
                 {
 
                 }
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : Random.Shared.Next(30, 300)), cancellationToken);
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                _logger.LogError(ex.ToString());
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : Random.Shared.Next(30, 300)), cancellationToken);
             }
             finally
             {
@@ -246,20 +261,19 @@ namespace NodeService.WindowsService.Services
             {
                 var queryConfigurationReq = new QueryConfigurationRequest()
                 {
-                    RequestId = Guid.NewGuid().ToString(),
-                    NodeName = dnsName,
+                    RequestId = Guid.NewGuid().ToString()
                 };
 
 
                 queryConfigurationReq.Parameters.Add("ConfigName", "NodeConfig");
-                var queryConfigurationRsp = await nodeServiceClient.QueryConfigurationsAsync(queryConfigurationReq);
+                var queryConfigurationRsp = await nodeServiceClient.QueryConfigurationsAsync(queryConfigurationReq, _headers);
                 var nodeConfigString = queryConfigurationRsp.Configurations[ConfigurationKeys.NodeConfigTemplate];
 
                 return true;
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
             return false;
         }
@@ -320,7 +334,7 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
         }
 
@@ -360,8 +374,7 @@ namespace NodeService.WindowsService.Services
                         ErrorCode = 0,
                         Message = string.Empty,
                         RequestId = subscribeEvent.FileSystemBulkOperationRequest.RequestId,
-                        NodeName = subscribeEvent.NodeName,
-                    }, null, null, cancellationToken);
+                    }, _headers, null, cancellationToken);
                     await ProcessFileSystemOpenRequestAsync(client, subscribeEvent);
                     break;
                 default:
@@ -384,7 +397,6 @@ namespace NodeService.WindowsService.Services
                 Status = FileSystemOperationState.NotStarted,
                 Report = new FileSystemBulkOperationReport
                 {
-                    NodeName = subscribeEvent.FileSystemBulkOperationRequest.NodeName,
                     RequestId = subscribeEvent.FileSystemBulkOperationRequest.RequestId,
                     OriginalRequestId = subscribeEvent.FileSystemBulkOperationRequest.RequestId,
                     State = FileSystemOperationState.NotStarted
@@ -484,13 +496,13 @@ namespace NodeService.WindowsService.Services
                             fileUploadInfo.Progress.IsCompleted = true;
                         }
                     }
-                    Logger.LogInformation(bulkUploadFileOperation.Report.ToString());
+                    _logger.LogInformation(bulkUploadFileOperation.Report.ToString());
                     await client.SendFileSystemBulkOperationReportAsync(bulkUploadFileOperation.Report, null, null, cancellationToken);
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
 
 
@@ -523,7 +535,6 @@ namespace NodeService.WindowsService.Services
         private async Task ProcessFileSystemListDriveRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
             FileSystemListDriveResponse fileSystemListDriveRsp = new FileSystemListDriveResponse();
-            fileSystemListDriveRsp.NodeName = subscribeEvent.NodeName;
             fileSystemListDriveRsp.RequestId = subscribeEvent.FileSystemListDriveRequest.RequestId;
             fileSystemListDriveRsp.Drives.AddRange(DriveInfo.GetDrives().Select(x => new FileSystemDriveInfo()
             {
@@ -543,7 +554,6 @@ namespace NodeService.WindowsService.Services
         private async Task ProcessFileSystemListDirectoryRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
             FileSystemListDirectoryResponse fileSystemListDirectoryRsp = new FileSystemListDirectoryResponse();
-            fileSystemListDirectoryRsp.NodeName = subscribeEvent.FileSystemListDirectoryRequest.NodeName;
             fileSystemListDirectoryRsp.RequestId = subscribeEvent.FileSystemListDirectoryRequest.RequestId;
             try
             {

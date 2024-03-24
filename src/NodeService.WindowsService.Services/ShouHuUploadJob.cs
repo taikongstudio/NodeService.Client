@@ -20,7 +20,7 @@ namespace NodeService.WindowsService.Services
             {
                 ShouHuUploadJobOptions options = new ShouHuUploadJobOptions();
                await options.InitAsync(this.JobScheduleConfig, ApiService);
-                Logger.LogInformation("开始上报");
+                Logger.LogInformation(EventId, "开始上报");
 
                 _producerUtil = new ProducerUtil(Logger);
                 _windowsUtil = new WindowsUtil(Logger);
@@ -62,15 +62,15 @@ namespace NodeService.WindowsService.Services
                 //CPU信息
                 uploadDic.Add("cpu_usage", PerformanceHelper.GetCPUInfo());
                 string json = JsonSerializer.Serialize(uploadDic);
-                Logger.LogInformation($"Msg:{json}");
+                Logger.LogInformation(EventId, $"Msg:{json}");
                 await _producerUtil.SendAsync(json);
                 AppDomain.CurrentDomain.SetData("is_restart", "");
-                Logger.LogInformation("上报成功");
+                Logger.LogInformation(EventId, "上报成功");
             }
             catch (Exception ex)
             {
-                Logger.LogError("上报失败");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(EventId, "上报失败");
+                Logger.LogError(EventId, ex.ToString());
             }
             finally
             {

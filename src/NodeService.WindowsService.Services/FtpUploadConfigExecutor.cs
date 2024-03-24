@@ -139,7 +139,7 @@ namespace NodeService.WindowsService.Services
                         retryTimes++;
                         if (ftpStatus == FtpStatus.Failed)
                         {
-                            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                         }
 
                     } while (!cancellationToken.IsCancellationRequested
@@ -190,7 +190,7 @@ namespace NodeService.WindowsService.Services
                           (FtpRemoteExists)this.FtpUploadConfig.FtpFileExists,
                           true,
                           FtpVerify.None,
-                          _myFtpProgress);
+                          _myFtpProgress, token: cancellationToken);
                 }
                 else
                 {
@@ -199,7 +199,7 @@ namespace NodeService.WindowsService.Services
                          FtpRemoteExists.Skip,
                          true,
                          FtpVerify.None,
-                         _myFtpProgress);
+                         _myFtpProgress, token: cancellationToken);
                 }
 
             }

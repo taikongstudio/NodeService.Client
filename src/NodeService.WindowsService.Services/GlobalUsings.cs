@@ -6,3 +6,4 @@ global using NodeService.Infrastructure.Models;
 global using Quartz;
 global using System.Diagnostics;
 global using System.Text.Json;
+global using NodeService.Infrastructure;

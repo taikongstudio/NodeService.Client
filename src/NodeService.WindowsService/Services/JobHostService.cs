@@ -1,6 +1,9 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
+using NodeService.Infrastructure.DataFlow;
 using NodeService.Infrastructure.Interfaces;
+using NodeService.Infrastructure.Logging;
+using NodeService.WindowsService.Collections;
 using Org.BouncyCastle.Asn1.Ocsp;
 using System;
 using System.Collections.Generic;
@@ -17,114 +20,83 @@ namespace NodeService.WindowsService.Services
     public class JobHostService : BackgroundService
 
     {
-        private readonly IAsyncQueue<JobExecutionParameters> _jobExecutionParametersQueue;
+        private readonly ILogger<JobHostService> _logger;
+        private readonly IAsyncQueue<JobExecutionContext> _jobExecutionContextQueue;
         private readonly IServiceProvider _serviceProvider;
-        private readonly Func<string, NodeClientService.JobContext?> _findJobExecutionContextFunc;
+        private readonly JobContextDictionary _jobContextDictionary;
 
         public JobHostService(
+            ILogger<JobHostService> logger,
             IServiceProvider serviceProvider,
-            IAsyncQueue<JobExecutionParameters> queue,
-            Func<string, NodeClientService.JobContext?> findJobExecutionContextFunc
+            IAsyncQueue<JobExecutionContext> queue,
+            JobContextDictionary jobContextDictionary
             )
         {
-            _jobExecutionParametersQueue = queue;
+            _logger = logger;
+            _jobExecutionContextQueue = queue;
             _serviceProvider = serviceProvider;
-            _findJobExecutionContextFunc = findJobExecutionContextFunc;
+            _jobContextDictionary = jobContextDictionary;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var parameters = await _jobExecutionParametersQueue.DeuqueAsync(stoppingToken);
-                var jobExecutionContext = this._findJobExecutionContextFunc(parameters.Id);
-                if (jobExecutionContext == null)
-                {
-                    continue;
-                }
-                var task = new Task(async () =>
-                {
-
-                    if (jobExecutionContext == null)
-                    {
-                        return;
-                    }
-                    bool result = true;
-                    string errorMessage = string.Empty;
-                    try
-                    {
-                        await jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Started, "Started");
-                        if (parameters == null)
-                        {
-                            errorMessage = $"parameters is null";
-                            result = false;
-                            return;
-                        }
-                        var jobTypeDescConfig = parameters.JobScheduleConfig.JobTypeDesc;
-                        if (jobTypeDescConfig == null)
-                        {
-                            errorMessage = $"Could not found job type description config";
-                            result = false;
-                            return;
-                        }
-
-                        var serviceType = typeof(Job).Assembly.GetType(jobTypeDescConfig.FullName);
-                        using var scope = this._serviceProvider.CreateAsyncScope();
-                        var job = scope.ServiceProvider.GetService(serviceType) as Job;
-                        if (job == null)
-                        {
-                            result = false;
-                        }
-                        else
-                        {
-                            job.JobScheduleConfig = parameters.JobScheduleConfig;
-                            await jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Running, "Running");
-                            using (job.Logger.BeginScope(jobExecutionContext.Parameters.Id))
-                            {
-                                await job.ExecuteAsync(jobExecutionContext.CancellationToken);
-                            }
-                            result = true;
-                        }
-                    }
-                    catch (OperationCanceledException ex)
-                    {
-                        if (ex.CancellationToken == jobExecutionContext.CancellationToken)
-                        {
-                            errorMessage = ex.ToString();
-                            return;
-                        }
-                        result = false;
-                    }
-                    catch (Exception ex)
-                    {
-                        errorMessage = ex.ToString();
-                        result = false;
-                    }
-                    finally
-                    {
-                        if (jobExecutionContext.StopManually)
-                        {
-                            await jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Cancelled, errorMessage);
-                        }
-                        else if (!result)
-                        {
-                            await jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Failed, errorMessage);
-                        }
-                        else
-                        {
-                            await jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Finished, errorMessage);
-                        }
-
-                    }
-
-
-                }, jobExecutionContext.CancellationToken, TaskCreationOptions.LongRunning);
-                task.Start();
+                var jobExecutionContext = await _jobExecutionContextQueue.DeuqueAsync(stoppingToken);
+                StartJobExecutionContextService(jobExecutionContext);
             }
         }
 
+        private void StartJobExecutionContextService(JobExecutionContext jobExecutionContext)
+        {
+            var task = new Task(async () =>
+            {
+                try
+                {
+                    HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
+                    builder.Services.AddSingleton<JobExecutionContext>(jobExecutionContext);
+                    builder.Services.AddHostedService<JobExecutionService>();
+                    builder.Services.AddScoped<ExecuteBatchScriptJob>();
+                    builder.Services.AddScoped<ExecutePythonCodeJob>();
+                    builder.Services.AddScoped<ShouHuUploadJob>();
+                    builder.Services.AddScoped<FtpUploadJob>();
+                    builder.Services.AddScoped<LogUploadJob>();
+                    builder.Services.AddScoped<FtpDownloadJob>();
+                    builder.Services.AddScoped(sp => new HttpClient
+                    {
+                        BaseAddress = new Uri(builder.Configuration.GetValue<string>("ServerConfig:HttpAddress"))
+                    });
+                    builder.Services.AddScoped<ApiService>();
+                    builder.Services.AddSingleton<ITargetBlock<LogMessageEntry>>(jobExecutionContext.LogMessageTargetBlock);
+                    builder.Services.AddSingleton<JobContextDictionary>(_jobContextDictionary);
+                    builder.Services.AddScoped<ILogger>(sp => sp.GetService<ILoggerFactory>().CreateLogger("JobLogger")
+                    );
+
+                    builder.Logging.ClearProviders();
+                    builder.Logging.AddConsole();
+                    builder.Logging.AddJobServiceLogger();
+
+                    
+
+                    using var app = builder.Build();
+
+                    await app.RunAsync(jobExecutionContext.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+                finally
+                {
+                    _jobContextDictionary.TryRemove(jobExecutionContext.Parameters.Id, out _);
+                }
 
 
 
+
+
+            }, jobExecutionContext.CancellationToken, TaskCreationOptions.LongRunning);
+            task.Start();
+        }
     }
 }

@@ -24,7 +24,7 @@ namespace NodeService.WindowsService.Services
         public override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             ExecutePythonCodeJobOptions options = new();
-            await options.InitAsync(this.JobScheduleConfig, ApiService);
+            await options.InitAsync(this.JobScheduleConfig, ApiService, stoppingToken);
             if (options.Code == null)
             {
                 Logger.LogError("no code");

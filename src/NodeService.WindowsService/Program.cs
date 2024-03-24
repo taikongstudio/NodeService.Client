@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NodeService.Infrastructure.Interfaces;
+using NodeService.WindowsService.Collections;
 using Python.Deployment;
 using Python.Runtime;
 using System.Runtime.CompilerServices;
@@ -58,14 +59,14 @@ namespace NodeService.WindowsService
                     options.ServiceName = "NodeService.WindowsService";
                 });
                 builder.Services.AddSingleton(options);
+                builder.Services.AddSingleton<NodeIdProvider>();
+                builder.Services.AddSingleton<JobContextDictionary>();
+                builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<ProcessService>();
-                builder.Services.AddSingleton<ISchedulerFactory>(new StdSchedulerFactory());
-                builder.Services.AddSingleton<
-                    IInprocMessageQueue<string,
-                    string,
-                    JobExecutionEventRequest>>(new MessageQueue<string, string, JobExecutionEventRequest>());
-                builder.Services.AddSingleton<IAsyncQueue<JobExecutionParameters>>(new AsyncQueue<JobExecutionParameters>());
+                builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
+                builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
+                builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog("NLog.config");

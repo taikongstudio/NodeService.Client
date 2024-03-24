@@ -5,6 +5,7 @@ namespace NodeService.WindowsService.Services
 {
     public class ExecuteBatchScriptJob : Job
     {
+
         public ExecuteBatchScriptJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
         {
         }
@@ -34,13 +35,17 @@ namespace NodeService.WindowsService.Services
                 bool createNoWindow = options.CreateNoWindow;
 
                 File.WriteAllText(batchScriptTempFile, scripts);
+
                 if (string.IsNullOrEmpty(workingDirectory))
                 {
                     workingDirectory = AppContext.BaseDirectory;
                 }
-                Logger.LogInformation($"Execute script :{scripts} at {workingDirectory} createNoWindow:{createNoWindow}");
+
 
                 string cmdFileName = ResolveCmdPath();
+
+                Logger.LogInformation($"{cmdFileName} Execute script :{scripts} at {workingDirectory} createNoWindow:{createNoWindow}");
+
                 process.StartInfo.FileName = cmdFileName;
                 process.StartInfo.Arguments = $"/c \"{batchScriptTempFile}\"";
                 process.StartInfo.WorkingDirectory = workingDirectory;
@@ -63,7 +68,7 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                Logger.LogError( ex.ToString());
             }
             finally
             {
@@ -95,14 +100,10 @@ namespace NodeService.WindowsService.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                Logger.LogError( ex.ToString());
             }
 
         }
 
-        public void Dispose()
-        {
-            throw new NotImplementedException();
-        }
     }
 }

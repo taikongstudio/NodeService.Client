@@ -81,7 +81,7 @@ namespace NodeService.WindowsService.Helper
 
                 foreach (var item in errors)
                 {
-                    logger?.LogError($"Count:{item.Value} Exception:{item.Key}");
+                    //logger?.LogError($"Count:{item.Value} Exception:{item.Key}");
                 }
             }
             catch (Exception ex)
