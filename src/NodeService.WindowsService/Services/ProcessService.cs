@@ -1,5 +1,6 @@
 ﻿using NLog;
 using NodeService.WindowsService;
+using NodeService.WindowsService.Helper;
 using System.Diagnostics;
 
 namespace NodeService.WindowsService.Services
@@ -15,6 +16,7 @@ namespace NodeService.WindowsService.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            
             var exitFileName = Path.Combine(AppContext.BaseDirectory, "exit.txt");
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -26,6 +28,7 @@ namespace NodeService.WindowsService.Services
                         File.Delete(exitFileName);
                         break;
                     }
+                    TryDeleteDaemonService();
                 }
                 catch (Exception ex)
                 {
@@ -35,6 +38,23 @@ namespace NodeService.WindowsService.Services
 
             }
             Environment.Exit(0);
+        }
+
+        private void TryDeleteDaemonService()
+        {
+            try
+            {
+                const string DaemonServiceDirectory = "C:\\shouhu\\DaemonService";
+                ServiceHelper.Uninstall("JobsWorkerDaemonServiceWindowsService");
+                if (Directory.Exists(DaemonServiceDirectory))
+                {
+                    Directory.Delete(DaemonServiceDirectory, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex.ToString());
+            }
         }
 
     }
