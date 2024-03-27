@@ -1,4 +1,4 @@
-﻿using NodeService.Infrastructure.DataFlow;
+﻿
 using NodeService.Infrastructure.Interfaces;
 using NodeService.Infrastructure.Logging;
 using NodeService.WindowsService.Collections;
@@ -101,19 +101,6 @@ namespace NodeService.WindowsService.Services
             report.LogEntries.Add(jobExecutionLogEntry);
             report.Properties.Add(nameof(JobExecutionInstanceModel.Id), this.Parameters.Id);
             report.Properties.Add(nameof(JobExecutionInstanceModel.FireInstanceId), this.Parameters.FireInstanceId);
-            switch (status)
-            {
-                case JobExecutionStatus.Started:
-                    report.Properties.Add(nameof(JobExecutionInstanceModel.ExecutionBeginTime), DateTime.Now.ToString(NodePropertyModel.DateTimeFormatString));
-                    break;
-                case JobExecutionStatus.Failed:
-                case JobExecutionStatus.Finished:
-                case JobExecutionStatus.Cancelled:
-                    report.Properties.Add(nameof(JobExecutionInstanceModel.ExecutionEndTime), DateTime.Now.ToString(NodePropertyModel.DateTimeFormatString));
-                    break;
-                default:
-                    break;
-            }
             await _reportChannel.EnqueueAsync(report);
         }
 

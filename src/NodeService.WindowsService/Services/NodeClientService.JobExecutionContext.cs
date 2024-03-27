@@ -67,7 +67,18 @@ namespace NodeService.WindowsService.Services
             {
                 rsp.ErrorCode = -1;
                 rsp.Message = $"invalid job instance id:{id}";
+                var report = new JobExecutionReport()
+                {
+                    CreatedDateTime = DateTime.Now
+                };
+                report.Status = JobExecutionStatus.Cancelled;
+                foreach (var kv in request.Parameters)
+                {
+                    report.Properties.Add(kv.Key, kv.Value);
+                }
+                await this._reportQueue.EnqueueAsync(report);
             }
+
             await this._nodeServiceClient.SendJobExecutionEventResponseAsync(rsp, _headers);
         }
 
@@ -89,6 +100,7 @@ namespace NodeService.WindowsService.Services
                             _reportQueue,
                             _jobContextDictionary));
             await this._jobExecutionContextQueue.EnqueueAsync(jobExecutionContext);
+            rsp.Message = $"{Dns.GetHostName()} recieved ";
             await this._nodeServiceClient.SendJobExecutionEventResponseAsync(rsp, _headers);
         }
 

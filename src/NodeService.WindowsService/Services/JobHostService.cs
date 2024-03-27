@@ -1,20 +1,4 @@
-﻿using Confluent.Kafka;
-using Microsoft.Extensions.Hosting;
-using NodeService.Infrastructure.DataFlow;
-using NodeService.Infrastructure.Interfaces;
-using NodeService.Infrastructure.Logging;
-using NodeService.WindowsService.Collections;
-using Org.BouncyCastle.Asn1.Ocsp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
-
-namespace NodeService.WindowsService.Services
+﻿namespace NodeService.WindowsService.Services
 {
 
     public class JobHostService : BackgroundService

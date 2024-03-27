@@ -18,7 +18,7 @@ namespace MaccorUploadTool.Data
             _producerConfig = new ProducerConfig
             {
                 BootstrapServers = BrokerList,
-                Acks = Acks.Leader,
+                Acks = Acks.All,
                 SocketTimeoutMs = 60000,
             };
             Producer = new ProducerBuilder<string, string>(_producerConfig).Build();

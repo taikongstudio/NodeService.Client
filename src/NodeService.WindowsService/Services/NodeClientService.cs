@@ -181,7 +181,7 @@ namespace NodeService.WindowsService.Services
                 });
 
                 _nodeServiceClient = new NodeServiceClient(channel);
-                var subscribeCall = _nodeServiceClient.Subscribe(new SubscribeRequest()
+                using var subscribeCall = _nodeServiceClient.Subscribe(new SubscribeRequest()
                 {
                     RequestId = Guid.NewGuid().ToString(),
                 }, _headers, cancellationToken: cancellationToken);
@@ -191,11 +191,15 @@ namespace NodeService.WindowsService.Services
                     try
                     {
 
-                        var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(_headers, cancellationToken: cancellationToken);
+                        using var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(_headers, cancellationToken: cancellationToken);
                         while (!cancellationToken.IsCancellationRequested)
                         {
-                            var reportMessage = await _reportQueue.DeuqueAsync(cancellationToken);
-                            await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
+                            while (_reportQueue.TryPeek(out var reportMessage))
+                            {
+                                await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
+                                await _reportQueue.DeuqueAsync(cancellationToken);
+                            }
+                            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                         }
 
                     }
@@ -226,12 +230,12 @@ namespace NodeService.WindowsService.Services
                 {
 
                 }
-                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : Random.Shared.Next(30, 300)), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
-                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : Random.Shared.Next(30, 300)), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
             }
             finally
             {

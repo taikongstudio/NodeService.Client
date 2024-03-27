@@ -29,6 +29,9 @@ global using System.Net.NetworkInformation;
 global using System.Net.Sockets;
 global using System.Text.Json;
 global using System.Threading.Tasks.Dataflow;
+global using NodeService.Infrastructure.Logging;
+global using NodeService.Infrastructure.Messages;
+global using NodeService.WindowsService.Collections;
 
 global using static NodeService.Infrastructure.Services.NodeService;
 
