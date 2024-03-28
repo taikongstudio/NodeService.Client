@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MaccorUploadTool": {
+      "commandName": "Project",
+      "commandLineArgs": "--KafkaBrokerList \"10.201.76.22:9092,10.201.76.23:9092,10.201.76.24\"\r\n--Directory \"D:/Maccor\""
+    }
+  }
+}

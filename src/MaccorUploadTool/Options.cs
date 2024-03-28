@@ -11,9 +11,14 @@ namespace MaccorUploadTool
 {
     public class Options
     {
-        [Option("ConfigFilePath", Required = true, HelpText = "ConfigFilePath")]
-        public string ConfigFilePath { get; set; }
+        [Option("Directory", Required = true, HelpText = "Directory")]
+        public string Directory { get; set; }
 
+        [Option("KafkaBrokerList", Required = true, HelpText = "KafkaBrokerList")]
+        public string KafkaBrokerList { get; set; }
+
+        [Option("NodeId", Required = true, HelpText = "NodeId")]
+        public string NodeId { get; set; }
 
         public string ToJsonString()
         {

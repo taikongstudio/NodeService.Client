@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using MaccorUploadTool;
 using MaccorUploadTool.Data;
@@ -10,8 +11,10 @@ using MaccorUploadTool.Helper;
 
 namespace MaccorUploadTool.Models
 {
-    public class DataFileHeader
+    public struct DataFileHeader
     {
+        [JsonIgnore]
+        public bool HasValue {  get; set; }
         public string FilePath { get; set; }
 
         public string IPAddress { get; set; }

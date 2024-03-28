@@ -10,6 +10,8 @@ namespace NodeService.WindowsService.Services
 {
     public partial class NodeClientService
     {
+        private long _heartBeatCounter;
+
         private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
             HeartBeatResponse heartBeatRsp = new HeartBeatResponse();
@@ -47,7 +49,7 @@ namespace NodeService.WindowsService.Services
 
                 CollectDiskInfo(heartBeatRsp);
 
-                heartBeatRsp.Properties.Add(NodePropertyModel.LastUpdateDateTime_Key, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
+                heartBeatRsp.Properties.Add(NodePropertyModel.LastUpdateDateTime_Key, DateTime.Now.ToString(NodePropertyModel.DateTimeFormatString));
             }
             catch (Exception ex)
             {
@@ -74,17 +76,18 @@ namespace NodeService.WindowsService.Services
                             if (ipAddressString.StartsWith("10."))
                             {
                                 heartBeatRsp.Properties.Add(NodePropertyModel.FactoryName_key, "BL");
+                                break;
                             }
                             else if (ipAddressString.StartsWith("172."))
                             {
                                 heartBeatRsp.Properties.Add(NodePropertyModel.FactoryName_key, "GM");
+                                break;
                             }
-                            else
-                            {
-                                heartBeatRsp.Properties.Add(NodePropertyModel.FactoryName_key, "Unknown");
-                            }
-                            break;
                         }
+                    }
+                    if (!heartBeatRsp.Properties.ContainsKey(NodePropertyModel.FactoryName_key))
+                    {
+                        heartBeatRsp.Properties.TryAdd(NodePropertyModel.FactoryName_key, "Unknown");
                     }
                     var networkInterfaceModels = NetworkInterface.GetAllNetworkInterfaces().Select(NetworkInterfaceModel.From);
                     heartBeatRsp.Properties.Add(NodePropertyModel.NetworkInterface_AllNetworkInterfaces_Key, JsonSerializer.Serialize(networkInterfaceModels));
@@ -97,6 +100,12 @@ namespace NodeService.WindowsService.Services
 
             void CollectProcessList(HeartBeatResponse heartBeatRsp)
             {
+                _heartBeatCounter++;
+                if (_heartBeatCounter % 40 != 0)
+                {
+                    return;
+                }
+
                 var processList = CommonHelper.CollectProcessList(_logger);
 
                 heartBeatRsp.Properties.Add(NodePropertyModel.Process_Processes_Key, JsonSerializer.Serialize(processList));

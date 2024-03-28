@@ -4,6 +4,7 @@ using NodeService.Infrastructure.Logging;
 using NodeService.WindowsService.Collections;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -101,6 +102,7 @@ namespace NodeService.WindowsService.Services
             report.LogEntries.Add(jobExecutionLogEntry);
             report.Properties.Add(nameof(JobExecutionInstanceModel.Id), this.Parameters.Id);
             report.Properties.Add(nameof(JobExecutionInstanceModel.FireInstanceId), this.Parameters.FireInstanceId);
+            report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
             await _reportChannel.EnqueueAsync(report);
         }
 

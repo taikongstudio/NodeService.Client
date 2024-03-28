@@ -2,6 +2,7 @@
 using MaccorUploadTool.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -65,50 +66,118 @@ namespace MaccorUploadTool.Data
         }
 
 
-
         /// <summary>
         /// 枚举<see cref="DataFileHeader"/>
         /// </summary>
         /// <returns><see cref="IEnumerable{T}" /></returns>
-        public IEnumerable<DataFileHeader> EnumDataFileHeaders()
+        public async IAsyncEnumerable<DataFileHeader[]> ReadHeadersAsync()
         {
-            DataFileHeader dataFileHeader = null;
+            await ValueTask.CompletedTask;
             int handleTemp = _handle;
+            DataFileHeader[] headerArray = null;
+            int index = 0;
             do
             {
                 DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
                 handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
                 if (handleTemp == 0)
                 {
-                    dataFileHeader = new DataFileHeader();
+                    if (index == 0)
+                    {
+                        headerArray = ArrayPool<DataFileHeader>.Shared.Rent(1024);
+                    }
+
+                    var dataFileHeader = new DataFileHeader();
                     dataFileHeader.Init(_handle, dllDataFileHeader);
-                    yield return dataFileHeader;
+                    dataFileHeader.HasValue = true;
+                    headerArray[index] = dataFileHeader;
                     handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
+                    if (index > headerArray.Length)
+                    {
+                        index = 0;
+                        yield return headerArray;
+                    }
+                    if (handleTemp != 0)
+                    {
+                        yield return headerArray;
+                        break;
+                    }
+                    index++;
                 }
-            } while (handleTemp == 0);
+
+            } while (true);
             yield break;
         }
+
+        //public async IAsyncEnumerable<DataFile> ReadDataFilesAsync()
+        //{
+        //    await ValueTask.CompletedTask;
+        //    DataFile dataFile = new DataFile();
+        //    int handleTemp = _handle;
+        //    DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
+        //    handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
+        //    do
+        //    {
+
+        //        if (handleTemp >= 0)
+        //        {
+        //            var dataFileHeader = new DataFileHeader();
+        //            dataFileHeader.Init(_handle, dllDataFileHeader);
+        //            dataFileHeader.HasValue = true;
+        //            dataFile.DataFileHeader = dataFileHeader;
+        //            await foreach (var item in ReadTimeDataAsync(handleTemp))
+        //            {
+        //                dataFile.TimeDataList.Add(item);
+        //            }
+        //            yield return dataFile;
+        //            handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
+        //        }
+
+        //    } while (handleTemp >= 0);
+        //    yield break;
+        //}
 
 
         /// <summary>
         /// 枚举<see cref="TimeData"/>
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<TimeData> EnumTimeDatas()
+        public async IAsyncEnumerable<TimeData[]> ReadTimeDataAsync()
         {
+            await ValueTask.CompletedTask;
             DLLTimeData dllTimeData = default;
+            TimeData[] timeDataArray = null;
             int result = 0;
+            int index = 0;
             do
             {
-
+             
                 result = NativeMethods.LoadAndGetNextTimeData(_handle, ref dllTimeData);
                 if (result == 0)
                 {
+                    if (index == 0)
+                    {
+                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(1024);
+                    }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);
-                    yield return timeData;
+                    timeData.HasValue = true;
+
+                    if (index == timeDataArray.Length)
+                    {
+                        index = 0;
+                        yield return timeDataArray;
+                        continue;
+                    }
+                    timeDataArray[index] = timeData;
+                    index++;
                 }
-            } while (result == 0);
+                else
+                {
+                    yield return timeDataArray;
+                    break;
+                }
+            } while (true);
             yield break;
         }
 

@@ -44,7 +44,7 @@ namespace NodeService.WindowsService.Services
 
         private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
-        private readonly NodeIdProvider _nodeIdProvider;
+        private readonly NodeIdentityProvider _nodeIdProvider;
         private readonly Metadata _headers;
         private readonly IConfiguration _configuration;
         private readonly ISchedulerFactory _schedulerFactory;
@@ -64,7 +64,7 @@ namespace NodeService.WindowsService.Services
             IAsyncQueue<JobExecutionContext> jobExecutionContextQueue,
             IAsyncQueue<JobExecutionReport> reportQueue,
             JobContextDictionary jobContextDictionary,
-            NodeIdProvider machineIdProvider
+            NodeIdentityProvider machineIdProvider
             )
         {
             _jobContextDictionary = jobContextDictionary;
@@ -88,6 +88,7 @@ namespace NodeService.WindowsService.Services
             });
             _nodeIdProvider = machineIdProvider;
             _headers = new Metadata();
+            _heartBeatCounter = Random.Shared.Next(0, 10);
         }
 
         private async Task ProcessSubscribeEventAsync(SubscribeEventInfo subscribeEventInfo)
@@ -192,14 +193,23 @@ namespace NodeService.WindowsService.Services
                     {
 
                         using var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(_headers, cancellationToken: cancellationToken);
+                        Stopwatch stopwatch = new Stopwatch();
                         while (!cancellationToken.IsCancellationRequested)
                         {
+                            int messageCount = 0;
+                            stopwatch.Start();
                             while (_reportQueue.TryPeek(out var reportMessage))
                             {
                                 await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
                                 await _reportQueue.DeuqueAsync(cancellationToken);
+                                messageCount++;
                             }
-                            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                            stopwatch.Stop();
+                            if (messageCount > 0)
+                            {
+                                _logger.LogInformation($"Sent {messageCount} messages,spent:{stopwatch.Elapsed}");
+                            }
+                            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
                         }
 
                     }

@@ -29,6 +29,13 @@ namespace NodeService.WindowsService
         {
             try
             {
+                if (!Environment.IsPrivilegedProcess)
+                {
+                    Console.WriteLine("Need Privileged Process,exit");
+                    Console.Out.Flush();
+                    Environment.Exit(-1);
+                    return;
+                }
                 Console.WriteLine(JsonSerializer.Serialize(options));
                 switch (options.mode)
                 {
@@ -59,7 +66,7 @@ namespace NodeService.WindowsService
                     options.ServiceName = "NodeService.WindowsService";
                 });
                 builder.Services.AddSingleton(options);
-                builder.Services.AddSingleton<NodeIdProvider>();
+                builder.Services.AddSingleton<NodeIdentityProvider>();
                 builder.Services.AddSingleton<JobContextDictionary>();
                 builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();

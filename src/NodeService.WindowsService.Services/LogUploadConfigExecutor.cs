@@ -48,15 +48,21 @@ namespace NodeService.WindowsService.Services
                     DataConnectionReadTimeout = ftpConfig.DataConnectionReadTimeout,
                 });
 
+            await ftpClient.AutoConnect(cancellationToken);
+
             var localLogDirectories = _logUploadConfig.LocalDirectories;
 
             string remoteLogRootDir = _logUploadConfig.RemoteDirectory.Replace("$(HostName)", Dns.GetHostName());
+            if (!remoteLogRootDir.StartsWith('/'))
+            {
+                remoteLogRootDir = '/' + remoteLogRootDir;
+            }
             if (!await ftpClient.DirectoryExists(remoteLogRootDir, cancellationToken))
             {
                 await ftpClient.CreateDirectory(remoteLogRootDir, cancellationToken);
             }
 
-            await ftpClient.AutoConnect(cancellationToken);
+
             foreach (var localLogDirectory in localLogDirectories)
             {
                 string myLocalLogDirectory = localLogDirectory.Value;
@@ -151,15 +157,21 @@ namespace NodeService.WindowsService.Services
                 var allFileItems = await ftpClient.GetListing(remoteLogRootDir, listOption, cancellationToken);
                 dict = allFileItems
                     .Where(x => !x.Name.Contains(exclude))
-                    .ToDictionary(x => Path.GetRelativePath(remoteLogRootDir, x.FullName));
+                    .ToDictionary(x => GetRelativePath(remoteLogRootDir, x.FullName));
 
             }
             catch (Exception ex)
             {
-                _logger.LogError( ex.ToString());
+                _logger.LogError(ex.ToString());
             }
 
             return dict;
+        }
+
+        private string GetRelativePath(string rootPath, string fullName)
+        {
+            var path = Path.GetRelativePath(rootPath, fullName);
+            return path;
         }
 
     }

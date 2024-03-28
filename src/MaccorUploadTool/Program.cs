@@ -1,9 +1,14 @@
 ﻿using CommandLine;
+using MaccorUploadTool.Data;
 using MaccorUploadTool.Workers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NodeService.Infrastructure;
 using NodeService.Infrastructure.Models;
+using NodeService.Infrastructure.NodeSessions;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace MaccorUploadTool
@@ -31,23 +36,22 @@ namespace MaccorUploadTool
         {
             try
             {
-                IHostBuilder builder = Host.CreateDefaultBuilder(args);
-                builder.ConfigureServices(services =>
-                {
-                    services.AddSingleton<Options>(options);
-                    services.AddHostedService<MaccorDataUploadBackgroundService>();
-                    services.AddSingleton<UploadMaccorDataJobOptions>(sp =>
-                    {
-                        var jsonText = File.ReadAllText(options.ConfigFilePath);
-                        return JsonSerializer.Deserialize<UploadMaccorDataJobOptions>(jsonText);
-                    });
+                HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
+                builder.Services.AddSingleton<Options>(options);
+                builder.Services.AddSingleton<HttpClient>(sp =>
+                              new HttpClient
+                              {
+                                  BaseAddress = new Uri(Debugger.IsAttached ? "http://localhost:5000" : "http://172.27.242.223:50060/")
+                              }
+                              );
+                builder.Services.AddSingleton<ApiService>();
+                builder.Services.AddSingleton<MaccorDataReaderWriter>();
 
-                }).ConfigureLogging(loggingBuilder =>
-                {
-                    loggingBuilder.ClearProviders();
-                    loggingBuilder.AddConsole();
-                });
+                builder.Services.AddHostedService<MaccorDataUploadService>();
+
+                builder.Logging.ClearProviders();
+                builder.Logging.AddConsole();
 
                 using var app = builder.Build();
 

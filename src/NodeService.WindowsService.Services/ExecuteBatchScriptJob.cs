@@ -1,13 +1,20 @@
 ﻿using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
+using NodeService.Infrastructure.NodeSessions;
+using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
     public class ExecuteBatchScriptJob : Job
     {
+        private readonly INodeIdentityProvider _nodeIdentityProvider;
 
-        public ExecuteBatchScriptJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public ExecuteBatchScriptJob(
+            INodeIdentityProvider nodeIdentityProvider,
+            ApiService apiService,
+            ILogger<Job> logger) : base(apiService, logger)
         {
+            _nodeIdentityProvider = nodeIdentityProvider;
         }
 
         private void WriteOutput(object sender, DataReceivedEventArgs e)
@@ -31,6 +38,8 @@ namespace NodeService.WindowsService.Services
                 await options.InitAsync(this.JobScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");
+                scripts = scripts.Replace("$(NodeId)", _nodeIdentityProvider.GetNodeId());
+                scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
                 string workingDirectory = options.WorkingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 bool createNoWindow = options.CreateNoWindow;
 

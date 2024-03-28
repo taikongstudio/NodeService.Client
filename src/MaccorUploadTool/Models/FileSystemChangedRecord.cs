@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MaccorUploadTool.Models
 {
-    public class FileSystemChangeRecord
+    public class FileSystemChangedRecord
     {
         public string FullPath { get; set; }
 
@@ -17,9 +17,14 @@ namespace MaccorUploadTool.Models
 
         public WatcherChangeTypes ChangeTypes { get; set; }
 
+        public DataFile DataFile { get; set; }
 
         public MaccorDataUploadStat? Stat { get; set; }
 
+        public FileRecordModel FileRecord { get; set; }
+
+
+        public int Index { get; set; }
 
 
     }

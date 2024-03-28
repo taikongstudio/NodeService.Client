@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using NodeService.Infrastructure.NodeSessions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace NodeService.WindowsService.Services
 {
-    public class NodeIdProvider
+    public class NodeIdentityProvider : INodeIdentityProvider
     {
         public string GetNodeId()
         {
@@ -17,7 +18,7 @@ namespace NodeService.WindowsService.Services
             RegistryKey nodeRegisty = null;
             if (!subKeyNames.Any(x => x == ServiceName))
             {
-                nodeRegisty = softwareSubKey.CreateSubKey(ServiceName,true);
+                nodeRegisty = softwareSubKey.CreateSubKey(ServiceName, true);
             }
             else
             {
