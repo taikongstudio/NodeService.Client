@@ -1,4 +1,5 @@
 ﻿using NodeService.Infrastructure.Interfaces;
+using NodeService.Infrastructure.NodeSessions;
 using NodeService.WindowsService.Collections;
 
 namespace NodeService.WindowsService.Services
@@ -44,7 +45,7 @@ namespace NodeService.WindowsService.Services
 
         private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
-        private readonly NodeIdentityProvider _nodeIdProvider;
+        private readonly INodeIdentityProvider _nodeIdProvider;
         private readonly Metadata _headers;
         private readonly IConfiguration _configuration;
         private readonly ISchedulerFactory _schedulerFactory;
@@ -64,7 +65,7 @@ namespace NodeService.WindowsService.Services
             IAsyncQueue<JobExecutionContext> jobExecutionContextQueue,
             IAsyncQueue<JobExecutionReport> reportQueue,
             JobContextDictionary jobContextDictionary,
-            NodeIdentityProvider machineIdProvider
+            INodeIdentityProvider machineIdProvider
             )
         {
             _jobContextDictionary = jobContextDictionary;

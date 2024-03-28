@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NodeService.Infrastructure.Interfaces;
+using NodeService.Infrastructure.NodeSessions;
 using NodeService.WindowsService.Collections;
 using Python.Deployment;
 using Python.Runtime;
@@ -66,7 +67,7 @@ namespace NodeService.WindowsService
                     options.ServiceName = "NodeService.WindowsService";
                 });
                 builder.Services.AddSingleton(options);
-                builder.Services.AddSingleton<NodeIdentityProvider>();
+                builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
                 builder.Services.AddSingleton<JobContextDictionary>();
                 builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();

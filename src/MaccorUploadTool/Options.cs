@@ -20,6 +20,9 @@ namespace MaccorUploadTool
         [Option("NodeId", Required = true, HelpText = "NodeId")]
         public string NodeId { get; set; }
 
+        [Option("ParentProcessId", Required = true, HelpText = "ParentProcessId")]
+        public string ParentProcessId { get; set; }
+
         public string ToJsonString()
         {
             return JsonSerializer.Serialize(this);

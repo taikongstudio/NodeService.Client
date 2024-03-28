@@ -15,7 +15,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 
-namespace MaccorUploadTool.Workers
+namespace MaccorUploadTool.Services
 {
     public class MaccorDataUploadService : BackgroundService
     {
@@ -27,7 +27,7 @@ namespace MaccorUploadTool.Workers
         private ActionBlock<FileSystemChangedRecord> _uploadFileRecordActionBlock;
         private ActionBlock<FileSystemChangedRecord> _kafkaUploadActionBlock;
         private ActionBlock<FileSystemChangedRecord> _fileSystemChangeRecordActionBlock;
-        private readonly ConcurrentDictionary<string,object> _files;
+        private readonly ConcurrentDictionary<string, object> _files;
         private readonly ConcurrentDictionary<string, FileSystemChangedRecord> _pending;
 
         private string _ipAddress;
@@ -41,17 +41,15 @@ namespace MaccorUploadTool.Workers
             ILogger<MaccorDataUploadService> logger,
             MaccorDataReaderWriter maccorDataReaderWriter,
             ApiService apiService,
-            INodeIdentityProvider nodeIdentityProvider,
             Options options)
         {
             _maccorDataReaderWriter = maccorDataReaderWriter;
             _apiService = apiService;
-            _nodeIdentityProvider = nodeIdentityProvider;
             _nodeId = options.NodeId;
             _fileSystemWatcherDictionary = new Dictionary<string, FileSystemWatcher>();
             _files = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             _pending = new ConcurrentDictionary<string, FileSystemChangedRecord>(StringComparer.OrdinalIgnoreCase);
-            this.Options = new UploadMaccorDataJobOptions
+            Options = new UploadMaccorDataJobOptions
             {
                 Directory = options.Directory,
                 KafkaConfig = new KafkaConfigModel()
@@ -73,7 +71,7 @@ namespace MaccorUploadTool.Workers
                     ]
                 }
             };
-            this._fileSystemChangeRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(ConsumeFileSystemChangeRecord, new ExecutionDataflowBlockOptions
+            _fileSystemChangeRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(ConsumeFileSystemChangeRecord, new ExecutionDataflowBlockOptions
             {
                 MaxDegreeOfParallelism = 1
             });
@@ -91,16 +89,16 @@ namespace MaccorUploadTool.Workers
         private async Task UploadAsync(FileSystemChangedRecord fileSystemChangedRecord)
         {
             _pending.TryAdd(fileSystemChangedRecord.FullPath, fileSystemChangedRecord);
-            this._logger.LogInformation($"Progress {fileSystemChangedRecord.Index}/{_files.Count}");
-            this._logger.LogInformation($"Upload {fileSystemChangedRecord.FullPath} to {this.Options.KafkaConfig.BrokerList}");
+            _logger.LogInformation($"Progress {fileSystemChangedRecord.Index}/{_files.Count}");
+            _logger.LogInformation($"Upload {fileSystemChangedRecord.FullPath} to {Options.KafkaConfig.BrokerList}");
             Stopwatch stopwatch = Stopwatch.StartNew();
             using DataFileKafkaProducer _kafkaProducer = new DataFileKafkaProducer(
                                 _logger,
                 fileSystemChangedRecord,
                 _maccorDataReaderWriter,
-                this.Options.KafkaConfig.BrokerList,
-                 this.Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "header_topic_name").Value,
-                 this.Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "time_data_topic_name").Value
+                Options.KafkaConfig.BrokerList,
+                 Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "header_topic_name").Value,
+                 Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "time_data_topic_name").Value
                 );
             if (!await _kafkaProducer.ProduceHeaderAsync())
             {
@@ -125,7 +123,7 @@ namespace MaccorUploadTool.Workers
             _uploadFileRecordActionBlock.Post(fileSystemChangedRecord);
             _logger.LogCritical($"Upload {fileSystemChangedRecord.Stat.FilePath}, spent:{fileSystemChangedRecord.Stat.ElapsedMilliSeconds / 1000d}s");
             _pending.TryRemove(fileSystemChangedRecord.FullPath, out _);
-            this._maccorDataReaderWriter.Delete(fileSystemChangedRecord.FullPath);
+            _maccorDataReaderWriter.Delete(fileSystemChangedRecord.FullPath);
         }
 
         private async Task AddOrUpdateFileRecord(FileSystemChangedRecord changeRecord)
@@ -150,7 +148,7 @@ namespace MaccorUploadTool.Workers
                 {
                     _uploadFileRecordActionBlock.Post(changeRecord);
                 }
-                else if(!changeRecord.Stat.IsCompleted)
+                else if (!changeRecord.Stat.IsCompleted)
                 {
                     _kafkaUploadActionBlock.Post(changeRecord);
                 }
@@ -307,7 +305,7 @@ namespace MaccorUploadTool.Workers
                     header.FilePath = fileSystemChangeRecord.FullPath;
                     header.DnsName = fileSystemChangeRecord.Stat.DnsName;
                     headerArray[i] = header;
-                    
+
                     fileSystemChangeRecord.Stat.HeaderDataCount++;
                 }
 
@@ -365,7 +363,7 @@ namespace MaccorUploadTool.Workers
             }
             catch (Exception ex)
             {
-                this._logger.LogError(ex.ToString());
+                _logger.LogError(ex.ToString());
             }
             return false;
         }
@@ -376,7 +374,7 @@ namespace MaccorUploadTool.Workers
             FileRecordModel? fileRecord = null;
             try
             {
-                var rsp = await _apiService.QueryFileRecordsAsync(_nodeIdentityProvider.GetNodeId(), filePath);
+                var rsp = await _apiService.QueryFileRecordsAsync(_nodeId, filePath);
                 fileRecord = rsp.Result.FirstOrDefault();
             }
             catch (Exception ex)
@@ -439,6 +437,10 @@ namespace MaccorUploadTool.Workers
                     foreach (var drive in DriveInfo.GetDrives())
                     {
                         var directory = Path.Combine(drive.RootDirectory.FullName, "Maccor");
+                        if (!Directory.Exists(directory))
+                        {
+                            continue;
+                        }
                         ScanDirectory(directory);
                     }
                 }
@@ -463,10 +465,10 @@ namespace MaccorUploadTool.Workers
                     RecurseSubdirectories = true
                 }))
             {
-                if (!this._fileSystemWatcherDictionary.TryGetValue(archiveDirectory, out var fileSystemWatcher))
+                if (!_fileSystemWatcherDictionary.TryGetValue(archiveDirectory, out var fileSystemWatcher))
                 {
                     fileSystemWatcher = InitFileSystemWatcher(archiveDirectory);
-                    this._fileSystemWatcherDictionary.Add(archiveDirectory, fileSystemWatcher);
+                    _fileSystemWatcherDictionary.Add(archiveDirectory, fileSystemWatcher);
                 }
                 foreach (var filePath in Directory.GetFiles(archiveDirectory, "*", new EnumerationOptions()
                 {
@@ -477,7 +479,7 @@ namespace MaccorUploadTool.Workers
                     {
                         continue;
                     }
-                    this._fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
+                    _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
                     {
                         ChangeTypes = WatcherChangeTypes.Created,
                         FullPath = filePath,
@@ -501,7 +503,7 @@ namespace MaccorUploadTool.Workers
                 }
             }
         }
-       
+
 
         private void DisposeObjects()
         {
@@ -518,7 +520,7 @@ namespace MaccorUploadTool.Workers
                     ScanDirectory();
                     _logger.LogInformation("Still working");
                     await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-   
+
                 }
                 catch (Exception ex)
                 {

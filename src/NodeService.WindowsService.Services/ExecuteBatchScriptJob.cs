@@ -40,6 +40,7 @@ namespace NodeService.WindowsService.Services
                 scripts = scripts.ReplaceLineEndings("\r\n");
                 scripts = scripts.Replace("$(NodeId)", _nodeIdentityProvider.GetNodeId());
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
+                scripts = scripts.Replace("$(ParentProcessId)", Process.GetCurrentProcess().Id.ToString());
                 string workingDirectory = options.WorkingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 bool createNoWindow = options.CreateNoWindow;
 

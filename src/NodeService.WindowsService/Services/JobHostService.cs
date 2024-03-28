@@ -1,4 +1,6 @@
-﻿namespace NodeService.WindowsService.Services
+﻿using NodeService.Infrastructure.NodeSessions;
+
+namespace NodeService.WindowsService.Services
 {
 
     public class JobHostService : BackgroundService
@@ -8,18 +10,21 @@
         private readonly IAsyncQueue<JobExecutionContext> _jobExecutionContextQueue;
         private readonly IServiceProvider _serviceProvider;
         private readonly JobContextDictionary _jobContextDictionary;
+        private readonly INodeIdentityProvider _nodeIdentityProvider;
 
         public JobHostService(
             ILogger<JobHostService> logger,
             IServiceProvider serviceProvider,
             IAsyncQueue<JobExecutionContext> queue,
-            JobContextDictionary jobContextDictionary
+            JobContextDictionary jobContextDictionary,
+            INodeIdentityProvider nodeIdentityProvider
             )
         {
             _logger = logger;
             _jobExecutionContextQueue = queue;
             _serviceProvider = serviceProvider;
             _jobContextDictionary = jobContextDictionary;
+            _nodeIdentityProvider = nodeIdentityProvider;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,6 +51,7 @@
                     builder.Services.AddScoped<FtpUploadJob>();
                     builder.Services.AddScoped<LogUploadJob>();
                     builder.Services.AddScoped<FtpDownloadJob>();
+                    builder.Services.AddSingleton<INodeIdentityProvider>(_nodeIdentityProvider);
                     builder.Services.AddScoped(sp => new HttpClient
                     {
                         BaseAddress = new Uri(builder.Configuration.GetValue<string>("ServerConfig:HttpAddress"))

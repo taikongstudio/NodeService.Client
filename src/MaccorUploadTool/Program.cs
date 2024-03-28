@@ -1,6 +1,6 @@
 ﻿using CommandLine;
 using MaccorUploadTool.Data;
-using MaccorUploadTool.Workers;
+using MaccorUploadTool.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,9 +47,8 @@ namespace MaccorUploadTool
                               );
                 builder.Services.AddSingleton<ApiService>();
                 builder.Services.AddSingleton<MaccorDataReaderWriter>();
-
                 builder.Services.AddHostedService<MaccorDataUploadService>();
-
+                builder.Services.AddHostedService<ProcessService>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
 
