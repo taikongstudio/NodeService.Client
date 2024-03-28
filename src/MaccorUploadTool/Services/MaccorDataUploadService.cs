@@ -434,35 +434,17 @@ namespace MaccorUploadTool.Workers
         {
             try
             {
-                foreach (var directory in Directory.GetDirectories(Options.Directory,
-                    "Archive",
-                    new EnumerationOptions()
-                    {
-                        RecurseSubdirectories = true
-                    }))
+                if (!Directory.Exists(Options.Directory))
                 {
-                    if (!this._fileSystemWatcherDictionary.TryGetValue(directory, out var fileSystemWatcher))
+                    foreach (var drive in DriveInfo.GetDrives())
                     {
-                        fileSystemWatcher = InitFileSystemWatcher(directory);
-                        this._fileSystemWatcherDictionary.Add(directory, fileSystemWatcher);
+                        var directory = Path.Combine(drive.RootDirectory.FullName, "Maccor");
+                        ScanDirectory(directory);
                     }
-                    foreach (var filePath in Directory.GetFiles(directory, "*", new EnumerationOptions()
-                    {
-                        RecurseSubdirectories = true
-                    }))
-                    {
-                        if (!_files.TryAdd(filePath, null))
-                        {
-                            continue;
-                        }
-                        this._fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
-                        {
-                            ChangeTypes = WatcherChangeTypes.Created,
-                            FullPath = filePath,
-                            Index = _files.Count
-                        });
-
-                    }
+                }
+                else
+                {
+                    ScanDirectory(Options.Directory);
                 }
             }
             catch (Exception ex)
@@ -470,6 +452,40 @@ namespace MaccorUploadTool.Workers
                 _logger.LogError(ex.ToString());
             }
 
+        }
+
+        private void ScanDirectory(string directory)
+        {
+            foreach (var archiveDirectory in Directory.GetDirectories(directory,
+                "Archive",
+                new EnumerationOptions()
+                {
+                    RecurseSubdirectories = true
+                }))
+            {
+                if (!this._fileSystemWatcherDictionary.TryGetValue(archiveDirectory, out var fileSystemWatcher))
+                {
+                    fileSystemWatcher = InitFileSystemWatcher(archiveDirectory);
+                    this._fileSystemWatcherDictionary.Add(archiveDirectory, fileSystemWatcher);
+                }
+                foreach (var filePath in Directory.GetFiles(archiveDirectory, "*", new EnumerationOptions()
+                {
+                    RecurseSubdirectories = true
+                }))
+                {
+                    if (!_files.TryAdd(filePath, null))
+                    {
+                        continue;
+                    }
+                    this._fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
+                    {
+                        ChangeTypes = WatcherChangeTypes.Created,
+                        FullPath = filePath,
+                        Index = _files.Count
+                    });
+
+                }
+            }
         }
 
         private void RefreshIpAddress()
