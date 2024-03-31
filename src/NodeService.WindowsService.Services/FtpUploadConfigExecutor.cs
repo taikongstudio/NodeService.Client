@@ -52,12 +52,6 @@ namespace NodeService.WindowsService.Services
 
             string rootPath = FtpUploadConfig.LocalDirectory;
 
-            if (FtpUploadConfig.IsLocalDirectoryUseMapping)
-            {
-                var localDirectoryConfig = FtpUploadConfig.LocalDirectoryMappingConfig;
-                var path = localDirectoryConfig.Entries.FirstOrDefault(x => x.Name == FtpUploadConfig.LocalDirectory)?.Value;
-                rootPath = path;
-            }
             if (!Directory.Exists(rootPath))
             {
                 Logger.LogInformation($"Could not found directory:{rootPath}");
