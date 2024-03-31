@@ -60,6 +60,7 @@ namespace NodeService.WindowsService.Services
             if (_jobContextDictionary.TryRemove(id, out var jobContext))
             {
                 jobContext.Cancel();
+                rsp.Message = $"job {id} cancelled";
                 await jobContext.UpdateStatusAsync(JobExecutionStatus.Cancelled, "Cancelled");
 
             }
@@ -67,10 +68,7 @@ namespace NodeService.WindowsService.Services
             {
                 rsp.ErrorCode = -1;
                 rsp.Message = $"invalid job instance id:{id}";
-                var report = new JobExecutionReport()
-                {
-                    CreatedDateTime = DateTime.Now
-                };
+                var report = new JobExecutionReport();
                 report.Status = JobExecutionStatus.Cancelled;
                 foreach (var kv in request.Parameters)
                 {

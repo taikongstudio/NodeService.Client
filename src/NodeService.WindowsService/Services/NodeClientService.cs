@@ -151,7 +151,7 @@ namespace NodeService.WindowsService.Services
                 _headers.AppendNodeClientHeaders(new NodeClientHeaders()
                 {
                     HostName = Dns.GetHostName(),
-                    NodeId = _nodeIdProvider.GetNodeId()
+                    NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdProvider.GetNodeId()
                 });
 
                 while (!stoppingToken.IsCancellationRequested)
@@ -199,8 +199,12 @@ namespace NodeService.WindowsService.Services
                         {
                             int messageCount = 0;
                             stopwatch.Start();
-                            while (_reportQueue.TryPeek(out var reportMessage))
+                            while (!cancellationToken.IsCancellationRequested && await _reportQueue.WaitToReadAsync(cancellationToken))
                             {
+                                if (!_reportQueue.TryPeek(out var reportMessage))
+                                {
+                                    continue;
+                                }
                                 await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
                                 await _reportQueue.DeuqueAsync(cancellationToken);
                                 messageCount++;
@@ -210,7 +214,6 @@ namespace NodeService.WindowsService.Services
                             {
                                 _logger.LogInformation($"Sent {messageCount} messages,spent:{stopwatch.Elapsed}");
                             }
-                            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
                         }
 
                     }
@@ -282,7 +285,6 @@ namespace NodeService.WindowsService.Services
 
                 queryConfigurationReq.Parameters.Add("ConfigName", "NodeConfig");
                 var queryConfigurationRsp = await nodeServiceClient.QueryConfigurationsAsync(queryConfigurationReq, _headers);
-                var nodeConfigString = queryConfigurationRsp.Configurations[ConfigurationKeys.NodeConfigTemplate];
 
                 return true;
             }

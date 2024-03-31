@@ -96,7 +96,6 @@ namespace NodeService.WindowsService.Services
             Status = status;
             var report = new JobExecutionReport()
             {
-                CreatedDateTime = DateTime.Now,
                 Status = Status
             };
             report.LogEntries.Add(jobExecutionLogEntry);

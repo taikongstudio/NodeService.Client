@@ -8,6 +8,6 @@ namespace MaccorUploadTool.Models
 {
     public class DataFile
     {
-        public List<DataFileHeader[]> DataFileHeader { get; set; } = [];
+        public List<DataFileHeader> DataFileHeader { get; set; } = [];
     }
 }

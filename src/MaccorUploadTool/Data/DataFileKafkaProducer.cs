@@ -28,7 +28,7 @@ namespace MaccorUploadTool.Data
         {
             _maccorDataReaderWriter = maccorDataReaderWriter;
             _headerChanel = Channel.CreateUnbounded<Message<string, string>>();
-            _timeDataChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1024 * 10)
+            _timeDataChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1024)
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
@@ -43,7 +43,7 @@ namespace MaccorUploadTool.Data
                 Acks = Acks.All,
                 SocketTimeoutMs = 60000,
                 LingerMs = 20,
-                BatchNumMessages = 40000
+                BatchNumMessages = 10000
             };
             Producer = new ProducerBuilder<string, string>(_producerConfig).Build();
         }
@@ -85,17 +85,10 @@ namespace MaccorUploadTool.Data
             try
             {
 
-                foreach (var headerArray in _fileSystemChangedRecord.DataFile.DataFileHeader)
+                foreach (var header in _fileSystemChangedRecord.DataFile.DataFileHeader)
                 {
-                    foreach (var header in headerArray)
-                    {
-                        if (!header.HasValue)
-                        {
-                            continue;
-                        }
-                        await this._headerChanel.Writer.WriteAsync(new Message<string, string> { Key = null, Value = header.AsJsonString() });
-                    }
-                    ArrayPool<DataFileHeader>.Shared.Return(headerArray, true);
+                    await this._headerChanel.Writer.WriteAsync(new Message<string, string> { Key = null, Value = header.AsJsonString() });
+
                 }
                 int index = 0;
                 await foreach (var message in this._headerChanel.Reader.ReadAllAsync().ConfigureAwait(false))
@@ -163,11 +156,11 @@ namespace MaccorUploadTool.Data
             {
                 _ = Task.Run(async () =>
                  {
-                     int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / 1024*10d);
+                     int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / 1024d);
                      int index = 0;
                      for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                      {
-                         var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.FullPath, pageIndex, 1024 * 10);
+                         var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.FullPath, pageIndex, 1024);
                          int count = 0;
                          foreach (var timeData in timeDataStringArray)
                          {
@@ -190,7 +183,7 @@ namespace MaccorUploadTool.Data
                 int count = 0;
                 await foreach (var message in this._timeDataChannel.Reader.ReadAllAsync().ConfigureAwait(false))
                 {
-                    Producer.Produce(HeaderTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
+                    Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
                     count++;
                     if (count == 1000)
                     {

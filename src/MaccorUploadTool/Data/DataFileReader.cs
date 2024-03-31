@@ -70,42 +70,38 @@ namespace MaccorUploadTool.Data
         /// 枚举<see cref="DataFileHeader"/>
         /// </summary>
         /// <returns><see cref="IEnumerable{T}" /></returns>
-        public async IAsyncEnumerable<DataFileHeader[]> ReadHeadersAsync()
+        public async IAsyncEnumerable<DataFileHeader> ReadHeadersAsync()
         {
             await ValueTask.CompletedTask;
             int handleTemp = _handle;
-            DataFileHeader[] headerArray = null;
             int index = 0;
+            DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
+            handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
+            var dataFileHeader = new DataFileHeader();
+            dataFileHeader.Init(_handle, dllDataFileHeader);
+            yield return dataFileHeader;
             do
             {
-                DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
-                handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
-                if (handleTemp == 0)
-                {
-                    if (index == 0)
-                    {
-                        headerArray = ArrayPool<DataFileHeader>.Shared.Rent(1024);
-                    }
 
-                    var dataFileHeader = new DataFileHeader();
-                    dataFileHeader.Init(_handle, dllDataFileHeader);
-                    dataFileHeader.HasValue = true;
-                    headerArray[index] = dataFileHeader;
+                if (handleTemp >= 0)
+                {
+
                     handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
-                    if (index > headerArray.Length)
+                    if (handleTemp<0)
                     {
-                        index = 0;
-                        yield return headerArray;
-                    }
-                    if (handleTemp != 0)
-                    {
-                        yield return headerArray;
                         break;
                     }
-                    index++;
+                    handleTemp = NativeMethods.GetDataFileHeader(handleTemp, ref dllDataFileHeader);
+                    if (handleTemp < 0)
+                    {
+                        break;
+                    }
+                    dataFileHeader = new DataFileHeader();
+                    dataFileHeader.Init(_handle, dllDataFileHeader);
+                    yield return dataFileHeader;
                 }
-
-            } while (true);
+                break;
+            } while (handleTemp >= 0);
             yield break;
         }
 

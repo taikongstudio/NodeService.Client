@@ -100,11 +100,11 @@ namespace NodeService.WindowsService.Services
 
             void CollectProcessList(HeartBeatResponse heartBeatRsp)
             {
-                _heartBeatCounter++;
-                if (_heartBeatCounter % 40 != 0)
-                {
-                    return;
-                }
+                //_heartBeatCounter++;
+                //if (_heartBeatCounter % 40 != 0)
+                //{
+                //    return;
+                //}
 
                 var processList = CommonHelper.CollectProcessList(_logger);
 
