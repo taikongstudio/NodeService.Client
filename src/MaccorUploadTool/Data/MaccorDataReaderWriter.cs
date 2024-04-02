@@ -32,7 +32,7 @@ namespace MaccorUploadTool.Data
         {
             _logger = logger;
 
-            var logDbDirectory = Path.Combine(AppContext.BaseDirectory, "logdb");
+            var logDbDirectory = Path.Combine(AppContext.BaseDirectory, "../logdb");
             this.DatabasePath = logDbDirectory;
 
             _bbto = new BlockBasedTableOptions()
@@ -51,7 +51,7 @@ namespace MaccorUploadTool.Data
                         //.SetMaxWriteBufferNumber(maxWriteBufferNumber)
                         //.SetMinWriteBufferNumberToMerge(minWriteBufferNumberToMerge)
                         .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong)41))
+                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong)50))
                         .SetBlockBasedTableFactory(_bbto)
                     },
                 };
@@ -77,19 +77,37 @@ namespace MaccorUploadTool.Data
                 {
                     index = 0;
                 }
-                WriteBatch writeBatch = new WriteBatch();
-                foreach (var entry in timeDataArray)
+                var itemsToWrite = timeDataArray.Where(static x => x.HasValue);
+                var totalCount = itemsToWrite.Count();
+                var writeCount = 0;
+                Stack<TimeData> stack = new Stack<TimeData>(256);
+
+                do
                 {
-                    if (!entry.HasValue)
+                    for (int i = 0; i < totalCount - writeCount; i++)
                     {
-                        continue;
+                        if (i == 1024)
+                        {
+                            break;
+                        }
+                        stack.Push(timeDataArray[i]);
                     }
-                    var key = GetKey(id, index);
-                    var value = JsonSerializer.Serialize(entry);
-                    writeBatch.Put(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(value), cf: cf);
-                    index++;
-                }
-                _rocksDb.Write(writeBatch);
+                    WriteBatch writeBatch = new WriteBatch();
+                    while (stack.Count > 0)
+                    {
+                        var entry = stack.Pop();
+                        var key = GetKey(id, index);
+                        var value = JsonSerializer.Serialize(entry);
+                        writeBatch.Put(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(value), cf: cf);
+                        index++;
+                        writeCount++;
+                    }
+                    _rocksDb.Write(writeBatch);
+                } while (writeCount < totalCount);
+
+
+
+
                 _rocksDb.Put(id, index.ToString());
                 _rocksDb.Flush(_flushOptions);
                 return true;

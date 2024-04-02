@@ -120,7 +120,7 @@ namespace MaccorUploadTool.Data
         }
 
 
-        private async void HeaderDeliveryHandler(DeliveryReport<string, string> deliveryReport)
+        private void HeaderDeliveryHandler(DeliveryReport<string, string> deliveryReport)
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
@@ -135,7 +135,7 @@ namespace MaccorUploadTool.Data
             this._headerChanel.Writer.TryWrite(deliveryReport.Message);
         }
 
-        private async void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
+        private void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
@@ -156,11 +156,12 @@ namespace MaccorUploadTool.Data
             {
                 _ = Task.Run(async () =>
                  {
-                     int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / 1024d);
+                     int pageSize = 512;
+                     int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / (pageSize + 0d));
                      int index = 0;
                      for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                      {
-                         var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.FullPath, pageIndex, 1024);
+                         var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.FullPath, pageIndex, pageSize);
                          int count = 0;
                          foreach (var timeData in timeDataStringArray)
                          {
@@ -172,7 +173,10 @@ namespace MaccorUploadTool.Data
                          {
                              _logger.LogInformation($"{this._fileSystemChangedRecord.FullPath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
                          }
-
+                         while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > 0)
+                         {
+                             await Task.Delay(100);
+                         }
                      }
                      if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
                      {
@@ -185,7 +189,7 @@ namespace MaccorUploadTool.Data
                 {
                     Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
                     count++;
-                    if (count == 1000)
+                    if (count == 512)
                     {
                         count = 0;
                         Producer.Flush();

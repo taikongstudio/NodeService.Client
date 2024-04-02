@@ -2,7 +2,7 @@
   "profiles": {
     "MaccorUploadTool": {
       "commandName": "Project",
-      "commandLineArgs": "--KafkaBrokerList \"10.201.76.22:9092,10.201.76.23:9092,10.201.76.24\"\r\n--Directory \"D:/Maccor\" --ParentProcessId 4288 --NodeId \"DebugMachine\""
+      "commandLineArgs": "--KafkaBrokerList \"10.201.76.22:9092,10.201.76.23:9092,10.201.76.24\"\r\n--Directory \"D:/Maccor\" --ParentProcessId 5728 --NodeId \"DebugMachine\" --DateTime \"2022/04/02\""
     }
   }
 }

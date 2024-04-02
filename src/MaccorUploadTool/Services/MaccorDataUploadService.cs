@@ -34,6 +34,8 @@ namespace MaccorUploadTool.Services
 
         private readonly ILogger _logger;
 
+        private DateTime LimitDateTime;
+
         public UploadMaccorDataJobOptions Options { get; private set; }
         public bool IsUpdatingConfig { get; set; }
 
@@ -43,9 +45,14 @@ namespace MaccorUploadTool.Services
             ApiService apiService,
             Options options)
         {
+            LimitDateTime = DateTime.MinValue;
             _maccorDataReaderWriter = maccorDataReaderWriter;
             _apiService = apiService;
             _nodeId = options.NodeId;
+            if (!DateTime.TryParse(options.DateTime, out LimitDateTime))
+            {
+                LimitDateTime = DateTime.MinValue;
+            }
             _fileSystemWatcherDictionary = new Dictionary<string, FileSystemWatcher>();
             _files = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             Options = new UploadMaccorDataJobOptions
@@ -81,7 +88,7 @@ namespace MaccorUploadTool.Services
             });
             _kafkaUploadActionBlock = new ActionBlock<FileSystemChangedRecord>(UploadAsync, new ExecutionDataflowBlockOptions()
             {
-                MaxDegreeOfParallelism = 4
+                MaxDegreeOfParallelism = 2
             });
         }
 
@@ -312,9 +319,11 @@ namespace MaccorUploadTool.Services
 
             _logger.LogInformation($"try delete {fileSystemChangeRecord.FullPath}");
             _maccorDataReaderWriter.Delete(fileSystemChangeRecord.FullPath);
+            int index = 0;
 
             await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
             {
+                int count = 0;
                 for (int i = 0; i < timeDataArray.Length; i++)
                 {
                     var timeData = timeDataArray[i];
@@ -327,9 +336,12 @@ namespace MaccorUploadTool.Services
                     timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
                     timeDataArray[i] = timeData;
                     fileSystemChangeRecord.Stat.TimeDataCount++;
+                    count++;
                 }
                 _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.FullPath, timeDataArray);
+                _logger.LogInformation($"write {count} items,{index} times");
                 ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
+                index++;
             }
             _logger.LogInformation($"{fileSystemChangeRecord.FullPath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");
             timeDataStopWatch.Stop();
@@ -467,6 +479,11 @@ namespace MaccorUploadTool.Services
                     RecurseSubdirectories = true
                 }))
                 {
+                    var fileInfo = new FileInfo(filePath);
+                    if (fileInfo.LastWriteTime < this.LimitDateTime)
+                    {
+                        continue;
+                    }
                     if (!_files.TryAdd(filePath, null))
                     {
                         continue;

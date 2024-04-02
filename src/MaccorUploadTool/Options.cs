@@ -23,6 +23,10 @@ namespace MaccorUploadTool
         [Option("ParentProcessId", Required = true, HelpText = "ParentProcessId")]
         public string ParentProcessId { get; set; }
 
+
+        [Option("DateTime", Required = true, HelpText = "DateTime")]
+        public string DateTime { get; internal set; }
+
         public string ToJsonString()
         {
             return JsonSerializer.Serialize(this);

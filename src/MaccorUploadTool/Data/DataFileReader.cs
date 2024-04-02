@@ -147,13 +147,13 @@ namespace MaccorUploadTool.Data
             int index = 0;
             do
             {
-             
+
                 result = NativeMethods.LoadAndGetNextTimeData(_handle, ref dllTimeData);
                 if (result == 0)
                 {
                     if (index == 0)
                     {
-                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(1024);
+                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(8192);
                     }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);
@@ -170,7 +170,10 @@ namespace MaccorUploadTool.Data
                 }
                 else
                 {
-                    yield return timeDataArray;
+                    if (timeDataArray != null)
+                    {
+                        yield return timeDataArray;
+                    }
                     break;
                 }
             } while (true);
