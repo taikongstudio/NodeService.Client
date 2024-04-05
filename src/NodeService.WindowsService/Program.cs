@@ -68,7 +68,7 @@ namespace NodeService.WindowsService
                 });
                 builder.Services.AddSingleton(options);
                 builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
-                builder.Services.AddSingleton<JobContextDictionary>();
+                builder.Services.AddSingleton<JobExecutionContextDictionary>();
                 builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<ProcessService>();

@@ -21,7 +21,7 @@ namespace NodeService.WindowsService.Services
 
         private IAsyncQueue<JobExecutionReport>  _reportQueue;
         private IAsyncQueue<JobExecutionContext> _jobExecutionContextQueue;
-        private readonly JobContextDictionary _jobContextDictionary;
+        private readonly JobExecutionContextDictionary _jobContextDictionary;
 
 
         private async Task ProcessJobExecutionRequestEventAsync(JobExecutionEventRequest request)

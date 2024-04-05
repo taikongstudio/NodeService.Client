@@ -38,7 +38,7 @@ namespace NodeService.WindowsService.Services
                 await options.InitAsync(this.JobScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");
-                scripts = scripts.Replace("$(NodeId)", _nodeIdentityProvider.GetNodeId());
+                scripts = scripts.Replace("$(NodeId)", _nodeIdentityProvider.GetIdentity());
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
                 scripts = scripts.Replace("$(ParentProcessId)", Process.GetCurrentProcess().Id.ToString());
                 string workingDirectory = options.WorkingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);

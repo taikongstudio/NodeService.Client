@@ -10,7 +10,7 @@ namespace NodeService.WindowsService.Services
 {
     public class NodeIdentityProvider : INodeIdentityProvider
     {
-        public string GetNodeId()
+        public string GetIdentity()
         {
             const string ServiceName = "NodeService.WindowsService";
             using var softwareSubKey = Registry.LocalMachine.OpenSubKey("SOFTWARE", true);

@@ -64,7 +64,7 @@ namespace NodeService.WindowsService.Services
             ISchedulerFactory schedulerFactory,
             IAsyncQueue<JobExecutionContext> jobExecutionContextQueue,
             IAsyncQueue<JobExecutionReport> reportQueue,
-            JobContextDictionary jobContextDictionary,
+            JobExecutionContextDictionary jobContextDictionary,
             INodeIdentityProvider machineIdProvider
             )
         {
@@ -151,7 +151,7 @@ namespace NodeService.WindowsService.Services
                 _headers.AppendNodeClientHeaders(new NodeClientHeaders()
                 {
                     HostName = Dns.GetHostName(),
-                    NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdProvider.GetNodeId()
+                    NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdProvider.GetIdentity()
                 });
 
                 while (!stoppingToken.IsCancellationRequested)
@@ -214,6 +214,7 @@ namespace NodeService.WindowsService.Services
                             {
                                 _logger.LogInformation($"Sent {messageCount} messages,spent:{stopwatch.Elapsed}");
                             }
+                            stopwatch.Reset();
                         }
 
                     }

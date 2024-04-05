@@ -9,21 +9,21 @@ namespace NodeService.WindowsService.Services
         private readonly ILogger<JobHostService> _logger;
         private readonly IAsyncQueue<JobExecutionContext> _jobExecutionContextQueue;
         private readonly IServiceProvider _serviceProvider;
-        private readonly JobContextDictionary _jobContextDictionary;
+        private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
         private readonly INodeIdentityProvider _nodeIdentityProvider;
 
         public JobHostService(
             ILogger<JobHostService> logger,
             IServiceProvider serviceProvider,
             IAsyncQueue<JobExecutionContext> queue,
-            JobContextDictionary jobContextDictionary,
+            JobExecutionContextDictionary jobExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider
             )
         {
             _logger = logger;
             _jobExecutionContextQueue = queue;
             _serviceProvider = serviceProvider;
-            _jobContextDictionary = jobContextDictionary;
+            _jobExecutionContextDictionary = jobExecutionContextDictionary;
             _nodeIdentityProvider = nodeIdentityProvider;
         }
 
@@ -58,7 +58,7 @@ namespace NodeService.WindowsService.Services
                     });
                     builder.Services.AddScoped<ApiService>();
                     builder.Services.AddSingleton<ITargetBlock<LogMessageEntry>>(jobExecutionContext.LogMessageTargetBlock);
-                    builder.Services.AddSingleton<JobContextDictionary>(_jobContextDictionary);
+                    builder.Services.AddSingleton<JobExecutionContextDictionary>(_jobExecutionContextDictionary);
                     builder.Services.AddScoped<ILogger>(sp => sp.GetService<ILoggerFactory>().CreateLogger("JobLogger")
                     );
 
@@ -78,7 +78,7 @@ namespace NodeService.WindowsService.Services
                 }
                 finally
                 {
-                    _jobContextDictionary.TryRemove(jobExecutionContext.Parameters.Id, out _);
+                    _jobExecutionContextDictionary.TryRemove(jobExecutionContext.Parameters.Id, out _);
                 }
 
 

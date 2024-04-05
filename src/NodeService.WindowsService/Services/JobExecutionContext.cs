@@ -16,7 +16,7 @@ namespace NodeService.WindowsService.Services
     {
         private readonly IAsyncQueue<JobExecutionReport> _reportChannel;
         private readonly ActionBlock<LogMessageEntry> _logActionBlock;
-        private readonly JobContextDictionary _jobContextDictionary;
+        private readonly JobExecutionContextDictionary _jobContextDictionary;
         private CancellationTokenSource _cancellationTokenSource;
 
         private ILogger _logger;
@@ -25,7 +25,7 @@ namespace NodeService.WindowsService.Services
             ILogger<JobExecutionContext> logger,
             JobExecutionParameters jobExecutionParameters,
             IAsyncQueue<JobExecutionReport> reportQueue,
-            JobContextDictionary jobContextDictionary)
+            JobExecutionContextDictionary jobContextDictionary)
         {
             _jobContextDictionary = jobContextDictionary;
             _cancellationTokenSource = new CancellationTokenSource();
@@ -49,7 +49,7 @@ namespace NodeService.WindowsService.Services
         public ITargetBlock<LogMessageEntry> LogMessageTargetBlock => this._logActionBlock;
 
 
-        private async void WriteLogAsync(LogMessageEntry log)
+        private async Task WriteLogAsync(LogMessageEntry log)
         {
             await this.UpdateStatusAsync(this.Status, new JobExecutionLogEntry()
             {
@@ -107,7 +107,6 @@ namespace NodeService.WindowsService.Services
 
         public void Dispose()
         {
-            this._logActionBlock.Complete();
             _jobContextDictionary.TryRemove(Parameters.Id, out _);
             if (this._cancellationTokenSource != null)
             {

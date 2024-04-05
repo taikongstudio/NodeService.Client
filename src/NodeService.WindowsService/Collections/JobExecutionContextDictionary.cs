@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace NodeService.WindowsService.Collections
 {
-    public class JobContextDictionary : ConcurrentDictionary<string, JobExecutionContext>
+    public class JobExecutionContextDictionary : ConcurrentDictionary<string, JobExecutionContext>
     {
 
     }
