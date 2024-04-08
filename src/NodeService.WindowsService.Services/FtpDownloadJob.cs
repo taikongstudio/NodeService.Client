@@ -8,26 +8,26 @@ using System.Threading.Tasks;
 
 namespace NodeService.WindowsService.Services
 {
-    public class FtpDownloadJob : Job
+    public class FtpDownloadJob : Job, IProgress<FtpProgress>
     {
-        private readonly MyFtpProgress _myFtpProgress;
-
         public FtpDownloadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
         {
-            _myFtpProgress = new MyFtpProgress(ProcessFtpProgress);
-        }
-
-        private void ProcessFtpProgress(FtpProgress progress)
-        {
 
         }
+
+
 
         public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
             FtpDownloadJobOptions options = new FtpDownloadJobOptions();
             await options.InitAsync(this.JobScheduleConfig, ApiService, cancellationToken);
-            FtpDownloadConfigExecutor ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(EventId,_myFtpProgress, options.FtpDownloadConfig, this.Logger);
+            FtpDownloadConfigExecutor ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(this, options.FtpDownloadConfig, this.Logger);
             await ftpDownloadConfigExecutor.ExecuteAsync(cancellationToken);
+
+        }
+
+        public void Report(FtpProgress value)
+        {
 
         }
     }

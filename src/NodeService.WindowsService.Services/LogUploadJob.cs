@@ -5,14 +5,12 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class LogUploadJob : Job
+    public class LogUploadJob : Job, IProgress<FtpProgress>
     {
-        private readonly MyFtpProgress _myFtpProgress;
         private readonly string _dnsName;
 
         public LogUploadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
         {
-            _myFtpProgress = new MyFtpProgress(ProcessFtpProgress);
             _dnsName = Dns.GetHostName();
         }
 
@@ -57,7 +55,7 @@ namespace NodeService.WindowsService.Services
 
                 foreach (var uploadLogConfig in logUploadOptions.LogUploadConfigs)
                 {
-                    LogUploadConfigExecutor logUploadConfigExecutor = new LogUploadConfigExecutor(this.EventId, this._myFtpProgress, uploadLogConfig, this.Logger);
+                    LogUploadConfigExecutor logUploadConfigExecutor = new LogUploadConfigExecutor(this, uploadLogConfig, this.Logger);
                     await logUploadConfigExecutor.ExecutionAsync(stoppingToken);
                 }
 
@@ -69,5 +67,11 @@ namespace NodeService.WindowsService.Services
                 Logger.LogError(ex.ToString());
             }
         }
+
+        public void Report(FtpProgress value)
+        {
+
+        }
+
     }
 }

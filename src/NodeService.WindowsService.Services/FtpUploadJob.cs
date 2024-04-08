@@ -5,13 +5,12 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class FtpUploadJob : Job
+    public class FtpUploadJob : Job, IProgress<FtpProgress>
     {
-        private readonly MyFtpProgress _myFtpProgress;
 
-        public FtpUploadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public FtpUploadJob(ApiService apiService, ILogger<FtpUploadJob> logger) : base(apiService, logger)
         {
-            _myFtpProgress = new MyFtpProgress(ProcessFtpProgress);
+
         }
 
         private void ProcessFtpProgress(FtpProgress progress)
@@ -25,9 +24,14 @@ namespace NodeService.WindowsService.Services
             await ftpUploadJobOptions.InitAsync(this.JobScheduleConfig, ApiService);
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {
-                FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(_myFtpProgress, ftpUploadConfig, Logger);
+                FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
                 await ftpTaskExecutor.ExecuteAsync(stoppingToken);
             }
+        }
+
+        public void Report(FtpProgress value)
+        {
+
         }
     }
 }

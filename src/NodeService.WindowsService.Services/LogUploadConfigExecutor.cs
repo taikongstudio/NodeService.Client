@@ -12,29 +12,25 @@ namespace NodeService.WindowsService.Services
 {
     public class LogUploadConfigExecutor
     {
-        public readonly LogUploadConfigModel _logUploadConfig;
+        public LogUploadConfigModel LogUploadConfig { get; private set; }
 
-        private readonly MyFtpProgress _myFtpProgress;
+        private IProgress<FtpProgress> _progress;
 
-        public readonly ILogger _logger;
-
-        private readonly EventId _eventId;
+        private readonly ILogger _logger;
 
         public LogUploadConfigExecutor(
-            EventId eventId,
-            MyFtpProgress myFtpProgress,
+            IProgress<FtpProgress> progress,
             LogUploadConfigModel logUploadConfig,
             ILogger logger)
         {
-            _myFtpProgress = myFtpProgress;
-            _eventId = eventId;
-            _logUploadConfig = logUploadConfig;
+            _progress = progress;
             _logger = logger;
+            LogUploadConfig = logUploadConfig;
         }
 
         public async Task ExecutionAsync(CancellationToken cancellationToken = default)
         {
-            var ftpConfig = this._logUploadConfig.FtpConfig;
+            var ftpConfig = this.LogUploadConfig.FtpConfig;
             using var ftpClient = new AsyncFtpClient(
                 ftpConfig.Host,
                 ftpConfig.Username,
@@ -50,9 +46,9 @@ namespace NodeService.WindowsService.Services
 
             await ftpClient.AutoConnect(cancellationToken);
 
-            var localLogDirectories = _logUploadConfig.LocalDirectories;
+            var localLogDirectories = LogUploadConfig.LocalDirectories;
 
-            string remoteLogRootDir = _logUploadConfig.RemoteDirectory.Replace("$(HostName)", Dns.GetHostName());
+            string remoteLogRootDir = LogUploadConfig.RemoteDirectory.Replace("$(HostName)", Dns.GetHostName());
             if (!remoteLogRootDir.StartsWith('/'))
             {
                 remoteLogRootDir = '/' + remoteLogRootDir;
@@ -69,33 +65,33 @@ namespace NodeService.WindowsService.Services
 
                 if (!Directory.Exists(myLocalLogDirectory))
                 {
-                    _logger.LogWarning(_eventId, $"Cound not find directory:{myLocalLogDirectory}");
+                    _logger.LogWarning($"Cound not find directory:{myLocalLogDirectory}");
                     continue;
                 }
 
-                string[] localLogFiles = Directory.GetFiles(myLocalLogDirectory, _logUploadConfig.SearchPattern,
+                string[] localLogFiles = Directory.GetFiles(myLocalLogDirectory, LogUploadConfig.SearchPattern,
                     new EnumerationOptions()
                     {
-                        MatchCasing = _logUploadConfig.MatchCasing,
-                        RecurseSubdirectories = _logUploadConfig.IncludeSubDirectories,
+                        MatchCasing = LogUploadConfig.MatchCasing,
+                        RecurseSubdirectories = LogUploadConfig.IncludeSubDirectories,
                     }).Select(x => x.Replace('\\', '/')).ToArray();
 
-                Dictionary<string, FtpListItem> dict = await GetRemoteFiles(ftpClient, remoteLogRootDir, cancellationToken);
+                Dictionary<string, FtpListItem> dict = await GetRemoteFilesAsync(ftpClient, remoteLogRootDir, cancellationToken);
 
                 int addedCount = 0;
 
                 foreach (var localFilePath in localLogFiles)
                 {
                     FileInfo fileInfo = new FileInfo(localFilePath);
-                    if (_logUploadConfig.SizeLimitInBytes > 0 && fileInfo.Length > _logUploadConfig.SizeLimitInBytes)
+                    if (LogUploadConfig.SizeLimitInBytes > 0 && fileInfo.Length > LogUploadConfig.SizeLimitInBytes)
                     {
-                        _logger.LogInformation( $"Skip upload {localFilePath} sizelimit:{_logUploadConfig.SizeLimitInBytes} filesize:{fileInfo.Length}");
+                        _logger.LogInformation($"Skip upload {localFilePath} sizelimit:{LogUploadConfig.SizeLimitInBytes} filesize:{fileInfo.Length}");
                         continue;
                     }
                     var timeSpan = DateTime.Now - fileInfo.LastWriteTime;
-                    if (_logUploadConfig.TimeLimitInSeconds > 0 && timeSpan.TotalSeconds > _logUploadConfig.TimeLimitInSeconds)
+                    if (LogUploadConfig.TimeLimitInSeconds > 0 && timeSpan.TotalSeconds > LogUploadConfig.TimeLimitInSeconds)
                     {
-                        _logger.LogInformation( $"Skip upload {localFilePath} timeSecondsLimit:{_logUploadConfig.TimeLimitInSeconds} timeSpan:{timeSpan}");
+                        _logger.LogInformation($"Skip upload {localFilePath} timeSecondsLimit:{LogUploadConfig.TimeLimitInSeconds} timeSpan:{timeSpan}");
                         continue;
                     }
                     string releativePath = Path.GetRelativePath(myLocalLogDirectory, localFilePath).Replace("\\", "/");
@@ -110,10 +106,10 @@ namespace NodeService.WindowsService.Services
                     try
                     {
 
-                        var ftpStatus = await ftpClient.UploadFile(localFilePath, remoteFilePath, FtpRemoteExists.Overwrite, true, FtpVerify.None, _myFtpProgress);
+                        var ftpStatus = await ftpClient.UploadFile(localFilePath, remoteFilePath, FtpRemoteExists.Overwrite, true, FtpVerify.None, _progress);
                         if (ftpStatus == FtpStatus.Success)
                         {
-                            _logger.LogInformation( $"Upload log:{localFilePath} to {remoteFilePath}");
+                            _logger.LogInformation($"Upload log:{localFilePath} to {remoteFilePath}");
                             dict.Add(releativePath, null);
                             addedCount++;
                         }
@@ -121,7 +117,7 @@ namespace NodeService.WindowsService.Services
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError( ex.ToString());
+                        _logger.LogError(ex.ToString());
                         retry = true;
                     }
 
@@ -133,18 +129,18 @@ namespace NodeService.WindowsService.Services
                         {
 
                             using var fileStream = File.Open(localFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                            await ftpClient.UploadStream(fileStream, remoteFilePath, FtpRemoteExists.Resume, true, _myFtpProgress, token: cancellationToken);
+                            await ftpClient.UploadStream(fileStream, remoteFilePath, FtpRemoteExists.Resume, true, _progress, token: cancellationToken);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError( ex.ToString());
+                            _logger.LogError(ex.ToString());
                         }
                     }
                 }
             }
         }
 
-        private async Task<Dictionary<string, FtpListItem>> GetRemoteFiles(
+        private async Task<Dictionary<string, FtpListItem>> GetRemoteFilesAsync(
             AsyncFtpClient ftpClient,
             string remoteLogRootDir,
             CancellationToken cancellationToken = default)
@@ -153,7 +149,7 @@ namespace NodeService.WindowsService.Services
             try
             {
                 string exclude = $"{DateTime.Now:yyyy-MM-dd}";
-                var listOption = this._logUploadConfig.IncludeSubDirectories ? FtpListOption.Recursive : FtpListOption.Auto;
+                var listOption = this.LogUploadConfig.IncludeSubDirectories ? FtpListOption.Recursive : FtpListOption.Auto;
                 var allFileItems = await ftpClient.GetListing(remoteLogRootDir, listOption, cancellationToken);
                 dict = allFileItems
                     .Where(x => !x.Name.Contains(exclude))
