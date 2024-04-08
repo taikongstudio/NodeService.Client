@@ -63,9 +63,6 @@ namespace NodeService.WindowsService.Services
                 CleanupInstallDirectory(localRootPath);
             }
 
-            _logger.LogInformation("Enumerate local Objects Begin");
-
-
             var ftpListOption = FtpDownloadConfig.IncludeSubDirectories ? FtpListOption.Recursive : FtpListOption.Auto;
 
             var remoteFileListDict = (await ftpClient.GetListing(FtpDownloadConfig.RemoteDirectory, ftpListOption, cancellationToken)).Where(x => x.Type == FtpObjectType.File).ToDictionary<FtpListItem, string>(x => x.FullName);
