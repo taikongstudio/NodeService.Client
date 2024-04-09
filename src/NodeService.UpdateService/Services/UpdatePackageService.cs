@@ -108,7 +108,7 @@ namespace NodeService.UpdateService.Services
                         stream.Position = 0;
                         if (!IsZip(stream))
                         {
-                            return;
+                            continue;
                         }
                         _logger.LogInformation($"Start Uninstall");
                         bool uninstalledResult = ServiceHelper.Uninstall(SERVICENAME);
@@ -143,7 +143,7 @@ namespace NodeService.UpdateService.Services
                         var fileName = Path.Combine(destDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
                         if (!File.Exists(fileName))
                         {
-                            return;
+                            continue;
                         }
 
                         _logger.LogInformation($"Start Install");
