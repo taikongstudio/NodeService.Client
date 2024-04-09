@@ -68,13 +68,13 @@ namespace NodeService.WindowsService.Services
             INodeIdentityProvider machineIdProvider
             )
         {
-            _jobContextDictionary = jobContextDictionary;
+            _jobExecutionContextDictionary = jobContextDictionary;
             _serviceProvider = serviceProvider;
             _configuration = configuration;
             _schedulerFactory = schedulerFactory;
             _jobExecutionContextQueue = jobExecutionContextQueue;
             _reportQueue = reportQueue;
-            _jobContextDictionary = jobContextDictionary;
+            _jobExecutionContextDictionary = jobContextDictionary;
             _logger = logger;
             _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, new ExecutionDataflowBlockOptions()
             {

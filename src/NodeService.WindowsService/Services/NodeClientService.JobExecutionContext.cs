@@ -5,7 +5,7 @@
 
         private IAsyncQueue<JobExecutionReport>  _reportQueue;
         private IAsyncQueue<JobExecutionContext> _jobExecutionContextQueue;
-        private readonly JobExecutionContextDictionary _jobContextDictionary;
+        private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
 
 
         private async Task ProcessJobExecutionRequestEventAsync(JobExecutionEventRequest request)
@@ -36,17 +36,11 @@
                 Message = string.Empty,
                 RequestId = request.RequestId
             };
-            foreach (var kv in request.Parameters)
-            {
-                rsp.Parameters.Add(kv.Key, kv.Value);
-            }
             string id = request.Parameters[nameof(JobExecutionInstanceModel.Id)];
-            if (_jobContextDictionary.TryRemove(id, out var jobContext))
+            if (_jobExecutionContextDictionary.TryRemove(id, out var jobExecutionContext))
             {
-                jobContext.Cancel();
+                await jobExecutionContext.DisposeAsync();
                 rsp.Message = $"job {id} cancelled";
-                await jobContext.UpdateStatusAsync(JobExecutionStatus.Cancelled, "Cancelled");
-
             }
             else
             {
@@ -54,10 +48,8 @@
                 rsp.Message = $"invalid job instance id:{id}";
                 var report = new JobExecutionReport();
                 report.Status = JobExecutionStatus.Cancelled;
-                foreach (var kv in request.Parameters)
-                {
-                    report.Properties.Add(kv.Key, kv.Value);
-                }
+                report.Id = id;
+                report.Message = "Cancelled";
                 await this._reportQueue.EnqueueAsync(report);
             }
 
@@ -76,11 +68,11 @@
             {
                 rsp.Parameters.Add(kv.Key, kv.Value);
             }
-            var jobExecutionContext = _jobContextDictionary.GetOrAdd(request.Parameters[nameof(JobExecutionInstanceModel.Id)],
+            var jobExecutionContext = _jobExecutionContextDictionary.GetOrAdd(request.Parameters[nameof(JobExecutionInstanceModel.Id)],
                             (key) => new JobExecutionContext(_serviceProvider.GetService<ILogger<JobExecutionContext>>(),
-                            JobExecutionParameters.BuildParameters(request.Parameters),
+                            JobCreationParameters.Build(request.Parameters),
                             _reportQueue,
-                            _jobContextDictionary));
+                            _jobExecutionContextDictionary));
             await this._jobExecutionContextQueue.EnqueueAsync(jobExecutionContext);
             rsp.Message = $"{Dns.GetHostName()} recieved ";
             await this._nodeServiceClient.SendJobExecutionEventResponseAsync(rsp, _headers);

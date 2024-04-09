@@ -97,8 +97,6 @@ namespace NodeService.WindowsService.Services
                 {
                     await _jobExecutionContext.UpdateStatusAsync(JobExecutionStatus.Finished, errorMessage);
                 }
-                await Task.Delay(TimeSpan.FromSeconds(5));
-                _jobExecutionContext.Dispose();
             }
         }
     }
