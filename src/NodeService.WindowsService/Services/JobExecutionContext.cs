@@ -15,10 +15,10 @@ namespace NodeService.WindowsService.Services
     public class JobExecutionContext : IAsyncDisposable
     {
         private readonly IAsyncQueue<JobExecutionReport> _reportChannel;
-        private readonly ActionBlock<LogMessageEntry> _logActionBlock;
+        private readonly ActionBlock<LogEntry> _logActionBlock;
         private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
         private CancellationTokenSource _cancellationTokenSource;
-        private readonly BatchQueue<LogMessageEntry> _logMessageEntryBatchQueue;
+        private readonly BatchQueue<LogEntry> _logMessageEntryBatchQueue;
 
         private ILogger _logger;
 
@@ -32,12 +32,12 @@ namespace NodeService.WindowsService.Services
             _cancellationTokenSource = new CancellationTokenSource();
             _reportChannel = reportQueue;
             _logger = logger;
-            _logActionBlock = new ActionBlock<LogMessageEntry>(WriteLogAsync, new ExecutionDataflowBlockOptions()
+            _logActionBlock = new ActionBlock<LogEntry>(WriteLogAsync, new ExecutionDataflowBlockOptions()
             {
                 EnsureOrdered = true
             });
             Parameters = parameters;
-            _logMessageEntryBatchQueue = new BatchQueue<LogMessageEntry>(1024, TimeSpan.FromSeconds(3));
+            _logMessageEntryBatchQueue = new BatchQueue<LogEntry>(1024, TimeSpan.FromSeconds(3));
             _ = Task.Run(ProcessLogMessageEntries);
         }
 
@@ -47,11 +47,11 @@ namespace NodeService.WindowsService.Services
             {
                 await foreach (var arrayPoolCollection in this._logMessageEntryBatchQueue.ReceiveAllAsync(this.CancellationToken))
                 {
-                    foreach (var logStatusGroup in arrayPoolCollection.Where(static x => x.Status != JobExecutionStatus.Unknown)
+                    foreach (var logStatusGroup in arrayPoolCollection.Where(static x => x.Status != (int)JobExecutionStatus.Unknown)
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
-                        await this.EnqueueLogsAsync(status, logStatusGroup.Select(LogMessageEntryToJobExecutionLogEntry));
+                        await this.EnqueueLogsAsync((JobExecutionStatus)status, logStatusGroup.Select(LogMessageEntryToJobExecutionLogEntry));
                     }
                 }
             }
@@ -61,12 +61,12 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private static JobExecutionLogEntry LogMessageEntryToJobExecutionLogEntry(LogMessageEntry logMessageEntry)
+        private static JobExecutionLogEntry LogMessageEntryToJobExecutionLogEntry(LogEntry logMessageEntry)
         {
             return new JobExecutionLogEntry()
             {
                 Type = (JobExecutionLogEntry.Types.JobExecutionLogEntryType)logMessageEntry.Type,
-                DateTime = Timestamp.FromDateTime(logMessageEntry.DateTime),
+                DateTime = Timestamp.FromDateTime(logMessageEntry.DateTimeUtc),
                 Value = logMessageEntry.Value,
             };
         }
@@ -79,13 +79,13 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        public ITargetBlock<LogMessageEntry> LogMessageTargetBlock => this._logActionBlock;
+        public ITargetBlock<LogEntry> LogMessageTargetBlock => this._logActionBlock;
 
 
-        private async Task WriteLogAsync(LogMessageEntry log)
+        private async Task WriteLogAsync(LogEntry logEntry)
         {
-            log.Status = this.Status;
-            await this._logMessageEntryBatchQueue.SendAsync(log);
+            logEntry.Status = (int)this.Status;
+            await this._logMessageEntryBatchQueue.SendAsync(logEntry);
         }
 
 
@@ -108,6 +108,7 @@ namespace NodeService.WindowsService.Services
             };
             report.Id = this.Parameters.Id;
             report.Message = message;
+            report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
             await _reportChannel.EnqueueAsync(report);
         }
 
@@ -115,7 +116,7 @@ namespace NodeService.WindowsService.Services
         {
             var report = new JobExecutionReport()
             {
-                Status = Status
+                Status = status
             };
             report.Id = this.Parameters.Id;
             report.LogEntries.AddRange(logMessageEntries);

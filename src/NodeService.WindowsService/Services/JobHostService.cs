@@ -57,7 +57,7 @@ namespace NodeService.WindowsService.Services
                         BaseAddress = new Uri(builder.Configuration.GetValue<string>("ServerConfig:HttpAddress"))
                     });
                     builder.Services.AddScoped<ApiService>();
-                    builder.Services.AddSingleton<ITargetBlock<LogMessageEntry>>(jobExecutionContext.LogMessageTargetBlock);
+                    builder.Services.AddSingleton<ITargetBlock<LogEntry>>(jobExecutionContext.LogMessageTargetBlock);
                     builder.Services.AddSingleton<JobExecutionContextDictionary>(_jobExecutionContextDictionary);
                     builder.Services.AddScoped<ILogger>(sp => sp.GetService<ILoggerFactory>().CreateLogger("JobLogger")
                     );
