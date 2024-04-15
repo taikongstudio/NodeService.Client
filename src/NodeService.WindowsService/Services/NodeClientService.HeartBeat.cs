@@ -66,25 +66,6 @@ namespace NodeService.WindowsService.Services
             {
                 try
                 {
-                    string name = Dns.GetHostName();
-                    IPAddress[] ipAddressList = Dns.GetHostAddresses(name);
-                    foreach (IPAddress ipa in ipAddressList)
-                    {
-                        if (ipa.AddressFamily == AddressFamily.InterNetwork)
-                        {
-                            string ipAddressString = ipa.ToString();
-                            if (ipAddressString.StartsWith("10."))
-                            {
-                                heartBeatRsp.Properties.Add(NodePropertyModel.FactoryName_key, "BL");
-                                break;
-                            }
-                            else if (ipAddressString.StartsWith("172."))
-                            {
-                                heartBeatRsp.Properties.Add(NodePropertyModel.FactoryName_key, "GM");
-                                break;
-                            }
-                        }
-                    }
                     if (!heartBeatRsp.Properties.ContainsKey(NodePropertyModel.FactoryName_key))
                     {
                         heartBeatRsp.Properties.TryAdd(NodePropertyModel.FactoryName_key, "Unknown");
@@ -100,12 +81,6 @@ namespace NodeService.WindowsService.Services
 
             void CollectProcessList(HeartBeatResponse heartBeatRsp)
             {
-                //_heartBeatCounter++;
-                //if (_heartBeatCounter % 40 != 0)
-                //{
-                //    return;
-                //}
-
                 var processList = CommonHelper.CollectProcessList(_logger);
 
                 heartBeatRsp.Properties.Add(NodePropertyModel.Process_Processes_Key, JsonSerializer.Serialize(processList));

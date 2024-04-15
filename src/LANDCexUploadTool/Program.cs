@@ -14,7 +14,6 @@ namespace LANDCexTest
             }
             var briefInfoReader = new BriefInfoReader(path);
             var brief = briefInfoReader.Read();
-
             foreach (var cycle in dataReader.EnumCycles())
             {
                 Console.WriteLine(JsonSerializer.Serialize(cycle, new JsonSerializerOptions()

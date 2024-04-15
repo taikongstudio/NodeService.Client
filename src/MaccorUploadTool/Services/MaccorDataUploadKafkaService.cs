@@ -256,7 +256,7 @@ namespace MaccorUploadTool.Services
             {
                 fileSystemChangeRecord.Stat.BeginDateTime = DateTime.UtcNow;
                 var fileName = fileInfo.FullName;
-                var filePathHash = MD5Helper.CalculateStringMD5(fileInfo.FullName);
+                var filePathHash = CryptographyHelper.CalculateStringMD5(fileInfo.FullName);
 
                 var fileRecord = this._fileRecords.FirstOrDefault(x => x.Name == filePathHash);
   
@@ -265,7 +265,7 @@ namespace MaccorUploadTool.Services
                     _logger.LogCritical($"file {fileSystemChangeRecord.LocalFilePath} processed, return");
                     return;
                 }
-                var fileHashValue = MD5Helper.CalculateFileMD5(fileInfo.FullName);
+                var fileHashValue = CryptographyHelper.CalculateFileMD5(fileInfo.FullName);
                 if (DataFileReader.TryLoad(fileSystemChangeRecord.LocalFilePath, _logger, out var ex, out dataFileReader))
                 {
                     if (!await ParseDataFileAsync(fileSystemChangeRecord, dataFileReader))

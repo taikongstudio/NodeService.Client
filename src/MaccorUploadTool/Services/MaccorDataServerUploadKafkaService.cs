@@ -144,7 +144,7 @@ namespace MaccorUploadTool.Services
                         _logger.LogInformation($"{filePathHash} processed");
                         return;
                     }
-                    fileSystemChangedRecord.FileHashValue = MD5Helper.CalculateFileMD5(fileInfo.FullName);
+                    fileSystemChangedRecord.FileHashValue = CryptographyHelper.CalculateFileMD5(fileInfo.FullName);
                     if (fileRecord.CompressedSize != fileInfo.Length)
                     {
                         _logger.LogInformation($"{filePathHash} error size:{fileInfo.Length}");

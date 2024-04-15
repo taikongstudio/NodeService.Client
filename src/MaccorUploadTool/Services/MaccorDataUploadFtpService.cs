@@ -149,16 +149,17 @@ namespace MaccorUploadTool.Services
                 }
                 await ftpClient.AutoConnect();
                 var fileInfo = new FileInfo(fileSystemChangeRecord.LocalFilePath);
-                var pathHashValue = MD5Helper.CalculateStringMD5(fileSystemChangeRecord.LocalFilePath);
+                var pathHashValue = CryptographyHelper.CalculateStringMD5(fileSystemChangeRecord.LocalFilePath);
                 var fileRecord = _fileRecords.FirstOrDefault(x => x.Name == pathHashValue);
                 if (fileRecord != null && fileRecord.State >= FileRecordState.Uploaded && fileRecord.Size == fileInfo.Length)
                 {
                     _logger.LogInformation($"Skip upload {fileSystemChangeRecord.LocalFilePath}");
                     return;
                 }
+                string fileHashValue = CryptographyHelper.CalculateFileMD5(fileSystemChangeRecord.LocalFilePath);
                 using var memoryStream = await CompressionHelper.CompressFileAsync(fileSystemChangeRecord.LocalFilePath);
                 memoryStream.Position = 0;
-                string remoteFilePath = $"/MaccorDataFiles/{Dns.GetHostName()}/MaccorFileNameHash_{pathHashValue}";
+                string remoteFilePath = $"/MaccorDataCompressedFiles/{_nodeId}/{pathHashValue}";
                 FtpRemoteExists ftpRemoteExists = FtpRemoteExists.Skip;
                 if (fileRecord != null && fileRecord.CompressedSize != memoryStream.Length)
                 {
@@ -174,10 +175,11 @@ namespace MaccorUploadTool.Services
                     Id = _nodeId,
                     Name = pathHashValue,
                     OriginalFileName = fileSystemChangeRecord.LocalFilePath,
-                    CompressedSize = memoryStream.Length,
                     Size = fileInfo.Length,
                     State = FileRecordState.Uploaded,
-                    FileHashValue = MD5Helper.CalculateStreamMD5(memoryStream)
+                    FileHashValue = fileHashValue,
+                    CompressedFileHashValue = CryptographyHelper.CalculateStreamMD5(memoryStream),
+                    CompressedSize = memoryStream.Length,
                 };
                 _uploadFileRecordActionBlock.Post(fileSystemChangeRecord);
             }
@@ -193,9 +195,6 @@ namespace MaccorUploadTool.Services
 
             }
         }
-
-
-
 
         private bool IsCompleted(FileRecordModel? fileRecord)
         {

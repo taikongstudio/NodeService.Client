@@ -156,7 +156,7 @@ namespace MaccorUploadTool.Services
                 {
                     fileRecord = new FileRecordModel();
                     fileRecord.Id = _nodeId;
-                    fileRecord.Name = MD5Helper.CalculateStringMD5(fileSystemChangeRecord.LocalFilePath);
+                    fileRecord.Name = CryptographyHelper.CalculateStringMD5(fileSystemChangeRecord.LocalFilePath);
                     fileRecord.CreationDateTime = File.GetCreationTimeUtc(fileSystemChangeRecord.LocalFilePath);
                     fileRecord.Size = fileSystemChangeRecord.Stat.FileSize;
                 }

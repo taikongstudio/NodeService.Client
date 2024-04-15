@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace MaccorUploadTool.Helper
 {
-    internal class MD5Helper
+    internal class CryptographyHelper
     {
         public static string CalculateFileMD5(string filename)
         {

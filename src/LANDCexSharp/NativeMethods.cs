@@ -107,7 +107,7 @@ namespace LANDCexSharp
         /// <param name="vBattNo"></param>
         /// <returns></returns>
         [DllImport("LANDCex_x64.dll")]
-        public static extern bool GetBattNo(IntPtr hBriefInfoOrDataObj, out Variant vDesc);
+        public static extern bool GetBattNo(IntPtr hBriefInfoOrDataObj, Variant* vDesc);
 
         /// <summary>
         /// 【描述】获取测试开始时间。

@@ -23,6 +23,7 @@ namespace LANDCexSharp
         public bool IsTimeHighResolution { get; set; }
 
         public string FormationName { get; set; }
+        public string BattNo { get; internal set; }
 
         public List<string> ChannelFiles = new List<string>();
     }

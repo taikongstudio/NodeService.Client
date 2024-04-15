@@ -36,12 +36,20 @@ namespace LANDCexSharp
         public float MedVoltC;
         public string[] Procedures = [];
 
+
+        public Step[] Steps = [];
+        public Step[] DischSteps = [];
+        public Step[] ChargeSteps = [];
+        public Rec[] Recs = [];
+        public Rec[] ChargeRecs = [];
+        public Rec[] DischRecs = [];
+
         public Cycle()
         {
         }
     }
 
-    public struct Step
+    public class Step
     {
         public int Index;
         public byte Mode;

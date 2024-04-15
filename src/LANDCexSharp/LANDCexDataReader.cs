@@ -91,7 +91,8 @@ namespace LANDCexSharp
             int lastIndex = NativeMethods.GetLastChargeStepOfCycle(this._handle, cycleIndex);
             for (int index = firstIndex; index < lastIndex; index++)
             {
-                Step step = ParseStep(index);
+                Step step = new Step();
+                ParseStep(index, step);
 
                 yield return step;
             }
@@ -103,7 +104,8 @@ namespace LANDCexSharp
             int lastIndex = NativeMethods.GetLastDischStepOfCycle(this._handle, cycleIndex);
             for (int index = firstIndex; index < lastIndex; index++)
             {
-                Step step = ParseStep(index);
+                Step step = new Step();
+                ParseStep(index, step);
 
                 yield return step;
             }
@@ -116,15 +118,15 @@ namespace LANDCexSharp
             int lastIndex = NativeMethods.GetLastStepOfCycle(this._handle, cycleIndex);
             for (int index = firstIndex; index < lastIndex; index++)
             {
-                Step step = ParseStep(index);
+                Step step = new Step();
+                ParseStep(index, step);
 
                 yield return step;
             }
         }
 
-        private unsafe Step ParseStep(int index)
+        private unsafe Step ParseStep(int index,Step step)
         {
-            Step step = new Step();
             Variant variant = default;
             NativeMethods.GetDataEx(this._handle, (uint)STEPColumns.Index, index, &variant);
             step.Index = variant.Int32Value;

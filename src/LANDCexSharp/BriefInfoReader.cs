@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -37,8 +38,10 @@ namespace LANDCexSharp
             Variant variant = default;
             if (NativeMethods.GetFormationName(_handle, out variant))
             {
-                briefInfo.FormationName = new string((char*)variant.PtrValue);
+                briefInfo.FormationName = Marshal.PtrToStringBSTR(variant.PtrValue);
             }
+            NativeMethods.GetBattNo(_handle, &variant);
+            briefInfo.BattNo = Marshal.PtrToStringBSTR(variant.PtrValue);
             NativeMethods.GetChlDataFullPath((byte)briefInfo.BoxNo, (byte)briefInfo.Channel, &variant);
             return briefInfo;
         }
