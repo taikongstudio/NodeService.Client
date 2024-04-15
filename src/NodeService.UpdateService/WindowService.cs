@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
+﻿using System.ComponentModel;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
-using System.Security.Principal;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace NodeService.UpdateService
 {
@@ -69,12 +64,25 @@ namespace NodeService.UpdateService
         /// <param name="dependencies">依赖服务</param>
         public static void Install(string serviceName, string displayName, string binaryFilePath, string description, ServiceStartType startType, ServiceAccount account = ServiceAccount.LocalSystem, string[] dependencies = null)
         {
-            IntPtr scm = OpenSCManager();
-
+            IntPtr scm = IntPtr.Zero;
             IntPtr service = IntPtr.Zero;
             try
             {
-                service = Win32Class.CreateService(scm, serviceName, displayName, Win32Class.SERVICE_ALL_ACCESS, Win32Class.SERVICE_WIN32_OWN_PROCESS, startType, Win32Class.SERVICE_ERROR_NORMAL, binaryFilePath, null, IntPtr.Zero, ProcessDependencies(dependencies), GetServiceAccountName(account), null);
+                scm = OpenSCManager();
+                service = Win32Class.CreateService(
+                    scm,
+                    serviceName,
+                    displayName,
+                    Win32Class.SERVICE_ALL_ACCESS,
+                    Win32Class.SERVICE_WIN32_OWN_PROCESS,
+                    startType,
+                    Win32Class.SERVICE_ERROR_NORMAL,
+                    $"\"{binaryFilePath}\"",
+                    null,
+                    IntPtr.Zero,
+                    ProcessDependencies(dependencies),
+                    GetServiceAccountName(account),
+                    null);
 
                 if (service == IntPtr.Zero)
                 {
@@ -84,7 +92,7 @@ namespace NodeService.UpdateService
 
                 //设置服务描述
                 Win32Class.SERVICE_DESCRIPTION sd = new Win32Class.SERVICE_DESCRIPTION();
-                
+
                 try
                 {
                     sd.description = Marshal.StringToHGlobalUni(description);
@@ -102,17 +110,22 @@ namespace NodeService.UpdateService
                 {
                     Win32Class.CloseServiceHandle(service);
                 }
-                Win32Class.CloseServiceHandle(scm);
+                if (scm != IntPtr.Zero)
+                {
+                    Win32Class.CloseServiceHandle(scm);
+                }
             }
         }
 
-        public static bool StartService(string serviceName, params string[] args)
+        public static async Task<bool> StartServiceAsync(string serviceName, params string[] args)
         {
-            IntPtr scm = OpenSCManager();
+            IntPtr scm = IntPtr.Zero;
 
             IntPtr service = IntPtr.Zero;
             try
             {
+                scm = OpenSCManager();
+
                 service = Win32Class.OpenService(scm, serviceName, Win32Class.SERVICE_ALL_ACCESS);
 
                 if (service == IntPtr.Zero)
@@ -120,10 +133,14 @@ namespace NodeService.UpdateService
                     Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
                 }
                 int status = Win32Class.StartService(service, 1, Marshal.UnsafeAddrOfPinnedArrayElement(args, 0));
+                if (status > 0)
+                {
+                   return await WaitForServiceStatusAsync(service, ServiceState.Running, TimeSpan.FromMinutes(1));
+                }
                 Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
                 return true;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 return false;
             }
@@ -133,7 +150,10 @@ namespace NodeService.UpdateService
                 {
                     Win32Class.CloseServiceHandle(service);
                 }
-                Win32Class.CloseServiceHandle(scm);
+                if (scm != IntPtr.Zero)
+                {
+                    Win32Class.CloseServiceHandle(scm);
+                }
             }
         }
 
@@ -142,7 +162,7 @@ namespace NodeService.UpdateService
         /// 卸载服务
         /// </summary>
         /// <param name="serviceName">服务名</param>
-        public static bool Uninstall(string serviceName)
+        public static async Task<bool> UninstallAsync(string serviceName)
         {
             IntPtr scmHandle = IntPtr.Zero;
             IntPtr service = IntPtr.Zero;
@@ -150,8 +170,11 @@ namespace NodeService.UpdateService
             try
             {
                 service = OpenService(serviceName, out scmHandle);
-
-                StopService(service); //停止服务。里面会递归停止从属服务
+                if (service == IntPtr.Zero)
+                {
+                    return false;
+                }
+                await StopServiceAsync(service); //停止服务。里面会递归停止从属服务
 
                 if (!Win32Class.DeleteService(service) && Marshal.GetLastWin32Error() != 0x430) //忽略已标记为删除的服务。ERROR_SERVICE_MARKED_FOR_DELETE
                 {
@@ -172,7 +195,10 @@ namespace NodeService.UpdateService
                 if (service != IntPtr.Zero)
                 {
                     Win32Class.CloseServiceHandle(service);
-                    Win32Class.CloseServiceHandle(scmHandle);//放if里面是因为如果服务打开失败，在OpenService里就已释放SCM
+                }
+                if (scmHandle != IntPtr.Zero)
+                {
+                    Win32Class.CloseServiceHandle(scmHandle);
                 }
             }
         }
@@ -251,8 +277,6 @@ namespace NodeService.UpdateService
             {
                 int errCode = Marshal.GetLastWin32Error();
 
-                Win32Class.CloseServiceHandle(scmHandle); //关闭SCM
-
                 if (errCode == 0x424) //ERROR_SERVICE_DOES_NOT_EXIST
                 {
                     throw new ServiceNotExistException();
@@ -266,17 +290,24 @@ namespace NodeService.UpdateService
 
         public static bool TryGetServiceState(string serviceName, out ServiceState serviceState)
         {
-            serviceState = ServiceState.Stopped;
-            IntPtr scHandle = OpenSCManager();
-            if (scHandle == IntPtr.Zero)
-            {
-                return false;
-            }
-            var service = Win32Class.OpenService(scHandle, serviceName, Win32Class.SC_MANAGER_ALL_ACCESS);
+            serviceState = default;
+            SERVICE_STATUS serviceStatus = new SERVICE_STATUS();
+            IntPtr scHandle = IntPtr.Zero;
+            IntPtr hService = IntPtr.Zero;
             try
             {
+                scHandle = OpenSCManager();
+                if (scHandle == IntPtr.Zero)
+                {
+                    return false;
+                }
+                hService = Win32Class.OpenService(scHandle, serviceName, Win32Class.SC_MANAGER_ALL_ACCESS);
                 Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
-                serviceState = GetServiceStatus(service);
+                if (!TryGetServiceStatus(hService, out serviceStatus))
+                {
+                    return false;
+                }
+                serviceState = serviceStatus.currentState;
                 return true;
             }
             catch (Exception ex)
@@ -285,9 +316,13 @@ namespace NodeService.UpdateService
             }
             finally
             {
-                if (service != null)
+                if (hService != IntPtr.Zero)
                 {
-                    Win32Class.CloseServiceHandle(service);
+                    Win32Class.CloseServiceHandle(hService);
+                }
+                if (scHandle != IntPtr.Zero)
+                {
+                    Win32Class.CloseServiceHandle(scHandle);
                 }
             }
         }
@@ -295,42 +330,60 @@ namespace NodeService.UpdateService
         /// <summary>
         /// 停止服务
         /// </summary>
-        private static void StopService(IntPtr service)
+        private static async Task<bool> StopServiceAsync(IntPtr service)
         {
-            ServiceState currState = GetServiceStatus(service);
-
-            if (currState == ServiceState.Stopped)
+            SERVICE_STATUS status = new SERVICE_STATUS();
+            if (!TryGetServiceStatus(service, out status))
             {
-                return;
+                return false;
             }
 
-            if (currState != ServiceState.StopPending)
+            if (status.currentState == ServiceState.Stopped)
             {
-                //递归停止从属服务
+                return true;
+            }
+
+            while (status.currentState == ServiceState.StopPending)
+            {
+                return await WaitForServiceStatusAsync(service, ServiceState.Stopped, TimeSpan.FromSeconds(30));
+            }
+
+            await StopDependentService(service);
+
+            if (Win32Class.ControlService(service, Win32Class.SERVICE_CONTROL_STOP, ref status))
+            {
+                return await WaitForServiceStatusAsync(service, ServiceState.Stopped, TimeSpan.FromSeconds(30));
+            }
+            return false;
+        }
+
+        private static async Task<bool> StopDependentService(nint service)
+        {
+            IntPtr scm = IntPtr.Zero;
+            try
+            {
                 string[] childSvs = EnumDependentServices(service, EnumServiceState.Active);
-                if (childSvs.Length != 0)
+                if (childSvs.Length == 0)
                 {
-                    IntPtr scm = OpenSCManager();
+                    return true;
+                }
+                scm = OpenSCManager();
+                foreach (string childSv in childSvs)
+                {
                     try
                     {
-                        foreach (string childSv in childSvs)
-                        {
-                            StopService(Win32Class.OpenService(scm, childSv, Win32Class.SERVICE_STOP));
-                        }
+                        await StopServiceAsync(Win32Class.OpenService(scm, childSv, Win32Class.SERVICE_STOP));
                     }
-                    finally
+                    catch (Exception ex)
                     {
-                        Win32Class.CloseServiceHandle(scm);
+                        return false;
                     }
                 }
-
-                Win32Class.SERVICE_STATUS status = new Win32Class.SERVICE_STATUS();
-                Win32Class.ControlService(service, Win32Class.SERVICE_CONTROL_STOP, ref status); //发送停止指令
+                return true;
             }
-
-            if (!WaitForStatus(service, ServiceState.Stopped, new TimeSpan(0, 0, 30)))
+            finally
             {
-                throw new ApplicationException("停止服务失败！");
+                Win32Class.CloseServiceHandle(scm);
             }
         }
 
@@ -347,7 +400,7 @@ namespace NodeService.UpdateService
             //先尝试以空结构获取，如获取成功说明从属服务为空，否则拿到上述俩值
             if (Win32Class.EnumDependentServices(serviceHandle, state, IntPtr.Zero, 0, ref bytesNeeded, ref numEnumerated))
             {
-                return new string[0];
+                return [];
             }
             if (Marshal.GetLastWin32Error() != 0xEA) //仅当错误值不是大小不够(ERROR_MORE_DATA)时才抛异常
             {
@@ -386,30 +439,38 @@ namespace NodeService.UpdateService
         /// <summary>
         /// 获取服务状态
         /// </summary>
-        private static ServiceState GetServiceStatus(IntPtr service)
+        private static bool TryGetServiceStatus(IntPtr service, out SERVICE_STATUS status)
         {
-            Win32Class.SERVICE_STATUS status = new Win32Class.SERVICE_STATUS();
-
-            if (!Win32Class.QueryServiceStatus(service, ref status))
-            {
-                throw new ApplicationException("获取服务状态出错！");
-            }
-
-            return status.currentState;
+            status = default;
+            return Win32Class.QueryServiceStatus(service, ref status);
         }
 
         /// <summary>
         /// 等候服务至目标状态
         /// </summary>
-        private static bool WaitForStatus(IntPtr serviceHandle, ServiceState desiredStatus, TimeSpan timeout)
+        private static async Task<bool> WaitForServiceStatusAsync(IntPtr serviceHandle, ServiceState desiredStatus, TimeSpan timeout)
         {
-            DateTime startTime = DateTime.Now;
-
-            while (GetServiceStatus(serviceHandle) != desiredStatus)
+            TimeSpan totalTimeSpan = TimeSpan.Zero;
+            SERVICE_STATUS status = default;
+            while (TryGetServiceStatus(serviceHandle, out status))
             {
-                if (DateTime.Now - startTime > timeout) { return false; }
+                if (status.currentState == desiredStatus)
+                {
+                    break;
+                }
+                int dwWaitTime = status.waitHint / 10;
 
-                Thread.Sleep(200);
+                if (dwWaitTime < 1000)
+                    dwWaitTime = 1000;
+                else if (dwWaitTime > 10000)
+                    dwWaitTime = 10000;
+
+                await Task.Delay(TimeSpan.FromMilliseconds(dwWaitTime));
+                totalTimeSpan += TimeSpan.FromMilliseconds(dwWaitTime);
+                if (totalTimeSpan > timeout)
+                {
+                    return false;
+                }
             }
 
             return true;
@@ -418,6 +479,24 @@ namespace NodeService.UpdateService
         #endregion
 
         #region 嵌套类
+
+
+        #region API所需类和结构定义
+
+        /// <summary>
+        /// 服务状态结构体
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SERVICE_STATUS
+        {
+            public int serviceType;
+            public ServiceState currentState;
+            public int controlsAccepted;
+            public int win32ExitCode;
+            public int serviceSpecificExitCode;
+            public int checkPoint;
+            public int waitHint;
+        }
 
         /// <summary>
         /// Win32 API相关
@@ -457,23 +536,6 @@ namespace NodeService.UpdateService
             public const int SERVICE_ERROR_NORMAL = 0x1;
 
             #endregion
-
-            #region API所需类和结构定义
-
-            /// <summary>
-            /// 服务状态结构体
-            /// </summary>
-            [StructLayout(LayoutKind.Sequential)]
-            public struct SERVICE_STATUS
-            {
-                public int serviceType;
-                public ServiceState currentState;
-                public int controlsAccepted;
-                public int win32ExitCode;
-                public int serviceSpecificExitCode;
-                public int checkPoint;
-                public int waitHint;
-            }
 
             /// <summary>
             /// 服务描述结构体

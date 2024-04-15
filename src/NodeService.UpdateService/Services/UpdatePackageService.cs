@@ -35,17 +35,18 @@ namespace NodeService.UpdateService.Services
             _logger = logger;
             _currentConfig = config.CurrentValue;
             _onChangeToken = config.OnChange(updatedConfig => _currentConfig = updatedConfig);
-            _tempPath = Path.Combine(Path.GetTempPath(), SERVICENAME, "Temp");
         }
 
         const string SERVICENAME = "NodeService.WindowsService";
 
-        private void TryDeleteDaemonService()
+        private async Task TryDeleteDaemonServiceAsync()
         {
             try
             {
                 const string DaemonServiceDirectory = "C:\\shouhu\\DaemonService";
-                ServiceHelper.Uninstall("JobsWorkerDaemonServiceWindowsService");
+                WriteExitTxtFile(DaemonServiceDirectory);
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                await ServiceHelper.UninstallAsync("JobsWorkerDaemonServiceWindowsService");
                 if (Directory.Exists(DaemonServiceDirectory))
                 {
                     Directory.Delete(DaemonServiceDirectory, true);
@@ -57,164 +58,193 @@ namespace NodeService.UpdateService.Services
             }
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        private static void WriteExitTxtFile(string directory)
+        {
+            string exitTxtFilePath = Path.Combine(directory, "exit.txt");
+            File.WriteAllText(exitTxtFilePath, "");
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken = default)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                await ExecuteUpdateAsync(stoppingToken);
+            }
+        }
+
+        private async Task ExecuteUpdateAsync(CancellationToken stoppingToken = default)
+        {
+            try
+            {
+                await TryDeleteDaemonServiceAsync();
+                using var httpClient = new HttpClient()
+                {
+                    BaseAddress = new Uri(_currentConfig.HttpAddress),
+                    Timeout = TimeSpan.FromSeconds(300)
+                };
+                ApiService apiService = new ApiService(httpClient);
+                var apiResult = await apiService.QueryClientUpdateAsync(stoppingToken);
+                if (apiResult.ErrorCode != 0)
+                {
+                    _logger.LogError(apiResult.Message);
+                    return;
+                }
+
+                var clientUpdateConfig = apiResult.Result;
+                if (clientUpdateConfig == null || clientUpdateConfig.PackageConfig == null)
+                {
+                    _logger.LogError("invalid client config");
+                    return;
+                }
+                _logger.LogInformation($"Query config: {clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>()}");
+                var destDirectory = Path.Combine(_currentConfig.InstallDirectory);
+                var updateConfigFilePath = Path.Combine(_currentConfig.InstallDirectory, "UpdateConfig");
                 try
                 {
-                    TryDeleteDaemonService();
-                    EnsureTempPath();
-                    using var httpClient = new HttpClient()
+                    if (TryCompareConfig(clientUpdateConfig, updateConfigFilePath))
                     {
-                        BaseAddress = new Uri(_currentConfig.HttpAddress),
-                        Timeout = TimeSpan.FromSeconds(300)
-                    };
-                    ApiService apiService = new ApiService(httpClient);
-                    var apiResult = await apiService.QueryClientUpdateAsync(stoppingToken);
-                    if (apiResult.ErrorCode != 0)
-                    {
-                        _logger.LogError(apiResult.Message);
-                        continue;
+                        _logger.LogInformation("Same config,skip update");
+                        return;
                     }
 
-                    var clientUpdateConfig = apiResult.Result;
-                    if (clientUpdateConfig == null || clientUpdateConfig.PackageConfig == null)
+
+                    using var stream = new MemoryStream();
+                    await apiService.DownloadPackageAsync(clientUpdateConfig.PackageConfig, stream, stoppingToken);
+                    _logger.LogInformation($"Download {clientUpdateConfig}");
+                    await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
                     {
-                        _logger.LogError("invalid client config");
-                        continue;
-                    }
-                    _logger.LogInformation($"Query config: {clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>()}");
-                    var destDirectory = Path.Combine(_currentConfig.InstallDirectory);
-                    var updateConfigFilePath = Path.Combine(_currentConfig.InstallDirectory, "UpdateConfig");
-                    var tempFileName = Path.Combine(_tempPath, Guid.NewGuid().ToString());
-                    try
+                        ClientUpdateConfigId = clientUpdateConfig.Id,
+                        NodeName = Dns.GetHostName(),
+                        CategoryName = "DownloadSuccess"
+                    }, stoppingToken);
+                    stream.Position = 0;
+                    if (!IsZipArchive(stream))
                     {
-                        if (TryCompareConfig(clientUpdateConfig, updateConfigFilePath))
-                        {
-                            _logger.LogInformation("Same config,skip update");
-                            continue;
-                        }
-
-
-                        using var stream = File.Open(tempFileName, FileMode.CreateNew, FileAccess.ReadWrite);
-                        await apiService.DownloadPackageAsync(clientUpdateConfig.PackageConfig, stream, stoppingToken);
-                        _logger.LogInformation($"Download {clientUpdateConfig}");
-                        await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
-                        {
-                            ClientUpdateConfigId = clientUpdateConfig.Id,
-                            NodeName = Dns.GetHostName(),
-                            CategoryName = "DownloadSuccess"
-                        }, stoppingToken);
-                        stream.Position = 0;
-                        if (!IsZip(stream))
-                        {
-                            continue;
-                        }
-                        _logger.LogInformation($"Start Uninstall");
-                        bool uninstalledResult = ServiceHelper.Uninstall(SERVICENAME);
-                        _logger.LogInformation($"End Uninstall");
-                        _logger.LogInformation($"Uninstall result:{uninstalledResult}");
-                        if (uninstalledResult == true)
-                        {
-                            await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
-                            {
-                                ClientUpdateConfigId = clientUpdateConfig.Id,
-                                NodeName = Dns.GetHostName(),
-                                CategoryName = "UninstallSuccess"
-                            }, stoppingToken);
-                        }
-
-                        _logger.LogInformation($"Start CleanupInstallDirectory");
-                        CleanupInstallDirectory();
-                        _logger.LogInformation($"End CleanupInstallDirectory");
-
-                        _logger.LogInformation($"Start Extract");
-                        ZipFile.ExtractToDirectory(stream, destDirectory, true);
-                        _logger.LogInformation($"End Extract");
-
-                        await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
-                        {
-                            ClientUpdateConfigId = clientUpdateConfig.Id,
-                            NodeName = Dns.GetHostName(),
-                            CategoryName = "ExtractSuccess"
-                        }, stoppingToken);
-
-                        File.WriteAllText(updateConfigFilePath, JsonSerializer.Serialize(clientUpdateConfig));
-                        if (clientUpdateConfig.PackageConfig.EntryPoint == null)
-                        {
-                            _logger.LogError("invalid entry point");
-                            continue;
-                        }
-                        var entryPoint = Path.Combine(destDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
-                        if (!File.Exists(entryPoint))
-                        {
-                            continue;
-                        }
-
-                        _logger.LogInformation($"Start Install");
-                        ServiceHelper.Install(SERVICENAME,
-                           SERVICENAME,
-                            entryPoint,
-                            clientUpdateConfig.Description ?? string.Empty,
-                             ServiceStartType.AutoStart,
-                              ServiceAccount.LocalSystem
-                            );
-                        _logger.LogInformation($"End Install");
-
-                        _logger.LogInformation($"Start StartService");
-                        bool startResult = ServiceHelper.StartService(SERVICENAME,
-                            clientUpdateConfig.PackageConfig.Arguments == null ? [entryPoint] :
-                          [string.Join(" ", entryPoint, clientUpdateConfig.PackageConfig.Arguments)]);
-                        _logger.LogInformation($"End StartService");
-                        _logger.LogInformation($"StartService:{startResult}");
-
-                        if (startResult)
-                        {
-                            await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
-                            {
-                                ClientUpdateConfigId = clientUpdateConfig.Id,
-                                NodeName = Dns.GetHostName(),
-                                CategoryName = "StartSuccess"
-                            }, stoppingToken);
-                        }
+                        return;
                     }
-                    catch (Exception ex)
+                    stream.Position = 0;
+                    _logger.LogInformation($"Start Uninstall");
+                    if (ServiceHelper.TryGetServiceState(SERVICENAME, out var serviceState)
+                        && serviceState == ServiceHelper.ServiceState.Running
+                        &&
+                            Directory.Exists(_currentConfig.InstallDirectory))
+                    {
+                        WriteExitTxtFile(_currentConfig.InstallDirectory);
+                        await Task.Delay(TimeSpan.FromSeconds(10));
+                    }
+                    bool uninstalledResult = await ServiceHelper.UninstallAsync(SERVICENAME);
+                    _logger.LogInformation($"End Uninstall");
+                    _logger.LogInformation($"Uninstall result:{uninstalledResult}");
+                    if (uninstalledResult == true)
                     {
                         await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
                         {
                             ClientUpdateConfigId = clientUpdateConfig.Id,
                             NodeName = Dns.GetHostName(),
-                            CategoryName = ex.ToString()
+                            CategoryName = "UninstallSuccess"
                         }, stoppingToken);
-                        _logger.LogError(ex.ToString());
                     }
-                    finally
+
+                    _logger.LogInformation($"Start CleanupInstallDirectory");
+                    CleanupInstallDirectory();
+                    _logger.LogInformation($"End CleanupInstallDirectory");
+
+                    _logger.LogInformation($"Start Extract");
+                    ZipFile.ExtractToDirectory(stream, destDirectory, true);
+                    _logger.LogInformation($"End Extract");
+
+                    await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
                     {
-                        if (File.Exists(tempFileName))
-                        {
-                            File.Delete(tempFileName);
-                        }
+                        ClientUpdateConfigId = clientUpdateConfig.Id,
+                        NodeName = Dns.GetHostName(),
+                        CategoryName = "ExtractSuccess"
+                    }, stoppingToken);
+
+                    File.WriteAllText(updateConfigFilePath, JsonSerializer.Serialize(clientUpdateConfig));
+                    if (clientUpdateConfig.PackageConfig.EntryPoint == null)
+                    {
+                        _logger.LogError("invalid entry point");
+                        return;
+                    }
+                    var entryPoint = Path.Combine(destDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
+                    if (!File.Exists(entryPoint))
+                    {
+                        return;
                     }
 
+                    _logger.LogInformation($"Start Install");
+                    ServiceHelper.Install(SERVICENAME,
+                       SERVICENAME,
+                        entryPoint,
+                        clientUpdateConfig.Description ?? string.Empty,
+                         ServiceStartType.AutoStart,
+                          ServiceAccount.LocalSystem
+                        );
+                    _logger.LogInformation($"End Install");
 
+                    _logger.LogInformation($"Start StartService");
+                    bool startResult = await ServiceHelper.StartServiceAsync(SERVICENAME,
+                        clientUpdateConfig.PackageConfig.Arguments == null ? [entryPoint] :
+                      [string.Join(" ", entryPoint, clientUpdateConfig.PackageConfig.Arguments)]);
+                    _logger.LogInformation($"End StartService");
+                    _logger.LogInformation($"StartService:{startResult}");
+
+                    if (startResult)
+                    {
+                        await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+                        {
+                            ClientUpdateConfigId = clientUpdateConfig.Id,
+                            NodeName = Dns.GetHostName(),
+                            CategoryName = "StartSuccess"
+                        }, stoppingToken);
+                    }
                 }
                 catch (Exception ex)
                 {
+                    await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+                    {
+                        ClientUpdateConfigId = clientUpdateConfig.Id,
+                        NodeName = Dns.GetHostName(),
+                        CategoryName = ex.ToString()
+                    }, stoppingToken);
                     _logger.LogError(ex.ToString());
                 }
                 finally
                 {
-                    await DelayAsync(stoppingToken);
+                    GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                    GC.WaitForPendingFinalizers();
                 }
+
+
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+            finally
+            {
+                await DelayAsync(stoppingToken);
+            }
+        }
+
+        private TimeSpan GetDurationMinutes()
+        {
+            if (Debugger.IsAttached)
+            {
+                return TimeSpan.FromSeconds(5);
+            }
+            if (_currentConfig == null)
+            {
+                return TimeSpan.FromMinutes(10);
+            }
+            return TimeSpan.FromMinutes(Math.Min(10, Math.Max(0, _currentConfig.DurationMinutes)));
         }
 
         private async ValueTask DelayAsync(CancellationToken stoppingToken = default)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(_currentConfig.DurationMinutes), stoppingToken);
+                await Task.Delay(GetDurationMinutes(), stoppingToken);
             }
             catch (Exception ex)
             {
@@ -295,34 +325,23 @@ namespace NodeService.UpdateService.Services
 
         }
 
-        private static bool IsZip(Stream stream)
+        private bool IsZipArchive(Stream stream)
         {
-            var position = stream.Position;
             try
             {
-                stream.Position = 0;
-                byte[] zipBytes = [80, 75, 3, 4, 20, 0, 0, 0];
-                byte[] bytes = new byte[8];
-                int readCount = stream.Read(bytes);
-                if (readCount == 8 && zipBytes.SequenceEqual(bytes))
-                {
-                    return true;
-                }
+                using ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read, true);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation(ex.ToString());
             }
             finally
             {
-                stream.Position = position;
+
             }
 
             return false;
-        }
-
-        private void EnsureTempPath()
-        {
-            if (!Directory.Exists(_tempPath))
-            {
-                Directory.CreateDirectory(_tempPath);
-            }
         }
 
         public override void Dispose()
@@ -330,5 +349,6 @@ namespace NodeService.UpdateService.Services
             _onChangeToken?.Dispose();
             base.Dispose();
         }
+
     }
 }
