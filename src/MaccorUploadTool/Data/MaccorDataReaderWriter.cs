@@ -93,26 +93,29 @@ namespace MaccorUploadTool.Data
             {
                 return;
             }
-            foreach (var rentedArray in linkedList)
+            var current = linkedList.First;
+            while (current != null)
             {
-                rentedArray.Dispose();
+                current.ValueRef.Dispose();
+                current = current.Next;
             }
+            linkedList.Clear();
         }
 
-        public IEnumerable<string> ReadTimeData(string fileName,
+        public RentedArray<string> ReadTimeData(string fileName,
             int pageIndex,
             CancellationToken cancellationToken = default)
         {
             if (!this._timeDataDictionary.TryGetValue(fileName, out var linkedList))
             {
-                return [];
+                return RentedArray<string>.Empty;
             }
             var rentedObject = linkedList.ElementAtOrDefault(pageIndex);
             if (!rentedObject.HasValue)
             {
-                return [];
+                return RentedArray<string>.Empty;
             }
-            return rentedObject.Value;
+            return rentedObject;
         }
 
     }

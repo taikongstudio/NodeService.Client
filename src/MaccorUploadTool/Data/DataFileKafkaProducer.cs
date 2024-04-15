@@ -92,7 +92,7 @@ namespace MaccorUploadTool.Data
 
                 }
                 int index = 0;
-                await foreach (var message in this._headerChanel.Reader.ReadAllAsync().ConfigureAwait(false))
+                await foreach (var message in this._headerChanel.Reader.ReadAllAsync())
                 {
                     index++;
                     Producer.Produce(HeaderTopicName, message, HeaderDeliveryHandler);
@@ -142,7 +142,8 @@ namespace MaccorUploadTool.Data
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
                 this._fileSystemChangedRecord.Stat.TimeDataUploadCount++;
-                if (this._fileSystemChangedRecord.Stat.TimeDataCount == this._fileSystemChangedRecord.Stat.TimeDataUploadCount)
+                //_logger.LogInformation($"{this._fileSystemChangedRecord.Stat.TimeDataUploadCount}");
+                if (this._fileSystemChangedRecord.Stat.TimeDataUploadCount >= this._fileSystemChangedRecord.Stat.TimeDataCount)
                 {
                     this._timeDataChannel.Writer.Complete();
                 }
@@ -160,13 +161,22 @@ namespace MaccorUploadTool.Data
                  {
                      try
                      {
-                         int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / (MaccorDataReaderWriter.PageSize + 0d));
+                         int pageCount = Math.DivRem(this._fileSystemChangedRecord.Stat.TimeDataCount, MaccorDataReaderWriter.PageSize, out var result);
+                         if (result > 0)
+                         {
+                             pageCount += 1;
+                         }
                          int index = 0;
                          for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                          {
-                             var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.LocalFilePath, pageIndex);
+                             var rentedArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.LocalFilePath, pageIndex);
+
+                             if (!rentedArray.HasValue)
+                             {
+                                 continue;
+                             }
                              int count = 0;
-                             foreach (var timeData in timeDataStringArray)
+                             foreach (var timeData in rentedArray.Value)
                              {
                                  if (timeData == null)
                                  {
@@ -198,7 +208,7 @@ namespace MaccorUploadTool.Data
                  });
 
                 int count = 0;
-                await foreach (var message in this._timeDataChannel.Reader.ReadAllAsync().ConfigureAwait(false))
+                await foreach (var message in this._timeDataChannel.Reader.ReadAllAsync())
                 {
                     Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
                     count++;

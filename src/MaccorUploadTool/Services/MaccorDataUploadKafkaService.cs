@@ -30,6 +30,7 @@ namespace MaccorUploadTool.Services
         private ActionBlock<FileSystemChangedRecord> _kafkaUploadActionBlock;
         private ActionBlock<FileSystemChangedRecord> _fileSystemChangeRecordActionBlock;
         private readonly ConcurrentDictionary<string, object?> _files;
+        private readonly ConcurrentDictionary<string, object?> _parsedUnuploadFiles;
 
         private long _uploadingFiles;
 
@@ -41,8 +42,6 @@ namespace MaccorUploadTool.Services
         private List<FileRecordModel> _fileRecords = [];
 
         public UploadMaccorDataJobOptions Options { get; private set; }
-
-        private readonly ActionBlock<FileSystemChangedRecord> _decompressFileActionBlock;
 
         public bool IsUpdatingConfig { get; set; }
 
@@ -62,6 +61,7 @@ namespace MaccorUploadTool.Services
                 LimitDateTime = DateTime.MinValue;
             }
             _fileSystemWatcherDictionary = new Dictionary<string, FileSystemWatcher>();
+            _parsedUnuploadFiles = new ConcurrentDictionary<string, object?>();
             _files = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             Options = new UploadMaccorDataJobOptions
             {
@@ -159,6 +159,7 @@ namespace MaccorUploadTool.Services
                 _uploadFileRecordActionBlock.Post(fileSystemChangedRecord);
                 Interlocked.Decrement(ref _uploadingFiles);
                 _maccorDataReaderWriter.Delete(fileSystemChangedRecord.LocalFilePath);
+                _parsedUnuploadFiles.TryRemove(fileSystemChangedRecord.LocalFilePath, out _);
             }
         }
 
@@ -229,9 +230,13 @@ namespace MaccorUploadTool.Services
 
         private async Task ConsumeFileSystemCreatedRecord(FileSystemChangedRecord fileSystemChangeRecord)
         {
+            while (_parsedUnuploadFiles.Count >= 1)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                _logger.LogInformation("Waiting");
+            }
             GC.Collect();
             GC.WaitForPendingFinalizers();
-
             DataFileReader dataFileReader = null;
             bool requeue = false;
             if (fileSystemChangeRecord.Stat == null)
@@ -260,7 +265,7 @@ namespace MaccorUploadTool.Services
                     _logger.LogCritical($"file {fileSystemChangeRecord.LocalFilePath} processed, return");
                     return;
                 }
-
+                var fileHashValue = MD5Helper.CalculateFileMD5(fileInfo.FullName);
                 if (DataFileReader.TryLoad(fileSystemChangeRecord.LocalFilePath, _logger, out var ex, out dataFileReader))
                 {
                     if (!await ParseDataFileAsync(fileSystemChangeRecord, dataFileReader))
@@ -273,7 +278,7 @@ namespace MaccorUploadTool.Services
                 {
                     _logger.LogError($"load {fileSystemChangeRecord.LocalFilePath} fail:{ex}");
                 }
-
+                _parsedUnuploadFiles.TryAdd(fileSystemChangeRecord.LocalFilePath, null);
                 if (fileRecord == null)
                 {
                     fileRecord = new FileRecordModel();
@@ -282,6 +287,7 @@ namespace MaccorUploadTool.Services
                     fileRecord.OriginalFileName = fileSystemChangeRecord.LocalFilePath;
                     fileRecord.CreationDateTime = File.GetCreationTimeUtc(fileSystemChangeRecord.LocalFilePath);
                     fileRecord.Size = fileSystemChangeRecord.Stat.FileSize;
+                    fileRecord.FileHashValue = fileHashValue;
                 }
                 fileRecord.ModifyDateTime = DateTime.Now;
                 fileRecord.Properties = JsonSerializer.Serialize(fileSystemChangeRecord.Stat);
