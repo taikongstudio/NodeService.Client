@@ -22,6 +22,10 @@ namespace MaccorUploadTool
                 .ParseArguments<Options>(args)
                 .WithParsed((options) =>
                 {
+                    if (options.Mode == null)
+                    {
+                        options.Mode = "Stat";
+                    }
                     RunWithOptions(options, args);
                 })
                 .WithNotParsed(PrintErrors);
@@ -42,12 +46,29 @@ namespace MaccorUploadTool
                 builder.Services.AddSingleton<HttpClient>(sp =>
                               new HttpClient
                               {
-                                  BaseAddress = new Uri(Debugger.IsAttached ? "http://localhost:5000" : "http://172.27.242.223:50060/")
+                                  BaseAddress = new Uri("http://172.27.242.223:50060/")
                               }
                               );
                 builder.Services.AddSingleton<ApiService>();
-                builder.Services.AddSingleton<MaccorDataReaderWriter>();
-                builder.Services.AddHostedService<MaccorDataUploadService>();
+                switch (options.Mode)
+                {
+                    case "Stat":
+                        break;
+                    case "Kafka":
+                        builder.Services.AddSingleton<MaccorDataReaderWriter>();
+                        builder.Services.AddHostedService<MaccorDataUploadKafkaService>();
+                        break;
+                    case "ServerKafka":
+                        builder.Services.AddSingleton<MaccorDataReaderWriter>();
+                        builder.Services.AddHostedService<MaccorDataServerUploadKafkaService>();
+                        break;
+                    case "Ftp":
+                        builder.Services.AddHostedService<MaccorDataUploadFtpService>();
+                        break;
+                    default:
+                        break;
+                }
+   
                 builder.Services.AddHostedService<ProcessService>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();

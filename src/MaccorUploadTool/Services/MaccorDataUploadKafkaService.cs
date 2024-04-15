@@ -1,4 +1,5 @@
-﻿using Confluent.Kafka;
+﻿using CommandLine;
+using Confluent.Kafka;
 using MaccorUploadTool.Data;
 using MaccorUploadTool.Helper;
 using MaccorUploadTool.Models;
@@ -11,6 +12,7 @@ using NodeService.Infrastructure.NodeSessions;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -18,29 +20,35 @@ using System.Threading.Tasks.Dataflow;
 
 namespace MaccorUploadTool.Services
 {
-    public class MaccorDataUploadService : BackgroundService
+    public class MaccorDataUploadKafkaService : BackgroundService
     {
         private readonly MaccorDataReaderWriter _maccorDataReaderWriter;
         private readonly ApiService _apiService;
-        private readonly INodeIdentityProvider _nodeIdentityProvider;
         private readonly string _nodeId;
         private Dictionary<string, FileSystemWatcher> _fileSystemWatcherDictionary;
         private ActionBlock<FileSystemChangedRecord> _uploadFileRecordActionBlock;
         private ActionBlock<FileSystemChangedRecord> _kafkaUploadActionBlock;
         private ActionBlock<FileSystemChangedRecord> _fileSystemChangeRecordActionBlock;
-        private readonly ConcurrentDictionary<string, object> _files;
+        private readonly ConcurrentDictionary<string, object?> _files;
+
+        private long _uploadingFiles;
 
         private string _ipAddress;
 
         private readonly ILogger _logger;
 
         private DateTime LimitDateTime;
+        private List<FileRecordModel> _fileRecords = [];
 
         public UploadMaccorDataJobOptions Options { get; private set; }
+
+        private readonly ActionBlock<FileSystemChangedRecord> _decompressFileActionBlock;
+
         public bool IsUpdatingConfig { get; set; }
 
-        public MaccorDataUploadService(
-            ILogger<MaccorDataUploadService> logger,
+
+        public MaccorDataUploadKafkaService(
+            ILogger<MaccorDataUploadKafkaService> logger,
             MaccorDataReaderWriter maccorDataReaderWriter,
             ApiService apiService,
             Options options)
@@ -82,23 +90,30 @@ namespace MaccorUploadTool.Services
                 MaxDegreeOfParallelism = 1
             });
             _logger = logger;
-            _uploadFileRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(AddOrUpdateFileRecord, new ExecutionDataflowBlockOptions()
+            _uploadFileRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(AddOrUpdateFileRecordAsync, new ExecutionDataflowBlockOptions()
             {
-                MaxDegreeOfParallelism = 2
+                MaxDegreeOfParallelism = 
+                Environment.ProcessorCount
             });
             _kafkaUploadActionBlock = new ActionBlock<FileSystemChangedRecord>(UploadAsync, new ExecutionDataflowBlockOptions()
             {
-                MaxDegreeOfParallelism = 2
+                MaxDegreeOfParallelism =
+                Debugger.IsAttached ?
+                1 :
+                Environment.ProcessorCount
             });
         }
 
         private async Task UploadAsync(FileSystemChangedRecord fileSystemChangedRecord)
         {
+            bool isCompleted = false;
+            Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
+                Interlocked.Increment(ref _uploadingFiles);
                 _logger.LogInformation($"Start Progress {fileSystemChangedRecord.Index}/{_files.Count}");
-                _logger.LogInformation($"Upload {fileSystemChangedRecord.FullPath} to {Options.KafkaConfig.BrokerList}");
-                Stopwatch stopwatch = Stopwatch.StartNew();
+                _logger.LogInformation($"Upload {fileSystemChangedRecord.LocalFilePath} to {Options.KafkaConfig.BrokerList}");
+
                 using DataFileKafkaProducer _kafkaProducer = new DataFileKafkaProducer(
                                     _logger,
                     fileSystemChangedRecord,
@@ -123,12 +138,7 @@ namespace MaccorUploadTool.Services
 
                 stopwatch.Stop();
                 _logger.LogCritical($"Upload {fileSystemChangedRecord.Stat.TimeDataCount} timedata, spent:{stopwatch.Elapsed}");
-                fileSystemChangedRecord.Stat.ElapsedMilliSeconds += stopwatch.ElapsedMilliseconds;
-                fileSystemChangedRecord.Stat.IsCompleted = true;
-                fileSystemChangedRecord.Stat.EndDateTime = DateTime.Now;
-                fileSystemChangedRecord.FileRecord.Properties = JsonSerializer.Serialize(fileSystemChangedRecord.Stat);
-                _uploadFileRecordActionBlock.Post(fileSystemChangedRecord);
-                _logger.LogCritical($"Finish Upload {fileSystemChangedRecord.Stat.FilePath}, spent:{fileSystemChangedRecord.Stat.ElapsedMilliSeconds / 1000d}s");
+                isCompleted = true;
             }
             catch (Exception ex)
             {
@@ -136,11 +146,23 @@ namespace MaccorUploadTool.Services
             }
             finally
             {
-                _maccorDataReaderWriter.Delete(fileSystemChangedRecord.FullPath);
+                fileSystemChangedRecord.Stat.ElapsedMilliSeconds += stopwatch.ElapsedMilliseconds;
+                fileSystemChangedRecord.Stat.IsCompleted = isCompleted;
+                fileSystemChangedRecord.FileRecord.State = FileRecordState.Processed;
+                if (isCompleted)
+                {
+                    fileSystemChangedRecord.Stat.EndDateTime = DateTime.Now;
+                    _logger.LogCritical($"Finish Upload {fileSystemChangedRecord.Stat.FilePath}, spent:{fileSystemChangedRecord.Stat.ElapsedMilliSeconds / 1000d}s");
+
+                }
+                fileSystemChangedRecord.FileRecord.Properties = JsonSerializer.Serialize(fileSystemChangedRecord.Stat);
+                _uploadFileRecordActionBlock.Post(fileSystemChangedRecord);
+                Interlocked.Decrement(ref _uploadingFiles);
+                _maccorDataReaderWriter.Delete(fileSystemChangedRecord.LocalFilePath);
             }
         }
 
-        private async Task AddOrUpdateFileRecord(FileSystemChangedRecord changeRecord)
+        private async Task AddOrUpdateFileRecordAsync(FileSystemChangedRecord changeRecord)
         {
             bool repost = true;
             try
@@ -148,6 +170,7 @@ namespace MaccorUploadTool.Services
                 var rsp = await _apiService.AddOrUpdateAsync(changeRecord.FileRecord);
                 if (rsp.ErrorCode == 0)
                 {
+                    _logger.LogInformation($"Add or update {JsonSerializer.Serialize(changeRecord.FileRecord)}");
                     repost = false;
                 }
             }
@@ -169,29 +192,11 @@ namespace MaccorUploadTool.Services
             }
         }
 
-        public void UpdateOptions(UploadMaccorDataJobOptions options)
-        {
-            if (options == null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
-            Options = options;
-            if (_fileSystemChangeRecordActionBlock != null)
-            {
-                _fileSystemChangeRecordActionBlock.Complete();
-            }
-            _fileSystemChangeRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(ConsumeFileSystemChangeRecord, new ExecutionDataflowBlockOptions()
-            {
-                MaxDegreeOfParallelism = options.MaxDegreeOfParallelism <= 0 ? 1 : options.MaxDegreeOfParallelism,
-                MaxMessagesPerTask = 1
-            });
-        }
-
         private void _fileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
         {
             _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
             {
-                FullPath = e.FullPath,
+                LocalFilePath = e.FullPath,
                 ChangeTypes = e.ChangeType,
                 Name = e.Name,
             });
@@ -199,7 +204,7 @@ namespace MaccorUploadTool.Services
 
         private async Task ConsumeFileSystemChangeRecord(FileSystemChangedRecord fileSystemChangeRecord)
         {
-            _logger.LogCritical($"[DataReportService] ConsumeFileSystemChangeRecord {fileSystemChangeRecord.FullPath} at {DateTime.Now}");
+            _logger.LogCritical($"[DataReportService] ConsumeFileSystemChangeRecord {fileSystemChangeRecord.LocalFilePath} at {DateTime.Now}");
             switch (fileSystemChangeRecord.ChangeTypes)
             {
                 case WatcherChangeTypes.Created:
@@ -231,40 +236,53 @@ namespace MaccorUploadTool.Services
             bool requeue = false;
             if (fileSystemChangeRecord.Stat == null)
             {
-                var fileInfo = new FileInfo(fileSystemChangeRecord.FullPath);
                 fileSystemChangeRecord.Stat = new MaccorDataUploadStat();
-                fileSystemChangeRecord.Stat.DnsName = Dns.GetHostName();
-                fileSystemChangeRecord.Stat.NodeId = _nodeId;
-                fileSystemChangeRecord.Stat.FilePath = fileSystemChangeRecord.FullPath;
-                fileSystemChangeRecord.Stat.BrokerList = Options.KafkaConfig.BrokerList;
-                fileSystemChangeRecord.Stat.FileSize = fileInfo.Length;
             }
+            var fileInfo = new FileInfo(fileSystemChangeRecord.LocalFilePath);
+            fileSystemChangeRecord.Stat.DnsName = Dns.GetHostName();
+            fileSystemChangeRecord.Stat.NodeId = _nodeId;
+            fileSystemChangeRecord.Stat.FilePath = fileInfo.FullName;
+            fileSystemChangeRecord.Stat.BrokerList = Options.KafkaConfig.BrokerList;
+            fileSystemChangeRecord.Stat.FileSize = fileInfo.Length;
+            fileSystemChangeRecord.Stat.FileCreationDateTimeUtc = fileInfo.CreationTimeUtc;
+            fileSystemChangeRecord.Stat.FileModifiedDateTimeUtc = fileInfo.LastWriteTimeUtc;
 
             try
             {
-                fileSystemChangeRecord.Stat.BeginDateTime = DateTime.Now;
-                string? fileHashValue = MD5Helper.CalculateFileMD5(fileSystemChangeRecord.FullPath);
-                var fileRecord = await GetFileRecordAsync(fileSystemChangeRecord.FullPath);
-                if (fileRecord != null && fileRecord.FileHashValue == fileHashValue && IsCompleted(fileRecord))
+                fileSystemChangeRecord.Stat.BeginDateTime = DateTime.UtcNow;
+                var fileName = fileInfo.FullName;
+                var filePathHash = MD5Helper.CalculateStringMD5(fileInfo.FullName);
+
+                var fileRecord = this._fileRecords.FirstOrDefault(x => x.Name == filePathHash);
+  
+                if (fileRecord != null && fileRecord.State== FileRecordState.Processed)
                 {
-                    _logger.LogCritical($"file {fileSystemChangeRecord.FullPath} processed, return");
+                    _logger.LogCritical($"file {fileSystemChangeRecord.LocalFilePath} processed, return");
                     return;
                 }
-                fileSystemChangeRecord.Stat.FileHashValue = fileHashValue;
-                if (!DataFileReader.TryLoad(fileSystemChangeRecord.FullPath, _logger, out var ex, out dataFileReader))
+
+                if (DataFileReader.TryLoad(fileSystemChangeRecord.LocalFilePath, _logger, out var ex, out dataFileReader))
                 {
-                    _logger.LogError($"load {fileSystemChangeRecord.FullPath} fail:{ex}");
-                    return;
+                    if (!await ParseDataFileAsync(fileSystemChangeRecord, dataFileReader))
+                    {
+                        requeue = true;
+                        return;
+                    }
                 }
-                await ParseDataFile(fileSystemChangeRecord, dataFileReader);
+                else
+                {
+                    _logger.LogError($"load {fileSystemChangeRecord.LocalFilePath} fail:{ex}");
+                }
+
                 if (fileRecord == null)
                 {
                     fileRecord = new FileRecordModel();
                     fileRecord.Id = _nodeId;
-                    fileRecord.Name = fileSystemChangeRecord.FullPath;
-                    fileRecord.CreationDateTime = DateTime.Now;
+                    fileRecord.Name = filePathHash;
+                    fileRecord.OriginalFileName = fileSystemChangeRecord.LocalFilePath;
+                    fileRecord.CreationDateTime = File.GetCreationTimeUtc(fileSystemChangeRecord.LocalFilePath);
+                    fileRecord.Size = fileSystemChangeRecord.Stat.FileSize;
                 }
-                fileRecord.FileHashValue = fileHashValue;
                 fileRecord.ModifyDateTime = DateTime.Now;
                 fileRecord.Properties = JsonSerializer.Serialize(fileSystemChangeRecord.Stat);
                 fileSystemChangeRecord.FileRecord = fileRecord;
@@ -282,74 +300,84 @@ namespace MaccorUploadTool.Services
                 {
                     using (dataFileReader)
                     {
-                        _logger.LogInformation($"Close {fileSystemChangeRecord.FullPath}");
+                        _logger.LogInformation($"Close {fileSystemChangeRecord.LocalFilePath}");
                     }
                 }
                 if (requeue)
                 {
                     _fileSystemChangeRecordActionBlock.Post(fileSystemChangeRecord);
+                    _logger.LogInformation($"Requeue {fileSystemChangeRecord.LocalFilePath}");
                 }
             }
         }
 
-        private async Task ParseDataFile(FileSystemChangedRecord fileSystemChangeRecord, DataFileReader dataFileReader)
+        private async Task<bool> ParseDataFileAsync(FileSystemChangedRecord fileSystemChangeRecord, DataFileReader dataFileReader)
         {
-            Stopwatch totalStopwatch = Stopwatch.StartNew();
-            fileSystemChangeRecord.Stat.BeginDateTime = DateTime.Now;
-            _logger.LogInformation($"Processing {fileSystemChangeRecord.FullPath}");
-            Stopwatch headerStopWatch = Stopwatch.StartNew();
-
-            fileSystemChangeRecord.DataFile = new DataFile();
-            await foreach (var dataFileHeader in dataFileReader.ReadHeadersAsync().ConfigureAwait(false))
+            try
             {
-                var header = dataFileHeader;
-                header.IPAddress = _ipAddress;
-                header.FilePath = fileSystemChangeRecord.FullPath;
-                header.DnsName = fileSystemChangeRecord.Stat.DnsName;
+                Stopwatch totalStopwatch = Stopwatch.StartNew();
+                _logger.LogInformation($"Processing {fileSystemChangeRecord.LocalFilePath}");
+                Stopwatch headerStopWatch = Stopwatch.StartNew();
 
-                fileSystemChangeRecord.Stat.HeaderDataCount++;
-                fileSystemChangeRecord.DataFile.DataFileHeader.Add(header);
-            }
-
-
-            headerStopWatch.Stop();
-            fileSystemChangeRecord.Stat.HeaderDataParseElapsedSeconds = headerStopWatch.Elapsed.TotalSeconds;
-
-            Stopwatch timeDataStopWatch = Stopwatch.StartNew();
-
-            _logger.LogInformation($"try delete {fileSystemChangeRecord.FullPath}");
-            _maccorDataReaderWriter.Delete(fileSystemChangeRecord.FullPath);
-            int index = 0;
-
-            await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
-            {
-                int count = 0;
-                for (int i = 0; i < timeDataArray.Length; i++)
+                fileSystemChangeRecord.DataFile = new DataFile();
+                await foreach (var dataFileHeader in dataFileReader.ReadHeadersAsync().ConfigureAwait(false))
                 {
-                    var timeData = timeDataArray[i];
-                    if (!timeData.HasValue)
-                    {
-                        continue;
-                    }
-                    timeData.IPAddress = _ipAddress;
-                    timeData.FilePath = fileSystemChangeRecord.FullPath;
-                    timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
-                    timeDataArray[i] = timeData;
-                    fileSystemChangeRecord.Stat.TimeDataCount++;
-                    count++;
+                    var header = dataFileHeader;
+                    header.IPAddress = _ipAddress;
+                    header.FilePath = fileSystemChangeRecord.LocalFilePath;
+                    header.DnsName = fileSystemChangeRecord.Stat.DnsName;
+
+                    fileSystemChangeRecord.Stat.HeaderDataCount++;
+                    fileSystemChangeRecord.DataFile.DataFileHeader.Add(header);
                 }
-                _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.FullPath, timeDataArray);
-                _logger.LogInformation($"write {count} items,{index} times");
-                ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
-                index++;
+
+
+                headerStopWatch.Stop();
+                fileSystemChangeRecord.Stat.HeaderDataParseElapsedSeconds = headerStopWatch.Elapsed.TotalSeconds;
+
+                Stopwatch timeDataStopWatch = Stopwatch.StartNew();
+
+                _logger.LogInformation($"try delete {fileSystemChangeRecord.LocalFilePath}");
+                _maccorDataReaderWriter.Delete(fileSystemChangeRecord.LocalFilePath);
+                int index = 0;
+
+                await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
+                {
+                    int count = 0;
+                    for (int i = 0; i < timeDataArray.Length; i++)
+                    {
+                        var timeData = timeDataArray[i];
+                        if (!timeData.HasValue)
+                        {
+                            continue;
+                        }
+                        timeData.IPAddress = _ipAddress;
+                        timeData.FilePath = fileSystemChangeRecord.LocalFilePath;
+                        timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
+                        timeDataArray[i] = timeData;
+                        fileSystemChangeRecord.Stat.TimeDataCount++;
+                        count++;
+                    }
+                    _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.LocalFilePath, timeDataArray);
+                    _logger.LogInformation($"write {count} items,{index} times");
+                    ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
+                    index++;
+                }
+                _logger.LogInformation($"{fileSystemChangeRecord.LocalFilePath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");
+                timeDataStopWatch.Stop();
+                fileSystemChangeRecord.Stat.TimeDataParseElapsedSeconds = timeDataStopWatch.Elapsed.TotalSeconds;
+
+                var scopeTrace = dataFileReader.GetScopeTrace();
+
+                _logger.LogInformation($"Processed {fileSystemChangeRecord.LocalFilePath}");
+
+                return true;
             }
-            _logger.LogInformation($"{fileSystemChangeRecord.FullPath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");
-            timeDataStopWatch.Stop();
-            fileSystemChangeRecord.Stat.TimeDataParseElapsedSeconds = timeDataStopWatch.Elapsed.TotalSeconds;
-
-            var scopeTrace = dataFileReader.GetScopeTrace();
-
-            _logger.LogInformation($"Processed {fileSystemChangeRecord.FullPath}");
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+            return false;
         }
 
         private bool IsCompleted(FileRecordModel? fileRecord)
@@ -378,6 +406,12 @@ namespace MaccorUploadTool.Services
             FileRecordModel? fileRecord = null;
             try
             {
+                string fileName = Path.GetFileName(filePath);
+                if (fileName.StartsWith("MaccorFileNameHash_"))
+                {
+                    fileName = fileName.Replace("MaccorFileNameHash_", string.Empty);
+                    filePath = fileName;
+                }
                 var rsp = await _apiService.QueryFileRecordsAsync(_nodeId, filePath);
                 fileRecord = rsp.Result.FirstOrDefault();
             }
@@ -409,7 +443,7 @@ namespace MaccorUploadTool.Services
         {
             _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
             {
-                FullPath = e.FullPath,
+                LocalFilePath = e.FullPath,
                 ChangeTypes = e.ChangeType,
                 Name = e.Name,
             });
@@ -432,26 +466,12 @@ namespace MaccorUploadTool.Services
             return fileSystemWatcher;
         }
 
-        private void ScanDirectory()
+        private async void ScanDirectory()
         {
             try
             {
-                if (!Directory.Exists(Options.Directory))
-                {
-                    foreach (var drive in DriveInfo.GetDrives())
-                    {
-                        var directory = Path.Combine(drive.RootDirectory.FullName, "Maccor");
-                        if (!Directory.Exists(directory))
-                        {
-                            continue;
-                        }
-                        ScanDirectory(directory);
-                    }
-                }
-                else
-                {
-                    ScanDirectory(Options.Directory);
-                }
+                _fileRecords = await GetFileRecordsAsync();
+                ScanDirectory(Options.Directory);
             }
             catch (Exception ex)
             {
@@ -491,7 +511,7 @@ namespace MaccorUploadTool.Services
                     _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
                     {
                         ChangeTypes = WatcherChangeTypes.Created,
-                        FullPath = filePath,
+                        LocalFilePath = fileInfo.FullName,
                         Index = _files.Count
                     });
 
@@ -537,6 +557,42 @@ namespace MaccorUploadTool.Services
                 }
             }
             DisposeObjects();
+        }
+
+        private async Task<List<FileRecordModel>> GetFileRecordsAsync()
+        {
+            List<FileRecordModel> results = [];
+            while (true)
+            {
+                try
+                {
+                    List<FileRecordModel> fileRecords = new List<FileRecordModel>();
+                    int pageIndex = 0;
+                    do
+                    {
+                        _logger.LogInformation($"{_nodeId}:Query file records ");
+                        var rsp = await _apiService.QueryFileRecordsAsync(_nodeId, pageSize: 500, pageIndex: pageIndex);
+                        fileRecords.AddRange(rsp.Result);
+                        _logger.LogInformation($"{_nodeId}:{fileRecords.Count}/{rsp.TotalCount} ");
+                        if (fileRecords.Count == rsp.TotalCount)
+                        {
+                            break;
+                        }
+                        pageIndex++;
+                    } while (true);
+
+                    results.AddRange(fileRecords);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                    await Task.Delay(TimeSpan.FromSeconds(10));
+                }
+            }
+
+
+            return results;
         }
     }
 }

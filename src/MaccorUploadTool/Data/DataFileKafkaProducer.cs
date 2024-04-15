@@ -4,6 +4,7 @@ using MaccorUploadTool.Models;
 using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Reflection.PortableExecutable;
+using System.Text;
 using System.Threading.Channels;
 
 namespace MaccorUploadTool.Data
@@ -95,12 +96,13 @@ namespace MaccorUploadTool.Data
                 {
                     index++;
                     Producer.Produce(HeaderTopicName, message, HeaderDeliveryHandler);
-                    if (index > 1000)
+                    if (index == 1024)
                     {
                         index = 0;
                         Producer.Flush();
                     }
                 }
+                Producer.Flush();
                 //_logger.LogInformation($"{deliveryReport.TopicPartitionOffset}");
                 return true;
             }
@@ -135,7 +137,7 @@ namespace MaccorUploadTool.Data
             this._headerChanel.Writer.TryWrite(deliveryReport.Message);
         }
 
-        private void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
+        private async void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
@@ -147,7 +149,7 @@ namespace MaccorUploadTool.Data
                 return;
             }
             this._fileSystemChangedRecord.Stat.TimeDataTotalRetryTimes++;
-            this._timeDataChannel.Writer.TryWrite(deliveryReport.Message.Value);
+            await this._timeDataChannel.Writer.WriteAsync(deliveryReport.Message.Value);
         }
 
         public async Task<bool> ProduceTimeDataAsync()
@@ -156,32 +158,43 @@ namespace MaccorUploadTool.Data
             {
                 _ = Task.Run(async () =>
                  {
-                     int pageSize = 512;
-                     int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / (pageSize + 0d));
-                     int index = 0;
-                     for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
+                     try
                      {
-                         var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.FullPath, pageIndex, pageSize);
-                         int count = 0;
-                         foreach (var timeData in timeDataStringArray)
+                         int pageCount = (int)Math.Ceiling(this._fileSystemChangedRecord.Stat.TimeDataCount / (MaccorDataReaderWriter.PageSize + 0d));
+                         int index = 0;
+                         for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                          {
-                             index++;
-                             await this._timeDataChannel.Writer.WriteAsync(timeData);
-                             count++;
+                             var timeDataStringArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.LocalFilePath, pageIndex);
+                             int count = 0;
+                             foreach (var timeData in timeDataStringArray)
+                             {
+                                 if (timeData == null)
+                                 {
+                                     continue;
+                                 }
+                                 index++;
+                                 await this._timeDataChannel.Writer.WriteAsync(timeData);
+                                 count++;
+                             }
+                             if (count > 0)
+                             {
+                                 _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
+                             }
+                             while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > MaccorDataReaderWriter.PageSize)
+                             {
+                                 await Task.Delay(TimeSpan.FromMilliseconds(5));
+                             }
                          }
-                         if (count > 0)
+                         if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
                          {
-                             _logger.LogInformation($"{this._fileSystemChangedRecord.FullPath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
-                         }
-                         while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > 0)
-                         {
-                             await Task.Delay(100);
+                             _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write{index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
                          }
                      }
-                     if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
+                     catch (Exception ex)
                      {
-                         _logger.LogInformation($"{this._fileSystemChangedRecord.FullPath}:Write completed,Write{index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
+                         _logger.LogError(ex.ToString());
                      }
+
                  });
 
                 int count = 0;
@@ -189,7 +202,7 @@ namespace MaccorUploadTool.Data
                 {
                     Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
                     count++;
-                    if (count == 512)
+                    if (count == MaccorDataReaderWriter.PageSize)
                     {
                         count = 0;
                         Producer.Flush();

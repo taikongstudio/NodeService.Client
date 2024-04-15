@@ -59,10 +59,6 @@ namespace NodeService.UpdateService.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-
-
-
-
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -83,6 +79,11 @@ namespace NodeService.UpdateService.Services
                     }
 
                     var clientUpdateConfig = apiResult.Result;
+                    if (clientUpdateConfig == null || clientUpdateConfig.PackageConfig == null)
+                    {
+                        _logger.LogError("invalid client config");
+                        continue;
+                    }
                     _logger.LogInformation($"Query config: {clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>()}");
                     var destDirectory = Path.Combine(_currentConfig.InstallDirectory);
                     var updateConfigFilePath = Path.Combine(_currentConfig.InstallDirectory, "UpdateConfig");
@@ -94,9 +95,9 @@ namespace NodeService.UpdateService.Services
                             _logger.LogInformation("Same config,skip update");
                             continue;
                         }
-                        
 
-                        using var stream = File.Open(tempFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+
+                        using var stream = File.Open(tempFileName, FileMode.CreateNew, FileAccess.ReadWrite);
                         await apiService.DownloadPackageAsync(clientUpdateConfig.PackageConfig, stream, stoppingToken);
                         _logger.LogInformation($"Download {clientUpdateConfig}");
                         await apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
@@ -104,7 +105,7 @@ namespace NodeService.UpdateService.Services
                             ClientUpdateConfigId = clientUpdateConfig.Id,
                             NodeName = Dns.GetHostName(),
                             CategoryName = "DownloadSuccess"
-                        });
+                        }, stoppingToken);
                         stream.Position = 0;
                         if (!IsZip(stream))
                         {
@@ -140,8 +141,13 @@ namespace NodeService.UpdateService.Services
                         }, stoppingToken);
 
                         File.WriteAllText(updateConfigFilePath, JsonSerializer.Serialize(clientUpdateConfig));
-                        var fileName = Path.Combine(destDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
-                        if (!File.Exists(fileName))
+                        if (clientUpdateConfig.PackageConfig.EntryPoint == null)
+                        {
+                            _logger.LogError("invalid entry point");
+                            continue;
+                        }
+                        var entryPoint = Path.Combine(destDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
+                        if (!File.Exists(entryPoint))
                         {
                             continue;
                         }
@@ -149,8 +155,8 @@ namespace NodeService.UpdateService.Services
                         _logger.LogInformation($"Start Install");
                         ServiceHelper.Install(SERVICENAME,
                            SERVICENAME,
-                            fileName,
-                            "",
+                            entryPoint,
+                            clientUpdateConfig.Description ?? string.Empty,
                              ServiceStartType.AutoStart,
                               ServiceAccount.LocalSystem
                             );
@@ -158,8 +164,8 @@ namespace NodeService.UpdateService.Services
 
                         _logger.LogInformation($"Start StartService");
                         bool startResult = ServiceHelper.StartService(SERVICENAME,
-                            clientUpdateConfig.PackageConfig.Arguments == null ? [fileName] :
-                          [string.Join(" ", fileName, clientUpdateConfig.PackageConfig.Arguments)]);
+                            clientUpdateConfig.PackageConfig.Arguments == null ? [entryPoint] :
+                          [string.Join(" ", entryPoint, clientUpdateConfig.PackageConfig.Arguments)]);
                         _logger.LogInformation($"End StartService");
                         _logger.LogInformation($"StartService:{startResult}");
 
@@ -199,32 +205,62 @@ namespace NodeService.UpdateService.Services
                 }
                 finally
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(_currentConfig.DurationMinutes), stoppingToken);
+                    await DelayAsync(stoppingToken);
                 }
             }
         }
 
-        private bool TryCompareConfig(ClientUpdateConfigModel? clientUpdateConfig, string updateConfigFilePath)
+        private async ValueTask DelayAsync(CancellationToken stoppingToken = default)
         {
             try
             {
-                if (File.Exists(updateConfigFilePath))
+                await Task.Delay(TimeSpan.FromMinutes(_currentConfig.DurationMinutes), stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+        }
+
+        private bool TryCompareConfig(ClientUpdateConfigModel clientUpdateConfig, string updateConfigFilePath)
+        {
+            try
+            {
+                if (!File.Exists(updateConfigFilePath))
                 {
-                    var jsonText = File.ReadAllText(updateConfigFilePath);
-                    var installedConfig = JsonSerializer.Deserialize<ClientUpdateConfigModel>(jsonText);
-                    if (installedConfig.ToJsonString<ClientUpdateConfigModel>() == clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>())
+                    return false;
+                }
+                var jsonText = File.ReadAllText(updateConfigFilePath);
+                var installedConfig = JsonSerializer.Deserialize<ClientUpdateConfigModel>(jsonText);
+                if (installedConfig == null)
+                {
+                    return false;
+                }
+
+                if (clientUpdateConfig.PackageConfig == null)
+                {
+                    return false;
+                }
+
+                if (installedConfig.PackageConfig == null)
+                {
+                    return false;
+                }
+
+                if (clientUpdateConfig.PackageConfig.Hash == installedConfig.PackageConfig.Hash)
+                {
+                    _logger.LogInformation("Same config");
+                    if (ServiceHelper.TryGetServiceState(SERVICENAME, out var state))
                     {
-                        _logger.LogInformation("Same config");
-                        if (ServiceHelper.TryGetServiceState(SERVICENAME, out var state))
+                        _logger.LogInformation($"Service status:{state}");
+                        if (state == ServiceHelper.ServiceState.Running)
                         {
-                            _logger.LogInformation($"Service status:{state}");
-                            if (state == ServiceHelper.ServiceState.Running)
-                            {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }
+
+                return false;
             }
             catch (Exception ex)
             {
@@ -265,7 +301,7 @@ namespace NodeService.UpdateService.Services
             try
             {
                 stream.Position = 0;
-                byte[] zipBytes = new byte[8] { 80, 75, 3, 4, 20, 0, 0, 0 };
+                byte[] zipBytes = [80, 75, 3, 4, 20, 0, 0, 0];
                 byte[] bytes = new byte[8];
                 int readCount = stream.Read(bytes);
                 if (readCount == 8 && zipBytes.SequenceEqual(bytes))

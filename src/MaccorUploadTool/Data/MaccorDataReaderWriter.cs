@@ -6,23 +6,24 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using RocksDbSharp;
+
 using MaccorUploadTool.Models;
 using MaccorUploadTool.Helper;
 using System.Reflection;
+using System.Collections.Concurrent;
+using System.Buffers;
 
 namespace MaccorUploadTool.Data
 {
     public class MaccorDataReaderWriter
     {
-        readonly BlockBasedTableOptions _bbto;
-        readonly DbOptions _options;
-        readonly ColumnFamilies _columnFamilies;
-        readonly FlushOptions _flushOptions;
+        public const int PageSize = 1024;
+
         readonly ILogger<MaccorDataReaderWriter> _logger;
-        string dataColumnName = "data";
-        readonly RocksDb _rocksDb;
+
         public string DatabasePath { get; private set; }
+
+        private readonly ConcurrentDictionary<string, LinkedList<RentedArray<string>>> _timeDataDictionary;
 
 
 
@@ -31,39 +32,12 @@ namespace MaccorUploadTool.Data
             )
         {
             _logger = logger;
-
-            var logDbDirectory = Path.Combine(AppContext.BaseDirectory, "../logdb");
-            this.DatabasePath = logDbDirectory;
-
-            _bbto = new BlockBasedTableOptions()
-            .SetFilterPolicy(BloomFilterPolicy.Create(10, false))
-            .SetWholeKeyFiltering(false);
-
-            _options = new DbOptions()
-                .SetCreateIfMissing(true)
-                .SetCreateMissingColumnFamilies(true);
-
-            _columnFamilies = new ColumnFamilies
-                {
-                    { "default", new ColumnFamilyOptions().OptimizeForPointLookup(256) },
-                    { dataColumnName, new ColumnFamilyOptions()
-                        //.SetWriteBufferSize(writeBufferSize)
-                        //.SetMaxWriteBufferNumber(maxWriteBufferNumber)
-                        //.SetMinWriteBufferNumberToMerge(minWriteBufferNumberToMerge)
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong)50))
-                        .SetBlockBasedTableFactory(_bbto)
-                    },
-                };
-            _flushOptions = new FlushOptions();
-            _flushOptions.SetWaitForFlush(true);
-
-            _rocksDb = RocksDb.Open(_options, this.DatabasePath, _columnFamilies);
+            _timeDataDictionary = new ConcurrentDictionary<string, LinkedList<RentedArray<string>>>();
         }
 
 
 
-        public bool WriteTimeDataArray(string fileName, params TimeData[] timeDataArray)
+        public bool WriteTimeDataArray(string key, params TimeData[] timeDataArray)
         {
             if (!timeDataArray.Any())
             {
@@ -71,45 +45,39 @@ namespace MaccorUploadTool.Data
             }
             try
             {
-                string id = MD5Helper.CalculateStringMD5(fileName);
-                var cf = _rocksDb.GetColumnFamily(dataColumnName);
-                if (!int.TryParse(_rocksDb.Get(id), out var index))
-                {
-                    index = 0;
-                }
                 var itemsToWrite = timeDataArray.Where(static x => x.HasValue);
                 var totalCount = itemsToWrite.Count();
-                var writeCount = 0;
-                Stack<TimeData> stack = new Stack<TimeData>(256);
-
+                var writtenCount = 0;
+                Stack<TimeData> stack = new Stack<TimeData>(PageSize);
                 do
                 {
-                    for (int i = 0; i < totalCount - writeCount; i++)
+                    for (int i = 0; i < totalCount - writtenCount; i++)
                     {
-                        if (i == 1024)
+                        if (i == PageSize)
                         {
                             break;
                         }
                         stack.Push(timeDataArray[i]);
                     }
-                    WriteBatch writeBatch = new WriteBatch();
+   
+                    var array = ArrayPool<string>.Shared.Rent(PageSize);
+                    if (!_timeDataDictionary.TryGetValue(key, out var linkList))
+                    {
+                        linkList = new LinkedList<RentedArray<string>>();
+                        _timeDataDictionary.TryAdd(key, linkList);
+                    }
+                    linkList.AddLast(new LinkedListNode<RentedArray<string>>(new RentedArray<string>(array)));
+                    int index = 0;
                     while (stack.Count > 0)
                     {
                         var entry = stack.Pop();
-                        var key = GetKey(id, index);
                         var value = JsonSerializer.Serialize(entry);
-                        writeBatch.Put(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(value), cf: cf);
+                        array[index] = value;
                         index++;
-                        writeCount++;
+                        writtenCount++;
                     }
-                    _rocksDb.Write(writeBatch);
-                } while (writeCount < totalCount);
+                } while (writtenCount < totalCount);
 
-
-
-
-                _rocksDb.Put(id, index.ToString());
-                _rocksDb.Flush(_flushOptions);
                 return true;
             }
             catch (Exception ex)
@@ -121,57 +89,32 @@ namespace MaccorUploadTool.Data
 
         public void Delete(string fileName)
         {
-            string id = MD5Helper.CalculateStringMD5(fileName);
-            var count = GetTimeDataCount(fileName);
-            for (int index = 0; index < count; index++)
+            if (!this._timeDataDictionary.TryRemove(fileName, out var linkedList))
             {
-                var key = GetKey(id, index);
-                _rocksDb.Remove(key);
+                return;
             }
-            _rocksDb.Put(id, 0.ToString());
-            _rocksDb.Flush(_flushOptions);
-            this._logger.LogInformation($"{fileName}:Delete {count} items");
-        }
-
-        private string GetKey(string id, int index)
-        {
-            return $"{id}_Data_{index}";
-        }
-
-        public int GetTimeDataCount(string fileName)
-        {
-            string id = MD5Helper.CalculateStringMD5(fileName);
-            var cf = _rocksDb.GetColumnFamily(dataColumnName);
-            var value = _rocksDb.Get(id);
-            if (!int.TryParse(value, out var index))
+            foreach (var rentedArray in linkedList)
             {
-                index = 0;
+                rentedArray.Dispose();
             }
-            return index;
         }
 
         public IEnumerable<string> ReadTimeData(string fileName,
             int pageIndex,
-            int pageSize,
             CancellationToken cancellationToken = default)
         {
-            string id = MD5Helper.CalculateStringMD5(fileName);
-            var readOptions = new ReadOptions();
-            var cf = _rocksDb.GetColumnFamily(dataColumnName);
-            var logLength = GetTimeDataCount(fileName);
-            for (int index = pageSize * pageIndex; index < logLength && index < (pageIndex + 1) * pageSize; index++)
+            if (!this._timeDataDictionary.TryGetValue(fileName, out var linkedList))
             {
-                var key = GetKey(id, index);
-                var value = _rocksDb.Get(key, cf, encoding: Encoding.UTF8);
-                yield return value;
+                return [];
             }
-            yield break;
+            var rentedObject = linkedList.ElementAtOrDefault(pageIndex);
+            if (!rentedObject.HasValue)
+            {
+                return [];
+            }
+            return rentedObject.Value;
         }
 
-        public void Dispose()
-        {
-            _rocksDb.Dispose();
-        }
     }
 }
 

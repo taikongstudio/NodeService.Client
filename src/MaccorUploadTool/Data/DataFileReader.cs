@@ -85,19 +85,26 @@ namespace MaccorUploadTool.Data
 
                 if (handleTemp >= 0)
                 {
+                    try
+                    {
+                        handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
+                        if (handleTemp < 0)
+                        {
+                            break;
+                        }
+                        handleTemp = NativeMethods.GetDataFileHeader(handleTemp, ref dllDataFileHeader);
+                        if (handleTemp < 0)
+                        {
+                            break;
+                        }
+                        dataFileHeader = new DataFileHeader();
+                        dataFileHeader.Init(_handle, dllDataFileHeader);
+                    }
+                    catch (Exception ex)
+                    {
 
-                    handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
-                    if (handleTemp<0)
-                    {
-                        break;
                     }
-                    handleTemp = NativeMethods.GetDataFileHeader(handleTemp, ref dllDataFileHeader);
-                    if (handleTemp < 0)
-                    {
-                        break;
-                    }
-                    dataFileHeader = new DataFileHeader();
-                    dataFileHeader.Init(_handle, dllDataFileHeader);
+
                     yield return dataFileHeader;
                 }
                 break;

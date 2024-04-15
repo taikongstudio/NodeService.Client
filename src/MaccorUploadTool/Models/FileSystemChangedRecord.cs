@@ -11,7 +11,9 @@ namespace MaccorUploadTool.Models
 {
     public class FileSystemChangedRecord
     {
-        public string FullPath { get; set; }
+        public string LocalFilePath { get; set; }
+
+        public string OriginalFilePath { get; set; }
 
         public string Name { get; set; }
 
@@ -22,6 +24,8 @@ namespace MaccorUploadTool.Models
         public MaccorDataUploadStat? Stat { get; set; }
 
         public FileRecordModel FileRecord { get; set; }
+
+        public string FileHashValue {  get; set; }
 
 
         public int Index { get; set; }

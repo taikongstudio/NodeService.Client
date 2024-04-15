@@ -22,6 +22,13 @@ namespace MaccorUploadTool.Helper
             }
         }
 
+        public static string CalculateStreamMD5(Stream stream)
+        {
+            using var md5 = MD5.Create();
+            var hash = md5.ComputeHash(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        }
+
         public static string CalculateStringMD5(string str)
         {
             using (var md5 = MD5.Create())

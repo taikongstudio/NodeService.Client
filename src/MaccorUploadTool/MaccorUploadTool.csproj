@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>AnyCPU;x64</Platforms>
+	<ServerGarbageCollection>true</ServerGarbageCollection>
+	<ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
   </PropertyGroup>
@@ -18,7 +20,8 @@
 
 
    <ItemGroup>
-	  <PackageReference Include="RocksDB" Version="8.11.3.46984" />
+	  <PackageReference Include="FluentFTP" Version="48.0.3" />
+	  <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="8.0.0" />
 	  <PackageReference Include="CommandLineParser" Version="2.9.1" />
 	  <PackageReference Include="Confluent.Kafka" Version="2.3.0" />
 	  <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />

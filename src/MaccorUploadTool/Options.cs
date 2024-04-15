@@ -14,7 +14,7 @@ namespace MaccorUploadTool
         [Option("Directory", Required = true, HelpText = "Directory")]
         public string Directory { get; set; }
 
-        [Option("KafkaBrokerList", Required = true, HelpText = "KafkaBrokerList")]
+        [Option("KafkaBrokerList", Required = false, HelpText = "KafkaBrokerList")]
         public string KafkaBrokerList { get; set; }
 
         [Option("NodeId", Required = true, HelpText = "NodeId")]
@@ -25,7 +25,17 @@ namespace MaccorUploadTool
 
 
         [Option("DateTime", Required = true, HelpText = "DateTime")]
-        public string DateTime { get; internal set; }
+        public string DateTime { get; set; }
+
+
+        [Option("Mode", Required = false, HelpText = "Mode")]
+        public string Mode {  get; set; }
+
+        [Option("FtpConfigId", Required = false, HelpText = "FtpConfigId")]
+        public string FtpConfigId { get; set; }
+
+        [Option("debugger", Required = false, HelpText = "debugger")]
+        public string debugger { get; set; }
 
         public string ToJsonString()
         {
