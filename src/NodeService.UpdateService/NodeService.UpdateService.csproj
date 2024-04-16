@@ -18,6 +18,8 @@
 		<PackageReference Include="Quartz" Version="3.8.0" />
 		<PackageReference Include="System.DirectoryServices" Version="8.0.0" />
 		<PackageReference Include="System.Management" Version="9.0.0-preview.1.24080.9" />
+		<PackageReference Include="Core.System.Configuration.Install" Version="1.1.0" />
+		<PackageReference Include="Core.System.ServiceProcess" Version="2.0.1" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -32,6 +34,8 @@
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
 	</ItemGroup>
+
+	<Import Project="..\..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
 
 
 

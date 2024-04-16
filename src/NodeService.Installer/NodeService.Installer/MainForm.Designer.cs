@@ -29,6 +29,8 @@
         private void InitializeComponent()
         {
             groupConfig = new GroupBox();
+            txtUri = new TextBox();
+            label9 = new Label();
             txtHost = new TextBox();
             cmbConfigs = new ComboBox();
             label8 = new Label();
@@ -39,12 +41,7 @@
             BtnBrowseInstallPath = new Button();
             txtInstallPath = new TextBox();
             label6 = new Label();
-            txtInfo = new TextBox();
-            btnImport = new Button();
             ProgressBar = new ProgressBar();
-            BtnUninstall = new Button();
-            BtnInstall = new Button();
-            BtnDownload = new Button();
             NumericUpDownPort = new NumericUpDown();
             label5 = new Label();
             txtUserName = new TextBox();
@@ -54,12 +51,18 @@
             label3 = new Label();
             label2 = new Label();
             label1 = new Label();
+            txtInfo = new TextBox();
+            btnImport = new Button();
+            BtnUninstall = new Button();
+            BtnDownload = new Button();
             groupConfig.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDownPort).BeginInit();
             SuspendLayout();
             // 
             // groupConfig
             // 
+            groupConfig.Controls.Add(txtUri);
+            groupConfig.Controls.Add(label9);
             groupConfig.Controls.Add(txtHost);
             groupConfig.Controls.Add(cmbConfigs);
             groupConfig.Controls.Add(label8);
@@ -70,12 +73,7 @@
             groupConfig.Controls.Add(BtnBrowseInstallPath);
             groupConfig.Controls.Add(txtInstallPath);
             groupConfig.Controls.Add(label6);
-            groupConfig.Controls.Add(txtInfo);
-            groupConfig.Controls.Add(btnImport);
             groupConfig.Controls.Add(ProgressBar);
-            groupConfig.Controls.Add(BtnUninstall);
-            groupConfig.Controls.Add(BtnInstall);
-            groupConfig.Controls.Add(BtnDownload);
             groupConfig.Controls.Add(NumericUpDownPort);
             groupConfig.Controls.Add(label5);
             groupConfig.Controls.Add(txtUserName);
@@ -87,10 +85,27 @@
             groupConfig.Controls.Add(label1);
             groupConfig.Location = new Point(12, 12);
             groupConfig.Name = "groupConfig";
-            groupConfig.Size = new Size(868, 784);
+            groupConfig.Size = new Size(868, 571);
             groupConfig.TabIndex = 27;
             groupConfig.TabStop = false;
             groupConfig.Text = "配置信息";
+            // 
+            // txtUri
+            // 
+            txtUri.Location = new Point(166, 494);
+            txtUri.Name = "txtUri";
+            txtUri.Size = new Size(659, 30);
+            txtUri.TabIndex = 53;
+            txtUri.Text = "http://172.27.242.223:50060/";
+            // 
+            // label9
+            // 
+            label9.Location = new Point(38, 491);
+            label9.Name = "label9";
+            label9.Size = new Size(113, 36);
+            label9.TabIndex = 52;
+            label9.Text = "上报地址";
+            label9.TextAlign = ContentAlignment.MiddleRight;
             // 
             // txtHost
             // 
@@ -176,60 +191,12 @@
             label6.Text = "安装路径";
             label6.TextAlign = ContentAlignment.MiddleRight;
             // 
-            // txtInfo
-            // 
-            txtInfo.Location = new Point(58, 555);
-            txtInfo.Multiline = true;
-            txtInfo.Name = "txtInfo";
-            txtInfo.Size = new Size(767, 121);
-            txtInfo.TabIndex = 41;
-            // 
-            // btnImport
-            // 
-            btnImport.Location = new Point(55, 695);
-            btnImport.Name = "btnImport";
-            btnImport.Size = new Size(146, 56);
-            btnImport.TabIndex = 40;
-            btnImport.Text = "导入配置";
-            btnImport.UseVisualStyleBackColor = true;
-            btnImport.Click += btnImport_Click;
-            // 
             // ProgressBar
             // 
-            ProgressBar.Location = new Point(58, 497);
+            ProgressBar.Location = new Point(58, 543);
             ProgressBar.Name = "ProgressBar";
-            ProgressBar.Size = new Size(767, 30);
+            ProgressBar.Size = new Size(767, 22);
             ProgressBar.TabIndex = 39;
-            // 
-            // BtnUninstall
-            // 
-            BtnUninstall.Location = new Point(676, 695);
-            BtnUninstall.Name = "BtnUninstall";
-            BtnUninstall.Size = new Size(146, 56);
-            BtnUninstall.TabIndex = 38;
-            BtnUninstall.Text = "卸载全部服务";
-            BtnUninstall.UseVisualStyleBackColor = true;
-            BtnUninstall.Click += BtnUninstall_Click;
-            // 
-            // BtnInstall
-            // 
-            BtnInstall.Location = new Point(462, 695);
-            BtnInstall.Name = "BtnInstall";
-            BtnInstall.Size = new Size(146, 56);
-            BtnInstall.TabIndex = 37;
-            BtnInstall.Text = "安装";
-            BtnInstall.UseVisualStyleBackColor = true;
-            BtnInstall.Click += BtnInstall_Click;
-            // 
-            // BtnDownload
-            // 
-            BtnDownload.Location = new Point(259, 695);
-            BtnDownload.Name = "BtnDownload";
-            BtnDownload.Size = new Size(146, 56);
-            BtnDownload.TabIndex = 36;
-            BtnDownload.Text = "下载安装";
-            BtnDownload.UseVisualStyleBackColor = true;
-            BtnDownload.Click += BtnDownload_Click;
             // 
             // NumericUpDownPort
             // 
@@ -307,12 +274,56 @@
             label1.Text = "Ftp服务器";
             label1.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // txtInfo
+            // 
+            txtInfo.Location = new Point(12, 589);
+            txtInfo.Multiline = true;
+            txtInfo.Name = "txtInfo";
+            txtInfo.ReadOnly = true;
+            txtInfo.ScrollBars = ScrollBars.Vertical;
+            txtInfo.Size = new Size(868, 191);
+            txtInfo.TabIndex = 41;
+            // 
+            // btnImport
+            // 
+            btnImport.Location = new Point(58, 786);
+            btnImport.Name = "btnImport";
+            btnImport.Size = new Size(146, 56);
+            btnImport.TabIndex = 40;
+            btnImport.Text = "导入配置";
+            btnImport.UseVisualStyleBackColor = true;
+            btnImport.Click += btnImport_Click;
+            // 
+            // BtnUninstall
+            // 
+            BtnUninstall.Location = new Point(679, 786);
+            BtnUninstall.Name = "BtnUninstall";
+            BtnUninstall.Size = new Size(146, 56);
+            BtnUninstall.TabIndex = 38;
+            BtnUninstall.Text = "卸载全部服务";
+            BtnUninstall.UseVisualStyleBackColor = true;
+            BtnUninstall.Click += BtnUninstall_Click;
+            // 
+            // BtnDownload
+            // 
+            BtnDownload.Location = new Point(359, 786);
+            BtnDownload.Name = "BtnDownload";
+            BtnDownload.Size = new Size(146, 56);
+            BtnDownload.TabIndex = 36;
+            BtnDownload.Text = "下载安装";
+            BtnDownload.UseVisualStyleBackColor = true;
+            BtnDownload.Click += BtnDownload_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(892, 806);
+            ClientSize = new Size(897, 854);
             Controls.Add(groupConfig);
+            Controls.Add(txtInfo);
+            Controls.Add(BtnDownload);
+            Controls.Add(BtnUninstall);
+            Controls.Add(btnImport);
             MaximizeBox = false;
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
@@ -322,6 +333,7 @@
             groupConfig.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDownPort).EndInit();
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -340,7 +352,6 @@
         private Button btnImport;
         private ProgressBar ProgressBar;
         private Button BtnUninstall;
-        private Button BtnInstall;
         private Button BtnDownload;
         private NumericUpDown NumericUpDownPort;
         private Label label5;
@@ -351,5 +362,7 @@
         private Label label3;
         private Label label2;
         private Label label1;
+        private TextBox txtUri;
+        private Label label9;
     }
 }

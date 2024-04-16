@@ -27,13 +27,23 @@ namespace NodeService.WindowsService.Services
             Logger.LogError(e.Data);
         }
 
+        private string EnsureScriptsDirectory()
+        {
+            var path = "C:/shouhu/scripts";
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
+            return path;
+        }
+
         public override async Task ExecuteAsync(CancellationToken stoppingToken = default)
         {
             string batchScriptTempFile = null;
             using var process = new Process();
             try
             {
-                batchScriptTempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.bat");
+                batchScriptTempFile = Path.Combine(EnsureScriptsDirectory(), $"{Guid.NewGuid()}.bat");
                 ExecuteBatchScriptJobOptions options = new ExecuteBatchScriptJobOptions();
                 await options.InitAsync(this.JobScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);

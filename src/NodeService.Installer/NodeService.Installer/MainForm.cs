@@ -1,14 +1,24 @@
 using FluentFTP;
+using Microsoft.Win32;
+using NodeService.Infrastructure;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Configuration.Install;
 using System.IO.Compression;
+using System.Net;
+using System.ServiceProcess;
 using System.Text.Json;
 
 namespace NodeService.Installer
 {
     public partial class MainForm : Form, IProgress<FtpProgress>
     {
+        ApiService apiService;
         public MainForm()
         {
             InitializeComponent();
+
         }
 
         private const string DefaultInstallConfigPath = "InstallConfig.json.config";
@@ -43,7 +53,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"从\"{path}\"加载配置时发生了错误:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"从\"{path}\"加载配置时发生了错误:{ex.Message}");
             }
 
         }
@@ -56,13 +66,24 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"从\"流\"加载配置时发生了错误:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"从\"流\"加载配置时发生了错误:{ex.Message}");
             }
 
         }
 
         private async void BtnDownload_Click(object sender, EventArgs e)
         {
+            if (this.apiService != null && this.apiService.HttpClient.BaseAddress.ToString() != this.txtUri.Text)
+            {
+                this.apiService.Dispose();
+                this.apiService = null;
+            }
+            this.apiService = new ApiService(new HttpClient()
+            {
+                BaseAddress = new Uri(this.txtUri.Text),
+                Timeout = TimeSpan.FromSeconds(60)
+            });
+            ClearStartup();
             DisableControls();
             _selectedInstallConfig = this._installConfigs.ElementAtOrDefault(cmbConfigs.SelectedIndex);
             if (_selectedInstallConfig == null)
@@ -91,188 +112,173 @@ namespace NodeService.Installer
                 _selectedInstallConfig.EntryPoint = this.cmbEntryPoint.Text;
                 _selectedInstallConfig.ServiceName = this.txtServiceName.Text;
             }
-            var tempFileName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
             try
             {
-                using var ftpClient = new AsyncFtpClient(
-                    _selectedInstallConfig.Host,
-                    _selectedInstallConfig.Username,
-                    _selectedInstallConfig.Password,
-                    _selectedInstallConfig.Port
+                using var installer = UpdateServiceProcessInstaller.Create(
+                    _selectedInstallConfig.ServiceName,
+                    _selectedInstallConfig.ServiceName,
+                    string.Empty,
+                    _selectedInstallConfig.EntryPoint
                     );
-                if ((await ftpClient.FileExists(_selectedInstallConfig.PackagePath)) == false)
-                {
-                    MessageBox.Show("服务器不存在此文件");
-                    return;
-                }
-                using var stream = File.Open(tempFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+                installer.SetInstallConfig(this._selectedInstallConfig);
+                installer.SetFileDownloadProgressProvider(this);
+                installer.ProgressChanged += Installer_ProgressChanged;
+                installer.Failed += Installer_Failed;
+                installer.Completed += Installer_Completed;
+                await installer.RunAsync();
+                installer.ProgressChanged -= Installer_ProgressChanged;
+                installer.Failed -= Installer_Failed;
+                installer.Completed -= Installer_Completed;
 
-
-                if (!await ftpClient.DownloadStream(stream, _selectedInstallConfig.PackagePath, progress: this))
-                {
-                    MessageBox.Show("下载安装包失败");
-                    return;
-                }
-
-                Uninstall();
-
-                if (!CleanupInstallDirectory(_selectedInstallConfig))
-                {
-                    return;
-                }
-
-                stream.Position = 0;
-                if (!Extract(_selectedInstallConfig, stream))
-                {
-                    MessageBox.Show($"解压到\"{_selectedInstallConfig.InstallPath}\"失败");
-                    return;
-                }
-                Install();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+
             }
             finally
             {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
                 EnableControls();
-                if (File.Exists(tempFileName))
-                {
-                    File.Delete(tempFileName);
-                }
             }
 
 
         }
 
+        private async void Installer_Completed(object? sender, InstallerProgressEventArgs e)
+        {
+            AppendMessage(e.Progress.Message);
+            Alert(e.Progress.Message);
+            await UploadCounter(e);
+        }
+
+        private async Task UploadCounter(InstallerProgressEventArgs e)
+        {
+            try
+            {
+                await this.apiService.AddOrUpdateUpdateInstallCounterAsync(new Infrastructure.Models.AddOrUpdateCounterParameters()
+                {
+                    ClientUpdateConfigId = "Installer",
+                    CategoryName = e.Progress.Message,
+                    NodeName = Dns.GetHostName()
+                });
+            }
+            catch (Exception ex)
+            {
+                AppendMessage($"上传安装统计到服务器时发生了异常:{ex.Message}");
+            }
+
+        }
+
+        private async void Installer_Failed(object? sender, InstallerProgressEventArgs e)
+        {
+            AppendMessage(e.Progress.Message);
+            Alert(e.Progress.Message);
+            await UploadCounter(e);
+        }
+
+        private async void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
+        {
+            AppendMessage(e.Progress.Message);
+            await UploadCounter(e);
+        }
+
+        private void Alert(string errorMessage)
+        {
+            if (!this.InvokeRequired)
+            {
+                if (errorMessage == null)
+                {
+                    return;
+                }
+                MessageBox.Show(errorMessage);
+            }
+            else
+            {
+                this.Invoke(Alert, errorMessage);
+            }
+        }
+
+        private void AppendMessage(string errorMessage)
+        {
+            if (!this.InvokeRequired)
+            {
+                if (errorMessage == null)
+                {
+                    return;
+                }
+                this.txtInfo.AppendText(errorMessage);
+                this.txtInfo.AppendText(Environment.NewLine);
+            }
+            else
+            {
+                this.Invoke(AppendMessage, errorMessage);
+            }
+        }
+
         private void DisableControls()
         {
+            this.txtInfo.Clear();
             this.groupConfig.Enabled = false;
             this.BtnDownload.Enabled = false;
-            this.BtnInstall.Enabled = false;
             this.BtnUninstall.Enabled = false;
             this.btnImport.Enabled = false;
+            this.txtInfo.Enabled = true;
+            this.BtnDownload.Enabled = false;
+            this.BtnUninstall.Enabled = false;
+            this.txtUri.Enabled = false;
+
         }
 
         private void EnableControls()
         {
             this.groupConfig.Enabled = true;
             this.BtnDownload.Enabled = true;
-            this.BtnInstall.Enabled = true;
             this.BtnUninstall.Enabled = true;
             this.btnImport.Enabled = true;
+            this.ProgressBar.Style = ProgressBarStyle.Continuous;
+            this.BtnDownload.Enabled = true;
+            this.BtnUninstall.Enabled = true;
+            this.txtUri.Enabled = true;
         }
 
-        private static bool Extract(InstallConfig? installConfig, FileStream stream)
+        private async void BtnUninstall_Click(object sender, EventArgs e)
+        {
+            ClearStartup();
+            this.txtInfo.Clear();
+            DisableControls();
+            const string UpdateServiceName = "NodeService.UpdateService";
+            const string WindowsServiceName = "NodeService.WindowsService";
+            const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
+            await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
+            [
+                UpdateServiceName,
+                WindowsServiceName,
+                JobsWorkerDaemonServiceName
+            ]))
+            {
+                AppendMessage(progress.Message);
+                if (progress.Type == ServiceProcessInstallerProgressType.Error)
+                {
+                    Alert(progress.Message);
+                }
+            }
+            EnableControls();
+        }
+
+        void ClearStartup()
         {
             try
             {
-                ZipFile.ExtractToDirectory(stream, installConfig.InstallPath, true);
-                return true;
+                var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), "JobsWorkerDaemonService.lnk");
+                File.Delete(path);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"解压文件到{installConfig.InstallPath}时发生了错误:{ex.Message}");
-            }
-            return false;
-        }
 
-        private bool CleanupInstallDirectory(InstallConfig installConfig)
-        {
-            try
-            {
-                var installDirectory = new DirectoryInfo(installConfig.InstallPath);
-                if (!installDirectory.Exists)
-                {
-                    return true;
-                }
-                foreach (var item in installDirectory.GetFileSystemInfos())
-                {
-                    if (Directory.Exists(item.FullName))
-                    {
-                        Directory.Delete(item.FullName, true);
-                    }
-                    else
-                    {
-                        item.Delete();
-                    }
-                }
-                return true;
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"清理目录\"{installConfig.PackagePath}\"时发生了错误:{ex.Message}");
-            }
-            return false;
-        }
 
-        private void BtnInstall_Click(object sender, EventArgs e)
-        {
-            Install();
-
-        }
-
-        private void Install()
-        {
-            try
-            {
-                if (this._selectedInstallConfig == null)
-                {
-                    return;
-                }
-                ServiceHelper.Install(_selectedInstallConfig.ServiceName,
-                  _selectedInstallConfig.ServiceName,
-                  _selectedInstallConfig.EntryPoint,
-                  _selectedInstallConfig.ServiceName,
-                    ServiceStartType.AutoStart
-                  );
-                if (!ServiceHelper.StartService(_selectedInstallConfig.ServiceName, _selectedInstallConfig.EntryPoint))
-                {
-                    MessageBox.Show("安装失败");
-                    return;
-                }
-                MessageBox.Show("安装成功");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-            }
-        }
-
-        private void BtnUninstall_Click(object sender, EventArgs e)
-        {
-            UninstallAll();
-
-        }
-
-        private void UninstallAll()
-        {
-            Uninstall();
-            if (this._selectedInstallConfig == null)
-            {
-                return;
-            }
-            const string ServiceName = "NodeService.WindowsService";
-            if (!ServiceHelper.Uninstall(ServiceName))
-            {
-                MessageBox.Show($"卸载服务\"{ServiceName}\"失败");
-                return;
-            }
-            MessageBox.Show("卸载成功");
-        }
-
-        private void Uninstall()
-        {
-            if (this._selectedInstallConfig == null)
-            {
-                return;
-            }
-            if (!ServiceHelper.Uninstall(_selectedInstallConfig.ServiceName))
-            {
-                MessageBox.Show($"卸载服务\"{_selectedInstallConfig.ServiceName}\"失败");
-                return;
-            }
         }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -303,7 +309,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"加载默认配置时发生了错误:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"加载默认配置时发生了错误:{ex.Message}");
             }
 
         }
@@ -344,6 +350,5 @@ namespace NodeService.Installer
             this.txtInstallPath.Text = installConfig.InstallPath;
             this.cmbEntryPoint.Text = installConfig.EntryPoint;
         }
-
     }
 }
