@@ -1,1 +1,0 @@
-C:\\Windows\\System32\\sc.exe create JobsWorkerDaemonServiceWindowsService  type= own type= interact binpath= "%~dp0\..\..\JobsWorkerDaemonService.exe" start= auto displayname= "JobsWorkerDaemonService WindowsService"
