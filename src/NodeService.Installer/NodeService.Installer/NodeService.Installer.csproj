@@ -20,7 +20,4 @@
 	  <ProjectReference Include="..\..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	</ItemGroup>
 
-
-	<Import Project="..\..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
-
 </Project>

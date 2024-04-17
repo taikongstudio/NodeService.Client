@@ -36,6 +36,7 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
+	  <ProjectReference Include="..\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj" />
 	  <ProjectReference Include="..\NodeService.WindowsService.Services\NodeService.WindowsService.Services.csproj" />
 	</ItemGroup>
 	<ItemGroup>
@@ -46,7 +47,6 @@
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
 	</ItemGroup>
-	<Import Project="..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
 
 
 </Project>

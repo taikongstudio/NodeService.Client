@@ -1,13 +1,6 @@
-﻿using FluentFTP;
-using System;
-using System.Collections.Generic;
-using System.Configuration.Install;
-using System.IO;
-using System.Text;
-
-namespace ServiceProcessInstallerSharedProject
+﻿namespace NodeService.ServiceProcess
 {
-    public class FtpPackageProvider : PackageProvider,IDisposable
+    public class FtpPackageProvider : PackageProvider, IDisposable
     {
         private const int Timeout = 60000;
 
@@ -44,12 +37,12 @@ namespace ServiceProcessInstallerSharedProject
             try
             {
                 await _ftpClient.AutoConnect();
-                if ((await _ftpClient.FileExists(_filePath)) == false)
+                if (await _ftpClient.FileExists(_filePath) == false)
                 {
                     return false;
                 }
 
-                return await _ftpClient.DownloadStream(stream, _filePath, progress: this._progressProvider);
+                return await _ftpClient.DownloadStream(stream, _filePath, progress: _progressProvider);
             }
             catch (Exception ex)
             {

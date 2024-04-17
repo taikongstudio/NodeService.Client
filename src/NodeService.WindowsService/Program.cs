@@ -1,4 +1,5 @@
 using NodeService.Infrastructure.NodeSessions;
+using NodeService.ServiceProcess;
 using Python.Deployment;
 using Python.Runtime;
 
@@ -65,14 +66,14 @@ namespace NodeService.WindowsService
                 {
                     options.ServiceName = "NodeService.WindowsService";
                 });
+                builder.Services.AddSingleton(options);
                 builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
                 builder.Services.AddHostedService<DetectServiceStatusService>();
-                builder.Services.AddSingleton(options);
+                builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
                 builder.Services.AddSingleton<JobExecutionContextDictionary>();
                 builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();
-                builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
                 builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
                 builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();

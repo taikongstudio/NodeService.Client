@@ -1,7 +1,7 @@
 ﻿using CommandLine;
 using NLog;
 using NLog.Web;
-using NodeService.DaemonService.Services;
+using NodeService.ServiceProcess;
 
 namespace NodeService.DaemonService
 {

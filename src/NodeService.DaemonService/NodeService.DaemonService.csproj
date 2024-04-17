@@ -5,6 +5,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,8 +30,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
+	  <ProjectReference Include="..\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj" />
 	</ItemGroup>
-
-	<Import Project="..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
 
 </Project>

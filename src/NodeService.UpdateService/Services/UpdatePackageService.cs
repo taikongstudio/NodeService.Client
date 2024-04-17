@@ -2,6 +2,7 @@
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
+using NodeService.ServiceProcess;
 using System.Diagnostics;
 using System.Net;
 using System.ServiceProcess;

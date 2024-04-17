@@ -1,6 +1,4 @@
-﻿
-
-namespace NodeService.DaemonService.Services
+﻿namespace NodeService.ServiceProcess
 {
     public class ProcessExitService : BackgroundService
     {

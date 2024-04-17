@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using NLog;
 using NLog.Web;
+using NodeService.ServiceProcess;
 using NodeService.UpdateService.Services;
 
 namespace NodeService.UpdateService

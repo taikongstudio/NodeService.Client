@@ -8,19 +8,4 @@
   <PropertyGroup Label="Configuration">
     <Import_RootNamespace>ServiceProcessInstallerSharedProject</Import_RootNamespace>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)AppConfig.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DetectServiceStatusService.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DetectServiceStatusServiceContext.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FtpPackageProvider.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)HttpPackageProvider.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)InstallerProgressEventArgs.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)PackageProvider.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ProcessExitService.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ServiceProcessInstallerHelper.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ServiceProcessInstallerContext.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ServiceProcessInstallerProgress.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MyServiceProcessInstaller.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)PackageUpdateConfig.cs" />
-  </ItemGroup>
 </Project>
