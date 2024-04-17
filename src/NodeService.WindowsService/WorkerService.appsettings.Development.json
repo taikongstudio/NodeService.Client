@@ -1,0 +1,31 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ServiceProcessConfiguration": {
+    "Contexts": [
+      {
+        "DisplayName": "NodeService.WindowsService",
+        "Description": "NodeService.WindowsService",
+        "HttpAddress": "http://localhost:5000/",
+        "InstallDirectory": "C:/shouhu/NodeService.WindowsService/",
+        "DurationMinutes": 10,
+        "ServiceName": "NodeService.WindowsService",
+        "Arguments": "--mode WindowsService --env Development"
+      },
+      {
+        "DisplayName": "NodeService.UpdateService",
+        "Description": "NodeService.UpdateService",
+        "HttpAddress": "http://localhost:5000/",
+        "InstallDirectory": "C:/shouhu/NodeService.UpdateService/",
+        "DurationMinutes": 10,
+        "ServiceName": "NodeService.UpdateService",
+        "Arguments": "--mode UpdateService  --env Development"
+      }
+    ]
+  }
+}

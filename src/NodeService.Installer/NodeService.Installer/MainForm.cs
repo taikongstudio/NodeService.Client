@@ -122,7 +122,8 @@ namespace NodeService.Installer
                     _selectedInstallConfig.ServiceName,
                     _selectedInstallConfig.ServiceName,
                     string.Empty,
-                    _selectedInstallConfig.EntryPoint
+                    _selectedInstallConfig.EntryPoint,
+                    null
                     );
                 installer.SetParameters(BuildPackageProvider(), BuildIntallContext());
                 installer.ProgressChanged += Installer_ProgressChanged;

@@ -26,7 +26,8 @@
 
         public event EventHandler<InstallerProgressEventArgs> Completed;
 
-        private CommonServiceProcessInstaller(ServiceProcessInstaller serviceProcessInstaller)
+        private CommonServiceProcessInstaller(
+            ServiceProcessInstaller serviceProcessInstaller)
         {
             _serviceProcessInstaller = serviceProcessInstaller;
             AttachEvents();
@@ -59,6 +60,7 @@
 
         private void _serviceProcessInstaller_AfterUninstall(object sender, InstallEventArgs e)
         {
+            RaiseProgressChangedEvent("卸载成功");
             RaiseProgressChangedEvent($"正在清理目录\"{this._installContext.InstallDirectory}\"");
             if (!CleanupInstallDirectory())
             {
@@ -67,24 +69,41 @@
             RaiseProgressChangedEvent("清理成功");
         }
 
+        private bool IsQuickMode()
+        {
+            if (Debugger.IsAttached)
+            {
+                return Environment.GetEnvironmentVariable("QuickMode") == "1";
+            }
+            return false;
+        }
+
         private bool CleanupInstallDirectory()
         {
             try
             {
+                if (IsQuickMode())
+                {
+                    return true;
+                }
                 var installDirectory = new DirectoryInfo(this._installContext.InstallDirectory);
                 if (!installDirectory.Exists)
                 {
                     return true;
                 }
-                foreach (var item in installDirectory.GetFileSystemInfos())
+                foreach (var directoryInfo in installDirectory.GetDirectories())
                 {
-                    if (Directory.Exists(item.FullName))
+                    if (directoryInfo.Name == ".package")
                     {
-                        Directory.Delete(item.FullName, true);
+                        continue;
+                    }
+                    if (Directory.Exists(directoryInfo.FullName))
+                    {
+                        Directory.Delete(directoryInfo.FullName, true);
                     }
                     else
                     {
-                        item.Delete();
+                        directoryInfo.Delete();
                     }
                 }
 
@@ -165,7 +184,7 @@
                     stopwatch.Reset();
                     await Task.Delay(TimeSpan.FromSeconds(5));
                     waitCount++;
-                } while (waitCount < 1);
+                } while (waitCount < 12);
                 RaiseCompletedEvent("安装成功");
             }
             catch (Exception ex)
@@ -185,6 +204,10 @@
         {
             try
             {
+                if (IsQuickMode())
+                {
+                    return;
+                }
                 InitStream();
                 RaiseProgressChangedEvent($"开始安装");
 
@@ -254,9 +277,15 @@
                     message)));
         }
 
-        public static CommonServiceProcessInstaller Create(string serviceName, string displayName, string description, string filePath)
+        public static CommonServiceProcessInstaller Create(
+            string serviceName,
+            string displayName,
+            string description,
+            string filePath,
+            string cmdLine
+            )
         {
-            var serviceInstaller = ServiceProcessInstallerHelper.Create(serviceName, displayName, description, filePath);
+            var serviceInstaller = ServiceProcessInstallerHelper.Create(serviceName, displayName, description, filePath, cmdLine);
             return new CommonServiceProcessInstaller(serviceInstaller);
         }
 
@@ -266,6 +295,10 @@
             {
                 try
                 {
+                    if (IsQuickMode())
+                    {
+                        return true;
+                    }
                     RaiseProgressChangedEvent($"开始解压包到目录:\"{_installContext.InstallDirectory}\"");
                     _stream.Position = 0;
                     ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, true);

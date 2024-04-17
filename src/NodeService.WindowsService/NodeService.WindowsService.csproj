@@ -10,13 +10,6 @@
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 	</PropertyGroup>
 
-	<ItemGroup>
-	  <Compile Remove="config\**" />
-	  <Content Remove="config\**" />
-	  <EmbeddedResource Remove="config\**" />
-	  <None Remove="config\**" />
-	</ItemGroup>
-
 
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
@@ -38,6 +31,13 @@
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	  <ProjectReference Include="..\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj" />
 	  <ProjectReference Include="..\NodeService.WindowsService.Services\NodeService.WindowsService.Services.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Content Update="WindowsService.appsettings.Development.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	    <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+	    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	  </Content>
 	</ItemGroup>
 	<ItemGroup>
 	  <None Update="appsettings.Development.json">

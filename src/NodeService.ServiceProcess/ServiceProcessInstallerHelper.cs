@@ -5,7 +5,8 @@
         public static ServiceProcessInstaller Create(string serviceName,
                                                       string displayName,
                                                       string description,
-                                                      string filePath)
+                                                      string filePath,
+                                                      string arguments)
         {
             var processInstaller = new ServiceProcessInstaller();
             var serviceInstaller = new ServiceInstaller();
@@ -14,8 +15,8 @@
             if (filePath != null && filePath.Length > 0)
             {
                 FileInfo fileInfo = new FileInfo(filePath);
-                string path = $"assemblypath=\"{filePath}\"";
-                string[] cmdline = [path];
+                string path = $"assemblypath=\"{filePath}\" {arguments}";
+                string[] cmdline = arguments == null ? [path] : [path, arguments];
                 context = new InstallContext("", cmdline);
             }
 
@@ -39,7 +40,7 @@
                 yield return new ServiceProcessInstallerProgress(serviceName, type, message);
                 try
                 {
-                    using var serviceProcessInstaller = Create(serviceName, null, null, null);
+                    using var serviceProcessInstaller = Create(serviceName, null, null, null, null);
                     serviceProcessInstaller.Uninstall(null);
                     message = $"卸载服务\"{serviceName}\"成功";
                 }

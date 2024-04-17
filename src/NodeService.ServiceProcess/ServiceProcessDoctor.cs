@@ -118,6 +118,7 @@ namespace NodeService.ServiceProcess
                 if (ex.InnerException is Win32Exception win32Exception && win32Exception.NativeErrorCode == 1060)
                 {
                     _logger.LogInformation(ex.Message);
+                    return await ReinstallAsync(true, cancellationToken);
                 }
                 else
                 {
@@ -140,6 +141,11 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ReinstallAsync(bool force = false, CancellationToken cancellationToken = default)
         {
+            bool quickMode = false;
+            if (Debugger.IsAttached && quickMode)
+            {
+                Environment.SetEnvironmentVariable("QuickMode", "1");
+            }
             var rsp = await _apiService.QueryClientUpdateAsync(RecoveryContext.ServiceName);
             if (rsp.ErrorCode != 0)
             {
@@ -169,7 +175,8 @@ namespace NodeService.ServiceProcess
                 RecoveryContext.ServiceName,
                 RecoveryContext.DisplayName,
                 RecoveryContext.Description,
-                filePath);
+                filePath,
+                RecoveryContext.Arguments);
 
             installer.SetParameters(
                 new HttpPackageProvider(_apiService, packageConfig),
@@ -213,7 +220,7 @@ namespace NodeService.ServiceProcess
             try
             {
                 string packageDirectory = EnsurePackageDirectory();
-                var hashFilePath = Path.Combine(packageDirectory, hash, "PackageHash");
+                var hashFilePath = Path.Combine(packageDirectory, "PackageHash");
                 File.WriteAllText(hashFilePath, hash);
                 return true;
             }

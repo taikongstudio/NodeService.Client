@@ -1,0 +1,24 @@
+{
+  "ServiceProcessConfiguration": {
+    "Contexts": [
+      {
+        "DisplayName": "NodeService.UpdateService",
+        "Description": "NodeService.UpdateService",
+        "HttpAddress": "http://localhost:5000/",
+        "InstallDirectory": "C:/shouhu/NodeService.UpdateService/",
+        "DurationMinutes": 10,
+        "ServiceName": "NodeService.UpdateService",
+        "Arguments": "--mode UpdateService  --env Development"
+      },
+      {
+        "DisplayName": "NodeService.WorkerService",
+        "Description": "NodeService.WorkerService",
+        "HttpAddress": "http://localhost:5000/",
+        "InstallDirectory": "C:/shouhu/NodeService.WorkerService/",
+        "DurationMinutes": 10,
+        "ServiceName": "NodeService.WorkerService",
+        "Arguments": "--mode WorkerService  --env Development"
+      }
+    ]
+  }
+}

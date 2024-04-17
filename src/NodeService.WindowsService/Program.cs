@@ -19,11 +19,15 @@ namespace NodeService.WindowsService
                       {
                           options.mode = "WindowsService";
                       }
-                      return RunWithOptions(options, args);
+                      if (options.env == null)
+                      {
+                          options.env = Environments.Development;
+                      }
+                      return RunWithOptionsAsync(options, args);
                   });
         }
 
-        private static async Task RunWithOptions(Options options, string[] args)
+        private static async Task RunWithOptionsAsync(Options options, string[] args)
         {
             try
             {
@@ -35,15 +39,8 @@ namespace NodeService.WindowsService
                     return;
                 }
                 Console.WriteLine(JsonSerializer.Serialize(options));
-                switch (options.mode)
-                {
-                    case "WindowsService":
-                        await RunAsWindowsServiceAsync(options, args);
-                        break;
-                    default:
-                        Console.WriteLine($"Unknown mode:{options.mode}");
-                        break;
-                }
+                await RunAsync(options, args);
+
             }
             catch (Exception ex)
             {
@@ -51,35 +48,40 @@ namespace NodeService.WindowsService
             }
         }
 
-        private static async Task RunAsWindowsServiceAsync(Options options, string[] args)
+        private static async Task RunAsync(Options options, string[] args)
         {
             try
             {
                 Environment.CurrentDirectory = AppContext.BaseDirectory;
-                await InstallPythonPackageAsync();
                 LogManager.AutoShutdown = true;
+                Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", options.env);
                 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+                builder.Configuration.AddJsonFile(
+                    $"{options.mode}.appsettings.{(builder.Environment.IsDevelopment() ? "Development." : string.Empty)}json",
+                    false,
+                    true);
 
-                
-
-                builder.Services.AddWindowsService(options =>
+                builder.Services.AddWindowsService(windowsServiceOptions =>
                 {
-                    options.ServiceName = "NodeService.WindowsService";
+                    windowsServiceOptions.ServiceName = $"NodeService.{options.mode}";
                 });
                 builder.Services.AddSingleton(options);
-                builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("AppConfig"));
+                builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("ServiceProcessConfiguration"));
                 builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
-                builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
-                builder.Services.AddSingleton<JobExecutionContextDictionary>();
-                builder.Services.AddHostedService<JobHostService>();
-                builder.Services.AddHostedService<NodeClientService>();
-                builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
-                builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
-                builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
+                if (options.mode == "WindowsService")
+                {
+                    builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
+                    builder.Services.AddSingleton<JobExecutionContextDictionary>();
+                    builder.Services.AddHostedService<JobHostService>();
+                    builder.Services.AddHostedService<NodeClientService>();
+                    builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
+                    builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
+                    builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
+                }
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
-                builder.Logging.AddNLog("NLog.config");
+                builder.Logging.AddNLog($"{options.mode}.NLog.config");
 
                 using var app = builder.Build();
 
@@ -92,40 +94,6 @@ namespace NodeService.WindowsService
                 LogManager.Shutdown();
             }
 
-        }
-
-        private static async Task InstallPythonPackageAsync()
-        {
-            try
-            {
-                Installer.Source = new Installer.EmbeddedResourceInstallationSource()
-                {
-                    Assembly = typeof(Job).Assembly,
-                    Force = true,
-                    ResourceName = "python-3.8.5-embed-amd64.zip"
-                };
-                string pythonDir = "python-3.8.5-embed-amd64";
-                if (Directory.Exists(pythonDir))
-                {
-                    Directory.Delete(pythonDir, true);
-                }
-                // install in local directory. if you don't set it will install in local app data of your user account
-                Installer.InstallPath = Path.GetFullPath(AppContext.BaseDirectory);
-
-                // see what the installer is doing
-                Installer.LogMessage += Console.WriteLine;
-
-
-                // install from the given source
-                await Installer.SetupPython(true);
-
-                // ok, now use pythonnet from that installation
-                PythonEngine.Initialize();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
         }
 
     }

@@ -11,19 +11,13 @@ namespace NodeService.WindowsService
 {
     public class Options
     {
-        [Option("exitid", HelpText = "exitid")]
-        public string exitid { get; set; }
-
-        [Option("parentprocessid", HelpText = "parentprocessid")]
-        public string parentprocessid { get; set; }
 
 
         [Option("mode", HelpText = "mode")]
         public string mode { get; set; }
 
-        [Option("address", HelpText = "address")]
-        public string address { get; set; }
-
+        [Option("env", Default = nameof(Environments.Development), HelpText = "env")]
+        public string env { get; set; }
 
         public string ToJsonString()
         {
