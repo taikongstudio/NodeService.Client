@@ -287,7 +287,7 @@
         }
 
 
-        public Task<bool> RunAsync(CancellationToken cancellationToken)
+        public Task<bool> RunAsync(CancellationToken cancellationToken = default)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
