@@ -10,20 +10,23 @@ using System.Threading.Tasks;
 
 namespace NodeService.ServiceProcess
 {
-    
 
-    public class ServiceProcessDoctor:IDisposable
+
+    public class ServiceProcessDoctor : IDisposable
     {
         private class LockFileHolder : IDisposable
         {
 
 
-            private SafeHandle _fileHandle;
+            private readonly SafeHandle _fileHandle;
 
-            public LockFileHolder(SafeHandle  safeHandle)
+            public LockFileHolder(SafeHandle safeHandle,string fullName)
             {
                 _fileHandle = safeHandle;
+                FullName = fullName;
             }
+
+            public string FullName {  get; private set; }
 
             public static bool TryLock(string lockFilePath, out LockFileHolder? holder)
             {
@@ -36,7 +39,7 @@ namespace NodeService.ServiceProcess
                         FileAccess.ReadWrite,
                         FileShare.None,
                         FileOptions.None);
-                    holder = new LockFileHolder(handle);
+                    holder = new LockFileHolder(handle, lockFilePath);
                     return true;
                 }
                 catch (Exception ex)
@@ -57,8 +60,6 @@ namespace NodeService.ServiceProcess
 
         private readonly ILogger<ServiceProcessDoctor> _logger;
         private readonly ApiService _apiService;
-        private readonly CommonServiceProcessInstaller _installer;
-        private int _installFailedCount;
 
 
         public ServiceProcessDoctor(ILogger<ServiceProcessDoctor> logger, ServiceProcessRecoveryContext recoveryContext)
@@ -90,11 +91,18 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ExecuteCoreAsync(CancellationToken cancellationToken = default)
         {
-            LockFileHolder? holder = null;
+            LockFileHolder? updateLock = null;
+            LockFileHolder? currentServiceLock = null;
             try
             {
+                var currentServiceLockPath = Path.Combine(EnsureCurrentServicePackageDirectory(), ".lock");
+                if (!LockFileHolder.TryLock(currentServiceLockPath, out currentServiceLock))
+                {
+                    _logger.LogInformation($"Open lock file fail:{currentServiceLockPath}");
+                    return false;
+                }
                 var lockFilePath = Path.Combine(EnsurePackageDirectory(), ".lock");
-                if (!LockFileHolder.TryLock(lockFilePath, out holder))
+                if (!LockFileHolder.TryLock(lockFilePath, out updateLock))
                 {
                     _logger.LogInformation($"Open lock file fail:{lockFilePath}");
                     return false;
@@ -138,9 +146,15 @@ namespace NodeService.ServiceProcess
             }
             finally
             {
-                if (holder != null)
+                if (updateLock != null)
                 {
-                    holder.Dispose();
+                    updateLock.Dispose();
+                    _logger.LogInformation($"释放服务\"{RecoveryContext.ServiceName}\"文件锁:{updateLock.FullName}");
+                }
+                if (currentServiceLock != null)
+                {
+                    currentServiceLock.Dispose();
+                    _logger.LogInformation($"释放服务当前服务的文件锁:{currentServiceLock.FullName}");
                 }
             }
             return false;
@@ -185,7 +199,7 @@ namespace NodeService.ServiceProcess
             _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"开始安装");
             var filePath = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
             _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
-            var installer = CommonServiceProcessInstaller.Create(
+            using var installer = CommonServiceProcessInstaller.Create(
                 RecoveryContext.ServiceName,
                 RecoveryContext.DisplayName,
                 RecoveryContext.Description,
@@ -251,6 +265,17 @@ namespace NodeService.ServiceProcess
         private string EnsurePackageDirectory()
         {
             var packageDirectory = Path.Combine(RecoveryContext.InstallDirectory, ".package");
+            if (!Directory.Exists(packageDirectory))
+            {
+                Directory.CreateDirectory(packageDirectory);
+            }
+
+            return packageDirectory;
+        }
+
+        private string EnsureCurrentServicePackageDirectory()
+        {
+            var packageDirectory = Path.Combine(AppContext.BaseDirectory, ".package");
             if (!Directory.Exists(packageDirectory))
             {
                 Directory.CreateDirectory(packageDirectory);
