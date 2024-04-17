@@ -219,6 +219,7 @@
             if (this._stream != null)
             {
                 this._stream.Dispose();
+                this._stream = null;
             }
             _stream = new MemoryStream();
         }
@@ -288,6 +289,8 @@
 
         public Task<bool> RunAsync()
         {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             return Task.Run<bool>(RunInstallLoopImpl);
         }
 
@@ -406,6 +409,11 @@
 
         public void Dispose()
         {
+            if (this._stream!=null)
+            {
+                this._stream.Dispose();
+                this._stream = null;
+            }
             DetachEvents();
             this._serviceProcessInstaller.Dispose();
         }
