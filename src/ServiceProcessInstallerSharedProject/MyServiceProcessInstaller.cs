@@ -1,31 +1,18 @@
-﻿
-using FluentFTP;
-using NodeService.Infrastructure;
-using NodeService.Infrastructure.DataModels;
-using NodeService.Infrastructure.Models;
-using System;
-using System.Collections.Generic;
+﻿using FluentFTP;
+using ServiceProcessInstallerSharedProject;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Configuration.Install;
-using System.IO;
+using System.Diagnostics;
 using System.IO.Compression;
-using System.Linq;
-using System.Net;
-using System.Security.Cryptography;
 using System.ServiceProcess;
-using System.Text;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
-public class WindowsServiceProcessInstaller : IDisposable
+public class MyServiceProcessInstaller : IDisposable
 {
     private readonly ServiceProcessInstaller _serviceProcessInstaller;
-    private const string ServiceName = "NodeService.WindowsService";
-    private string _installDirectory;
+    private PackageProvider _packageProvider;
+    private ServiceProcessInstallContext _installContext;
     private MemoryStream _stream;
-    private IProgress<FtpProgress> _progressProvider;
 
     private enum InstallState
     {
@@ -33,14 +20,12 @@ public class WindowsServiceProcessInstaller : IDisposable
         Install,
         Commit,
         Rollback,
+        Error,
     }
 
     private InstallState _state;
 
     private CancellationTokenSource _cancellationTokenSource;
-    private ApiService _apiService;
-    private ClientUpdateConfigModel _clientUpdateConfig;
-    private PackageConfigModel _packageConfig;
 
     public event EventHandler<InstallerProgressEventArgs> Failed;
 
@@ -48,7 +33,7 @@ public class WindowsServiceProcessInstaller : IDisposable
 
     public event EventHandler<InstallerProgressEventArgs> Completed;
 
-    private WindowsServiceProcessInstaller(ServiceProcessInstaller serviceProcessInstaller)
+    private MyServiceProcessInstaller(ServiceProcessInstaller serviceProcessInstaller)
     {
         _serviceProcessInstaller = serviceProcessInstaller;
         AttachEvents();
@@ -81,8 +66,11 @@ public class WindowsServiceProcessInstaller : IDisposable
 
     private void _serviceProcessInstaller_AfterUninstall(object sender, InstallEventArgs e)
     {
-        RaiseProgressChangedEvent($"正在清理目录\"{_installDirectory}\"");
-        CleanupInstallDirectory();
+        RaiseProgressChangedEvent($"正在清理目录\"{this._installContext.InstallDirectory}\"");
+        if (!CleanupInstallDirectory())
+        {
+            return;
+        }
         RaiseProgressChangedEvent("清理成功");
     }
 
@@ -90,36 +78,38 @@ public class WindowsServiceProcessInstaller : IDisposable
     {
         try
         {
-            var installDirectory = new DirectoryInfo(_installDirectory);
+            var installDirectory = new DirectoryInfo(this._installContext.InstallDirectory);
             if (!installDirectory.Exists)
             {
                 return true;
             }
-            installDirectory.Delete(true);
+            foreach (var item in installDirectory.GetFileSystemInfos())
+            {
+                if (Directory.Exists(item.FullName))
+                {
+                    Directory.Delete(item.FullName, true);
+                }
+                else
+                {
+                    item.Delete();
+                }
+            }
+
             return true;
         }
         catch (Exception ex)
         {
-            string errorMessage = $"清理目录\"{_installDirectory}\"时发生了错误:{ex}";
+            string errorMessage = $"清理目录\"{this._installContext.InstallDirectory}\"时发生了错误:{ex.ToString()}";
             RaiseFailedEvent(errorMessage);
             Cancel();
         }
         return false;
     }
 
-    public void SetParameters(
-        ApiService apiService,
-        ClientUpdateConfigModel clientUpdateConfig,
-        string installDirectory)
+    public void SetParameters(PackageProvider packageProvider, ServiceProcessInstallContext context)
     {
-        _apiService = apiService;
-        _clientUpdateConfig = clientUpdateConfig;
-        _installDirectory = installDirectory;
-    }
-
-    public void SetFileDownloadProgressProvider(IProgress<FtpProgress> progressProvider)
-    {
-        _progressProvider = progressProvider;
+        _packageProvider = packageProvider;
+        this._installContext = context;
     }
 
     private void _serviceProcessInstaller_AfterRollback(object sender, InstallEventArgs e)
@@ -144,60 +134,50 @@ public class WindowsServiceProcessInstaller : IDisposable
 
     private void _serviceProcessInstaller_BeforeUninstall(object sender, InstallEventArgs e)
     {
-        RaiseProgressChangedEvent($"正在Kill服务进程\"{ServiceName}\"");
-        if (KillServiceProcessFast())
-        {
-            RaiseProgressChangedEvent($"Kill服务进程成功\"{ServiceName}\"");
-        }
-        else
-        {
-            RaiseProgressChangedEvent($"Kill服务进程失败\"{ServiceName}\"");
-        }
-        RaiseProgressChangedEvent($"正在卸载服务\"{ServiceName}\"");
-    }
-
-    private bool KillServiceProcessFast()
-    {
-        try
-        {
-            string exitTxtFilePath = Path.Combine(_installDirectory, "exit.txt");
-            File.WriteAllText(exitTxtFilePath, string.Empty);
-            using var serviceController = new ServiceController(ServiceName);
-            serviceController.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(60));
-            return true;
-        }
-        catch (Exception ex)
-        {
-
-        }
-        return false;
+        var message = $"正在卸载服务\"{_installContext.ServiceName}\"";
+        RaiseProgressChangedEvent(message);
     }
 
     private void _serviceProcessInstaller_AfterInstall(object sender, InstallEventArgs e)
     {
-        WaitForServiceRunning().Wait();
+        CheckServiceStatusAsync().Wait();
     }
 
-    private async Task WaitForServiceRunning()
+    private async Task CheckServiceStatusAsync()
     {
         try
         {
-            using ServiceController serviceController = new ServiceController(ServiceName);
+            using ServiceController serviceController = new ServiceController(_installContext.ServiceName);
             serviceController.Start();
-            RaiseProgressChangedEvent($"等待服务\"{ServiceName}\"运行");
+            RaiseProgressChangedEvent($"等待服务\"{_installContext.ServiceName}\"运行");
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            int waitCount = 1;
             serviceController.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(180));
-            RaiseProgressChangedEvent($"服务\"{ServiceName}\"已运行");
-            await _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+            stopwatch.Stop();
+            RaiseProgressChangedEvent($"服务\"{_installContext.ServiceName}\"已运行，等待：{stopwatch.Elapsed}");
+            do
             {
-                ClientUpdateConfigId = _clientUpdateConfig.Id,
-                NodeName = Dns.GetHostName(),
-                CategoryName = "StartSuccess"
-            });
+                stopwatch.Restart();
+                serviceController.Refresh();
+                if (serviceController.Status != ServiceControllerStatus.Running)
+                {
+                    await ExtractPackageToInstallDirectoryAsync(false);
+                    RaiseProgressChangedEvent($"\"{_installContext.ServiceName}\"状态：{serviceController.Status}，尝试启动服务");
+                    serviceController.Start();
+                    RaiseProgressChangedEvent($"已执行启动操作");
+                }
+                serviceController.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                stopwatch.Stop();
+                RaiseProgressChangedEvent($"持续观察服务\"{_installContext.ServiceName}\"状态，第{waitCount}次，等待：{stopwatch.Elapsed}");
+                stopwatch.Reset();
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                waitCount++;
+            } while (waitCount < 13);
             RaiseCompletedEvent("安装成功");
         }
         catch (Exception ex)
         {
-            string errorMessage = $"启动服务\"{ServiceName}\"时发生了错误:{ex.Message}";
+            string errorMessage = $"启动服务\"{_installContext.ServiceName}\"时发生了错误:{ex.Message}";
             RaiseFailedEvent(errorMessage);
             Cancel();
         }
@@ -212,28 +192,17 @@ public class WindowsServiceProcessInstaller : IDisposable
     {
         try
         {
+            InitStream();
             RaiseProgressChangedEvent($"开始安装");
 
-            InitStream();
-            RaiseProgressChangedEvent($"正在下载：{_clientUpdateConfig.PackageConfig.DownloadUrl}");
-            await _apiService.DownloadPackageAsync(_clientUpdateConfig.PackageConfig, _stream);
-            RaiseProgressChangedEvent($"Download {_clientUpdateConfig}");
-            await _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+            RaiseProgressChangedEvent($"开始下载服务\"{_installContext.ServiceName}\"的安装包");
+            if (await _packageProvider.DownloadAsync(_stream) == false)
             {
-                ClientUpdateConfigId = _clientUpdateConfig.Id,
-                NodeName = Dns.GetHostName(),
-                CategoryName = "DownloadSuccess"
-            });
-            _stream.Position = 0;
-            if (!IsZipArchive(_stream))
-            {
-                this.Cancel();
+                RaiseFailedEvent("下载文件失败");
+                Cancel();
                 return;
             }
-            _stream.Position = 0;
-
             RaiseProgressChangedEvent($"下载成功，大小:{_stream.Length}");
-
             await ExtractPackageToInstallDirectoryAsync();
         }
         catch (Exception ex)
@@ -244,33 +213,12 @@ public class WindowsServiceProcessInstaller : IDisposable
 
     }
 
-    private bool IsZipArchive(Stream stream)
-    {
-        try
-        {
-            using ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read, true);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            RaiseFailedEvent(ex.Message);
-            Cancel();
-        }
-        finally
-        {
-
-        }
-
-        return false;
-    }
-
     public void Cancel()
     {
-        if (this._cancellationTokenSource != null)
+        if (this._cancellationTokenSource != null && !this._cancellationTokenSource.IsCancellationRequested)
         {
             this._cancellationTokenSource.Cancel();
         }
-
     }
 
     private void InitStream()
@@ -287,7 +235,7 @@ public class WindowsServiceProcessInstaller : IDisposable
         this.Failed?.Invoke(
             this,
             new InstallerProgressEventArgs(new ServiceProcessInstallerProgress(
-                _installDirectory,
+                this._installContext.ServiceName,
                 ServiceProcessInstallerProgressType.Error,
                 message)));
     }
@@ -297,7 +245,7 @@ public class WindowsServiceProcessInstaller : IDisposable
         this.ProgressChanged?.Invoke(
             this,
             new InstallerProgressEventArgs(new ServiceProcessInstallerProgress(
-                _installDirectory,
+                this._installContext.ServiceName,
                 ServiceProcessInstallerProgressType.Info,
                 message)));
     }
@@ -307,31 +255,37 @@ public class WindowsServiceProcessInstaller : IDisposable
         this.Completed?.Invoke(
             this,
             new InstallerProgressEventArgs(new ServiceProcessInstallerProgress(
-                _installDirectory,
+                this._installContext.ServiceName,
                 ServiceProcessInstallerProgressType.Info,
                 message)));
     }
 
-    public static WindowsServiceProcessInstaller Create(string serviceName, string displayName, string description, string filePath)
+    public static MyServiceProcessInstaller Create(string serviceName, string displayName, string description, string filePath)
     {
         var serviceInstaller = ServiceProcessInstallerHelper.Create(serviceName, displayName, description, filePath);
-        return new WindowsServiceProcessInstaller(serviceInstaller);
+        return new MyServiceProcessInstaller(serviceInstaller);
     }
 
-    private async Task ExtractPackageToInstallDirectoryAsync()
+    private Task<bool> ExtractPackageToInstallDirectoryAsync(bool autoCancel = true)
     {
-        await Task.Run(() =>
+        return Task.Run<bool>(() =>
         {
             try
             {
-                ZipFile.ExtractToDirectory(_stream, _installDirectory, true);
+                RaiseProgressChangedEvent($"开始解压包到目录:\"{_installContext.InstallDirectory}\"");
+                _stream.Position = 0;
+                ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, true);
+                RaiseProgressChangedEvent($"解压成功");
                 return true;
             }
             catch (Exception ex)
             {
-                string errorMessage = $"解压文件到{_installDirectory}时发生了错误:{ex}";
-                RaiseFailedEvent(errorMessage);
-                Cancel();
+                string errorMessage = $"解压文件到{_installContext.InstallDirectory}时发生了错误:{ex}";
+                if (autoCancel)
+                {
+                    RaiseFailedEvent(errorMessage);
+                    Cancel();
+                }
             }
             return false;
         });
@@ -372,14 +326,15 @@ public class WindowsServiceProcessInstaller : IDisposable
                         break;
                     case InstallState.Commit:
                         CommitImpl(state);
-                        return true;
+                        break;
                     case InstallState.Rollback:
                         RollBackImpl(state);
-                        return false;
+                        break;
                     default:
                         break;
                 }
             }
+            return this._state == InstallState.Commit;
         }
         catch (Exception ex)
         {

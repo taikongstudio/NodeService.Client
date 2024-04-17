@@ -25,6 +25,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.Infrastructure.
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "ServiceProcessInstallerSharedProject", "src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.shproj", "{B8AB7D3D-DED4-4C9E-85AE-18804E92D129}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeService.DaemonService", "src\NodeService.DaemonService\NodeService.DaemonService.csproj", "{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -281,6 +283,30 @@ Global
 		{27EE26EB-3361-44E0-912F-33E8AF691337}.TraceAlloc|x64.Build.0 = Debug|Any CPU
 		{27EE26EB-3361-44E0-912F-33E8AF691337}.TraceAlloc|x86.ActiveCfg = Debug|Any CPU
 		{27EE26EB-3361-44E0-912F-33E8AF691337}.TraceAlloc|x86.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|x64.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Debug|x86.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|Any CPU.Build.0 = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|ARM64.Build.0 = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|x64.ActiveCfg = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|x64.Build.0 = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|x86.ActiveCfg = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.Release|x86.Build.0 = Release|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|Any CPU.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|Any CPU.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|ARM64.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|ARM64.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|x64.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|x64.Build.0 = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|x86.ActiveCfg = Debug|Any CPU
+		{908BA76B-4A9D-4CAF-AE41-6541EC2E5B97}.TraceAlloc|x86.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -289,6 +315,10 @@ Global
 		SolutionGuid = {D03EB38C-8B2F-40A4-AA97-CD2F734F6056}
 	EndGlobalSection
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems*{5bb063b7-dee5-4426-925b-6efd41343b9f}*SharedItemsImports = 5
+		src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems*{908ba76b-4a9d-4caf-ae41-6541ec2e5b97}*SharedItemsImports = 5
+		src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems*{b52d1f0c-09bb-468f-830a-74d4333fdfb6}*SharedItemsImports = 5
 		src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems*{b8ab7d3d-ded4-4c9e-85ae-18804e92d129}*SharedItemsImports = 13
+		src\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems*{f5924004-afce-43ff-be79-f2416eff2af7}*SharedItemsImports = 5
 	EndGlobalSection
 EndGlobal

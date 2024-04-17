@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NodeService.Installer
 {
-    public class InstallConfig
+    public class PackageConfig
     {
         public string ConfigName { get; set; }
         public string Host { get; set; }

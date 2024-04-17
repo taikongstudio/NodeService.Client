@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="appsettings.Development.json" />
+    <None Remove="appsettings.json" />
+    <None Remove="NLog.config" />
+  </ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
 		<PackageReference Include="FluentFTP" Version="48.0.3" />
@@ -25,9 +31,6 @@
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	</ItemGroup>
 
-
 	<Import Project="..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
-
-
 
 </Project>

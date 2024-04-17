@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Configuration.Install;
 using System.Linq;
 using System.ServiceProcess;
@@ -43,11 +44,21 @@ public static class ServiceProcessInstallerHelper
             var serviceName = serviceNames[i];
             ServiceProcessInstallerProgressType type = ServiceProcessInstallerProgressType.Info;
             string message = string.Empty;
+            message = $"开始卸载服务\"{serviceName}\"";
+            yield return new ServiceProcessInstallerProgress(serviceName, type, message);
             try
             {
                 using var serviceProcessInstaller = Create(serviceName, null, null, null);
                 serviceProcessInstaller.Uninstall(null);
                 message = $"卸载服务\"{serviceName}\"成功";
+            }
+            catch(InstallException ex)
+            {
+                if (ex.InnerException is Win32Exception win32Exception && win32Exception.NativeErrorCode == 1060)
+                {
+                    type = ServiceProcessInstallerProgressType.Warning;
+                    message = $"卸载服务\"{serviceName}\"失败:{win32Exception.Message}";
+                }
             }
             catch (Exception ex)
             {

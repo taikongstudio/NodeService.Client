@@ -1,6 +1,7 @@
 using FluentFTP;
 using Microsoft.Win32;
 using NodeService.Infrastructure;
+using ServiceProcessInstallerSharedProject;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -21,10 +22,10 @@ namespace NodeService.Installer
 
         }
 
-        private const string DefaultInstallConfigPath = "InstallConfig.json.config";
+        private const string DefaultInstallConfigPath = "InstallConfig.json";
 
-        private InstallConfig[] _installConfigs = [];
-        private InstallConfig? _selectedInstallConfig;
+        private PackageConfig[] _installConfigs = [];
+        private PackageConfig? _selectedInstallConfig;
 
         private void btnImport_Click(object sender, EventArgs e)
         {
@@ -38,6 +39,12 @@ namespace NodeService.Installer
             }
         }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            Environment.Exit(0);
+            base.OnClosed(e);
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             Application.Exit();
@@ -49,7 +56,7 @@ namespace NodeService.Installer
             try
             {
                 var jsonText = File.ReadAllText(path);
-                this._installConfigs = JsonSerializer.Deserialize<InstallConfig[]>(jsonText);
+                this._installConfigs = JsonSerializer.Deserialize<PackageConfig[]>(jsonText);
             }
             catch (Exception ex)
             {
@@ -62,7 +69,7 @@ namespace NodeService.Installer
         {
             try
             {
-                this._installConfigs = JsonSerializer.Deserialize<InstallConfig[]>(stream);
+                this._installConfigs = JsonSerializer.Deserialize<PackageConfig[]>(stream);
             }
             catch (Exception ex)
             {
@@ -71,7 +78,7 @@ namespace NodeService.Installer
 
         }
 
-        private async void BtnDownload_Click(object sender, EventArgs e)
+        private async void BtnInstall_Click(object sender, EventArgs e)
         {
             if (this.apiService != null && this.apiService.HttpClient.BaseAddress.ToString() != this.txtUri.Text)
             {
@@ -85,10 +92,13 @@ namespace NodeService.Installer
             });
             ClearStartup();
             DisableControls();
+
+            await UninstallServicesAsync();
+
             _selectedInstallConfig = this._installConfigs.ElementAtOrDefault(cmbConfigs.SelectedIndex);
             if (_selectedInstallConfig == null)
             {
-                _selectedInstallConfig = new InstallConfig()
+                _selectedInstallConfig = new PackageConfig()
                 {
                     Host = this.txtHost.Text,
                     Password = this.txtPassword.Text,
@@ -115,14 +125,13 @@ namespace NodeService.Installer
 
             try
             {
-                using var installer = UpdateServiceProcessInstaller.Create(
+                using var installer = MyServiceProcessInstaller.Create(
                     _selectedInstallConfig.ServiceName,
                     _selectedInstallConfig.ServiceName,
                     string.Empty,
                     _selectedInstallConfig.EntryPoint
                     );
-                installer.SetInstallConfig(this._selectedInstallConfig);
-                installer.SetFileDownloadProgressProvider(this);
+                installer.SetParameters(BuildPackageProvider(), BuildIntallContext());
                 installer.ProgressChanged += Installer_ProgressChanged;
                 installer.Failed += Installer_Failed;
                 installer.Completed += Installer_Completed;
@@ -144,6 +153,24 @@ namespace NodeService.Installer
             }
 
 
+        }
+
+        private PackageProvider BuildPackageProvider()
+        {
+            return new FtpPackageProvider(_selectedInstallConfig.Host,
+                _selectedInstallConfig.Username,
+                _selectedInstallConfig.Password,
+                _selectedInstallConfig.PackagePath,
+                this,
+                _selectedInstallConfig.Port);
+        }
+
+        private ServiceProcessInstallContext BuildIntallContext()
+        {
+            ServiceProcessInstallContext context = new ServiceProcessInstallContext();
+            context.ServiceName = _selectedInstallConfig.ServiceName;
+            context.InstallDirectory = _selectedInstallConfig.InstallPath;
+            return context;
         }
 
         private async void Installer_Completed(object? sender, InstallerProgressEventArgs e)
@@ -221,11 +248,11 @@ namespace NodeService.Installer
         {
             this.txtInfo.Clear();
             this.groupConfig.Enabled = false;
-            this.BtnDownload.Enabled = false;
+            this.BtnInstall.Enabled = false;
             this.BtnUninstall.Enabled = false;
             this.btnImport.Enabled = false;
             this.txtInfo.Enabled = true;
-            this.BtnDownload.Enabled = false;
+            this.BtnInstall.Enabled = false;
             this.BtnUninstall.Enabled = false;
             this.txtUri.Enabled = false;
 
@@ -234,11 +261,11 @@ namespace NodeService.Installer
         private void EnableControls()
         {
             this.groupConfig.Enabled = true;
-            this.BtnDownload.Enabled = true;
+            this.BtnInstall.Enabled = true;
             this.BtnUninstall.Enabled = true;
             this.btnImport.Enabled = true;
             this.ProgressBar.Style = ProgressBarStyle.Continuous;
-            this.BtnDownload.Enabled = true;
+            this.BtnInstall.Enabled = true;
             this.BtnUninstall.Enabled = true;
             this.txtUri.Enabled = true;
         }
@@ -248,23 +275,32 @@ namespace NodeService.Installer
             ClearStartup();
             this.txtInfo.Clear();
             DisableControls();
-            const string UpdateServiceName = "NodeService.UpdateService";
-            const string WindowsServiceName = "NodeService.WindowsService";
-            const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
-            await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
-            [
-                UpdateServiceName,
-                WindowsServiceName,
-                JobsWorkerDaemonServiceName
-            ]))
-            {
-                AppendMessage(progress.Message);
-                if (progress.Type == ServiceProcessInstallerProgressType.Error)
-                {
-                    Alert(progress.Message);
-                }
-            }
+            await UninstallServicesAsync();
             EnableControls();
+        }
+
+        private Task UninstallServicesAsync()
+        {
+            return Task.Run(async () =>
+            {
+                const string DaemonServiceName = "NodeService.DaemonService";
+                const string UpdateServiceName = "NodeService.UpdateService";
+                const string WindowsServiceName = "NodeService.WindowsService";
+                const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
+                await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
+                [
+                    UpdateServiceName,
+                    WindowsServiceName,
+                    JobsWorkerDaemonServiceName
+                ]))
+                {
+                    AppendMessage(progress.Message);
+                    if (progress.Type == ServiceProcessInstallerProgressType.Error)
+                    {
+                        Alert(progress.Message);
+                    }
+                }
+            });
         }
 
         void ClearStartup()
@@ -281,10 +317,11 @@ namespace NodeService.Installer
 
         }
 
-        private void MainForm_Load(object sender, EventArgs e)
+        private async void MainForm_Load(object sender, EventArgs e)
         {
             try
             {
+                const string PackagesFileName = "/NodeService.WebServer/packages/packages.json";
                 var form = new AuthForm();
                 form.Owner = this;
                 if (form.ShowDialog() != DialogResult.OK)
@@ -292,14 +329,31 @@ namespace NodeService.Installer
                     Environment.Exit(0);
                     return;
                 }
-                var resourceStream = typeof(MainForm).Assembly.GetManifestResourceStream("NodeService.Installer.InstallConfig.json.config");
-                if (resourceStream != null)
+                using var ftpClient = new AsyncFtpClient(
+                    "172.27.242.223",
+                    "xwdgmuser",
+                    "xwdgm@2023",
+                    21
+                    );
+                await ftpClient.AutoConnect();
+                if (!await ftpClient.FileExists(PackagesFileName))
                 {
-                    ReadConfigFromStream(resourceStream);
+                    AppendMessage("服务器不存在包配置文件");
+                }
+                using var stream = new MemoryStream();
+                if (!await ftpClient.DownloadStream(stream, PackagesFileName,progress:this))
+                {
+                    AppendMessage("下载包配置失败");
+                }
+                if (stream != null)
+                {
+                    AppendMessage("下载包配置成功");
+                    stream.Position = 0;
+                    ReadConfigFromStream(stream);
                 }
                 else
                 {
-                    this._installConfigs = [new InstallConfig {
+                    this._installConfigs = [new PackageConfig {
                          ConfigName="临时配置",
                          Port=21
                     }];
@@ -324,11 +378,11 @@ namespace NodeService.Installer
 
         private void cmbConfigs_SelectedIndexChanged(object sender, EventArgs e)
         {
-            this._selectedInstallConfig = (InstallConfig)cmbConfigs.SelectedItem;
+            this._selectedInstallConfig = (PackageConfig)cmbConfigs.SelectedItem;
             SelectConfig(this._selectedInstallConfig);
         }
 
-        private void SelectConfig(InstallConfig installConfig)
+        private void SelectConfig(PackageConfig installConfig)
         {
             if (installConfig == null)
             {

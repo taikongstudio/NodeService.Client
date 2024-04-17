@@ -1,39 +1,25 @@
-﻿using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
+﻿using Microsoft.Extensions.Options;
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
-using NodeService.UpdateService;
-using NodeService.UpdateService.Models;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO.Compression;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Runtime.CompilerServices;
 using System.ServiceProcess;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace NodeService.UpdateService.Services
 {
     public class UpdatePackageService : BackgroundService
     {
         private readonly ILogger _logger;
-        private UpdateConfig _currentConfig;
+        private PackageUpdateConfig _currentConfig;
         private IDisposable? _onChangeToken;
         private string _tempPath;
         private ApiService  _apiService;
         private string _clientUpdateConfigId;
 
-        public UpdatePackageService(ILogger<UpdatePackageService> logger, IOptionsMonitor<UpdateConfig> config)
+        public UpdatePackageService(ILogger<UpdatePackageService> logger, 
+            IOptionsMonitor<PackageUpdateConfig> config)
         {
             _clientUpdateConfigId = "NotInstalled";
             _logger = logger;
@@ -42,7 +28,7 @@ namespace NodeService.UpdateService.Services
             InitApiService();
         }
 
-        private void OnUpdateConfigChanged(UpdateConfig updateConfig)
+        private void OnUpdateConfigChanged(PackageUpdateConfig updateConfig)
         {
             DisposeApiService();
             InitApiService();
@@ -115,7 +101,7 @@ namespace NodeService.UpdateService.Services
             try
             {
                 await TryDeleteDaemonServiceAsync();
-                var apiResult = await _apiService.QueryClientUpdateAsync(stoppingToken);
+                var apiResult = await _apiService.QueryClientUpdateAsync(cancellationToken: stoppingToken);
                 if (apiResult.ErrorCode != 0)
                 {
                     _logger.LogError(apiResult.Message);
@@ -144,16 +130,23 @@ namespace NodeService.UpdateService.Services
                         return;
                     }
                     var entryPoint = Path.Combine(_currentConfig.InstallDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
-                    using var installer = WindowsServiceProcessInstaller.Create(ServiceName, ServiceName, string.Empty, entryPoint);
+                    using var installer = MyServiceProcessInstaller.Create(ServiceName, ServiceName, string.Empty, entryPoint);
                     installer.Failed += Installer_Failed;
                     installer.ProgressChanged += Installer_ProgressChanged;
                     installer.Completed += Installer_Completed; ;
-                    installer.SetParameters(_apiService, clientUpdateConfig, _currentConfig.InstallDirectory);
+                    installer.SetParameters(
+                        new HttpPackageProvider(this._apiService, clientUpdateConfig.PackageConfig),
+                        new ServiceProcessInstallContext(_currentConfig.ServiceName, _currentConfig.DisplayName, _currentConfig.Description, _currentConfig.InstallDirectory));
 
-                    await installer.RunAsync();
-
-                    File.WriteAllText(updateConfigFilePath, JsonSerializer.Serialize(clientUpdateConfig));
-
+                    if (await installer.RunAsync())
+                    {
+                        File.WriteAllText(updateConfigFilePath, JsonSerializer.Serialize(clientUpdateConfig));
+                        _logger.LogInformation("安装结束");
+                    }
+                    else
+                    {
+                        _logger.LogInformation("安装未成功");
+                    }
 
                 }
                 catch (Exception ex)

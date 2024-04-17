@@ -1,9 +1,9 @@
 ﻿using CommandLine;
 using NLog;
 using NLog.Web;
-using NodeService.UpdateService.Services;
+using NodeService.DaemonService.Services;
 
-namespace NodeService.UpdateService
+namespace NodeService.DaemonService
 {
     internal class Program
     {
@@ -37,7 +37,7 @@ namespace NodeService.UpdateService
                     services.AddHostedService<ProcessExitService>();
                     services.AddWindowsService(options =>
                     {
-                        options.ServiceName = "NodeService.UpdateService";
+                        options.ServiceName = "NodeService.DaemonService";
                     });
                 }).ConfigureLogging(loggingBuilder =>
                 {
@@ -57,6 +57,8 @@ namespace NodeService.UpdateService
                 LogManager.Shutdown();
             }
         }
+
+        
 
     }
 }

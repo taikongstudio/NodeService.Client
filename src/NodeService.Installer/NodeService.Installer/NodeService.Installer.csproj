@@ -10,16 +10,6 @@
 	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="InstallConfig.json.config" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="InstallConfig.json.config">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </EmbeddedResource>
-  </ItemGroup>
-
 	<ItemGroup>
 		<PackageReference Include="Core.System.Configuration.Install" Version="1.1.0" />
 		<PackageReference Include="Core.System.ServiceProcess" Version="2.0.1" />
@@ -30,6 +20,7 @@
 	  <ProjectReference Include="..\..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	</ItemGroup>
 
-	<Import Project="..\..\..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
+
+	<Import Project="..\..\ServiceProcessInstallerSharedProject\ServiceProcessInstallerSharedProject.projitems" Label="Shared" />
 
 </Project>

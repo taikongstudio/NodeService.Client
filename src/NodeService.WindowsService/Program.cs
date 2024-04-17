@@ -1,10 +1,6 @@
-using Microsoft.Extensions.Logging;
-using NodeService.Infrastructure.Interfaces;
 using NodeService.Infrastructure.NodeSessions;
-using NodeService.WindowsService.Collections;
 using Python.Deployment;
 using Python.Runtime;
-using System.Runtime.CompilerServices;
 
 namespace NodeService.WindowsService
 {
@@ -62,16 +58,21 @@ namespace NodeService.WindowsService
                 await InstallPythonPackageAsync();
                 LogManager.AutoShutdown = true;
                 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+                
+
                 builder.Services.AddWindowsService(options =>
                 {
                     options.ServiceName = "NodeService.WindowsService";
                 });
+                builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
+                builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddSingleton(options);
                 builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
                 builder.Services.AddSingleton<JobExecutionContextDictionary>();
                 builder.Services.AddHostedService<JobHostService>();
                 builder.Services.AddHostedService<NodeClientService>();
-                builder.Services.AddHostedService<ProcessService>();
+                builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
                 builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
                 builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
