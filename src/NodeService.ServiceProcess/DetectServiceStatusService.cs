@@ -51,18 +51,22 @@ namespace NodeService.ServiceProcess
                             var rsp = await apiService.QueryClientUpdateAsync(packageUpdate.ServiceName);
                             if (rsp.ErrorCode != 0)
                             {
+                                _logger.LogError(rsp.Message);
                                 return false;
                             }
                             var clientUpdateConfig = rsp.Result;
                             if (clientUpdateConfig == null)
                             {
+                                _logger.LogError("Could not find update");
                                 return false;
                             }
                             var packageConfig = clientUpdateConfig.PackageConfig;
                             if (packageConfig == null)
                             {
+                                _logger.LogError("Could not find package");
                                 return false;
                             }
+                            _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
                             installer.SetParameters(
                                 new HttpPackageProvider(apiService, packageConfig),
                                 new ServiceProcessInstallContext(packageUpdate.ServiceName,
@@ -78,7 +82,7 @@ namespace NodeService.ServiceProcess
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex.ToString());
+                            _logger.LogError(ex.Message);
                         }
                         return false;
 
