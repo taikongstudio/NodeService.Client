@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MaccorUploadTool", "src\Mac
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IronPythonConsole", "src\IronPythonConsole\IronPythonConsole.csproj", "{459E38FB-B3CD-4933-9CF7-333F2C66CC76}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Python.Runtime", "src\NodeService.Client.PythonRuntime\Python.Runtime.csproj", "{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.Infrastructure", "..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj", "{614D59A4-06D9-4C9F-8D59-A4EF0FB44E5D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.WindowsService", "src\NodeService.WindowsService\NodeService.WindowsService.csproj", "{B52D1F0C-09BB-468F-830A-74D4333FDFB6}"
@@ -91,30 +89,6 @@ Global
 		{459E38FB-B3CD-4933-9CF7-333F2C66CC76}.TraceAlloc|x64.Build.0 = Debug|x64
 		{459E38FB-B3CD-4933-9CF7-333F2C66CC76}.TraceAlloc|x86.ActiveCfg = Release|Any CPU
 		{459E38FB-B3CD-4933-9CF7-333F2C66CC76}.TraceAlloc|x86.Build.0 = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|ARM64.ActiveCfg = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|ARM64.Build.0 = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|x64.ActiveCfg = Debug|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|x64.Build.0 = Debug|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Debug|x86.Build.0 = Debug|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|ARM64.ActiveCfg = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|ARM64.Build.0 = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|x64.ActiveCfg = Release|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|x64.Build.0 = Release|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|x86.ActiveCfg = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.Release|x86.Build.0 = Release|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|Any CPU.ActiveCfg = TraceAlloc|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|Any CPU.Build.0 = TraceAlloc|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|ARM64.ActiveCfg = TraceAlloc|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|ARM64.Build.0 = TraceAlloc|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|x64.ActiveCfg = TraceAlloc|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|x64.Build.0 = TraceAlloc|x64
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|x86.ActiveCfg = TraceAlloc|Any CPU
-		{4BE7AD03-6FCA-4083-9949-0D82DEF95EF0}.TraceAlloc|x86.Build.0 = TraceAlloc|Any CPU
 		{614D59A4-06D9-4C9F-8D59-A4EF0FB44E5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{614D59A4-06D9-4C9F-8D59-A4EF0FB44E5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{614D59A4-06D9-4C9F-8D59-A4EF0FB44E5D}.Debug|ARM64.ActiveCfg = Debug|Any CPU
