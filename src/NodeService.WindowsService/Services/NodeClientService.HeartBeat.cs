@@ -1,5 +1,6 @@
 ﻿using NodeService.WindowsService;
 using NodeService.WindowsService.Helper;
+using NodeService.WindowsService.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,8 @@ namespace NodeService.WindowsService.Services
     public partial class NodeClientService
     {
         private long _heartBeatCounter;
+        private ServerOptions _serverOptions;
+        private readonly IDisposable? _serverOptionsMonitorToken;
 
         private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {

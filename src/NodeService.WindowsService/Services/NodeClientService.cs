@@ -1,6 +1,8 @@
-﻿using NodeService.Infrastructure.Interfaces;
+﻿using Microsoft.Extensions.Options;
+using NodeService.Infrastructure.Interfaces;
 using NodeService.Infrastructure.NodeSessions;
 using NodeService.WindowsService.Collections;
+using NodeService.WindowsService.Models;
 
 namespace NodeService.WindowsService.Services
 {
@@ -45,7 +47,7 @@ namespace NodeService.WindowsService.Services
 
         private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
-        private readonly INodeIdentityProvider _nodeIdProvider;
+        private readonly INodeIdentityProvider _nodeIdentityProvider;
         private readonly Metadata _headers;
         private readonly IConfiguration _configuration;
         private readonly ISchedulerFactory _schedulerFactory;
@@ -65,7 +67,8 @@ namespace NodeService.WindowsService.Services
             IAsyncQueue<JobExecutionContext> jobExecutionContextQueue,
             IAsyncQueue<JobExecutionReport> reportQueue,
             JobExecutionContextDictionary jobContextDictionary,
-            INodeIdentityProvider machineIdProvider
+            INodeIdentityProvider nodeIdentityProvider,
+            IOptionsMonitor<ServerOptions> serverOptionsMonitor
             )
         {
             _jobExecutionContextDictionary = jobContextDictionary;
@@ -87,9 +90,16 @@ namespace NodeService.WindowsService.Services
             {
                 MaxDegreeOfParallelism = Debugger.IsAttached ? 1 : 8,
             });
-            _nodeIdProvider = machineIdProvider;
+            _nodeIdentityProvider = nodeIdentityProvider;
             _headers = new Metadata();
             _heartBeatCounter = Random.Shared.Next(0, 10);
+            _serverOptions = serverOptionsMonitor.CurrentValue;
+            _serverOptionsMonitorToken = serverOptionsMonitor.OnChange(OnServerOptionsChanged);
+        }
+
+        private void OnServerOptionsChanged(ServerOptions serverOptions)
+        {
+            _serverOptions = serverOptions;
         }
 
         private async Task ProcessSubscribeEventAsync(SubscribeEventInfo subscribeEventInfo)
@@ -151,7 +161,7 @@ namespace NodeService.WindowsService.Services
                 _headers.AppendNodeClientHeaders(new NodeClientHeaders()
                 {
                     HostName = Dns.GetHostName(),
-                    NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdProvider.GetIdentity()
+                    NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdentityProvider.GetIdentity()
                 });
 
                 while (!stoppingToken.IsCancellationRequested)
@@ -173,10 +183,9 @@ namespace NodeService.WindowsService.Services
                 handler.ServerCertificateCustomValidationCallback =
                     HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
                 var dnsName = Dns.GetHostName();
-                string? address = GetAddressFromConfiguration();
-                _logger.LogInformation($"Grpc Address:{address}");
+                _logger.LogInformation($"Grpc Address:{_serverOptions.GrpcAddress}");
 
-                using var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions()
+                using var channel = GrpcChannel.ForAddress(_serverOptions.GrpcAddress, new GrpcChannelOptions()
                 {
                     HttpHandler = handler,
                     Credentials = ChannelCredentials.SecureSsl,

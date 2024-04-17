@@ -1,5 +1,6 @@
 using NodeService.Infrastructure.NodeSessions;
 using NodeService.ServiceProcess;
+using NodeService.WindowsService.Models;
 using Python.Deployment;
 using Python.Runtime;
 
@@ -49,9 +50,9 @@ namespace NodeService.WindowsService
                     await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
                     [
                         WorkerServiceName,
-                    UpdateServiceName,
-                    WindowsServiceName,
-                    JobsWorkerDaemonServiceName
+                        UpdateServiceName,
+                        WindowsServiceName,
+                        JobsWorkerDaemonServiceName
                     ]))
                     {
                         Console.WriteLine(progress.Message);
@@ -96,6 +97,7 @@ namespace NodeService.WindowsService
                 builder.Services.AddHostedService<ProcessExitService>();
                 if (options.mode == "WindowsService")
                 {
+                    builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerConfiguration"));
                     builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
                     builder.Services.AddSingleton<JobExecutionContextDictionary>();
                     builder.Services.AddHostedService<JobHostService>();

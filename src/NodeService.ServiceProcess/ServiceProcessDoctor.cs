@@ -88,7 +88,7 @@ namespace NodeService.ServiceProcess
             return Task.FromResult(false);
         }
 
-        private async Task<bool> ExecuteCoreAsync(CancellationToken cancellationToken=default)
+        private async Task<bool> ExecuteCoreAsync(CancellationToken cancellationToken = default)
         {
             LockFileHolder? holder = null;
             try
@@ -138,7 +138,7 @@ namespace NodeService.ServiceProcess
             }
             finally
             {
-                if (holder!=null)
+                if (holder != null)
                 {
                     holder.Dispose();
                 }
@@ -281,7 +281,7 @@ namespace NodeService.ServiceProcess
                 var timeSpan =
                     Debugger.IsAttached ?
                     TimeSpan.Zero :
-                    TimeSpan.FromSeconds(Random.Shared.Next(1, 3000));
+                    TimeSpan.FromSeconds(Random.Shared.Next(1, 300));
                 _logger.LogInformation($"等待{timeSpan}");
                 await Task.Delay(timeSpan, stoppingToken);
             }
