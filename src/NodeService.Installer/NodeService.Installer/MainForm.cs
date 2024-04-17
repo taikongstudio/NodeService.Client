@@ -1,14 +1,7 @@
 using FluentFTP;
-using Microsoft.Win32;
 using NodeService.Infrastructure;
-using ServiceProcessInstallerSharedProject;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.Configuration.Install;
-using System.IO.Compression;
+using NodeService.ServiceProcess;
 using System.Net;
-using System.ServiceProcess;
 using System.Text.Json;
 
 namespace NodeService.Installer
@@ -125,7 +118,7 @@ namespace NodeService.Installer
 
             try
             {
-                using var installer = MyServiceProcessInstaller.Create(
+                using var installer = CommonServiceProcessInstaller.Create(
                     _selectedInstallConfig.ServiceName,
                     _selectedInstallConfig.ServiceName,
                     string.Empty,
@@ -167,9 +160,10 @@ namespace NodeService.Installer
 
         private ServiceProcessInstallContext BuildIntallContext()
         {
-            ServiceProcessInstallContext context = new ServiceProcessInstallContext();
-            context.ServiceName = _selectedInstallConfig.ServiceName;
-            context.InstallDirectory = _selectedInstallConfig.InstallPath;
+            var context = new ServiceProcessInstallContext(_selectedInstallConfig.ServiceName,
+                _selectedInstallConfig.ServiceName,
+                string.Empty,
+                _selectedInstallConfig.InstallPath);
             return context;
         }
 

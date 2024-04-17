@@ -7,6 +7,7 @@ namespace NodeService.ServiceProcess
         private readonly ILogger<DetectServiceStatusService> _logger;
         private AppConfig _appConfig = new AppConfig();
         private DetectServiceStatusServiceContext _context;
+        private int _installFailedCount;
 
         public DetectServiceStatusService(
             IServiceProvider serviceProvider,
@@ -38,7 +39,7 @@ namespace NodeService.ServiceProcess
                         try
                         {
                             var filePath = Path.Combine(packageUpdate.InstallDirectory, packageUpdate.ServiceName + ".exe");
-                            var installer = MyServiceProcessInstaller.Create(
+                            var installer = CommonServiceProcessInstaller.Create(
                                 serviceName,
                                 packageUpdate.DisplayName,
                                 packageUpdate.Description,
@@ -69,6 +70,10 @@ namespace NodeService.ServiceProcess
                                     packageUpdate.Description,
                                     packageUpdate.InstallDirectory));
 
+                            installer.ProgressChanged += Installer_ProgressChanged;
+                            installer.Failed += Installer_Failed;
+                            installer.Completed += Installer_Completed;
+
                             return await installer.RunAsync();
                         }
                         catch (Exception ex)
@@ -86,6 +91,21 @@ namespace NodeService.ServiceProcess
                 _logger.LogError(ex.ToString());
             }
 
+        }
+
+        private void Installer_Completed(object? sender, InstallerProgressEventArgs e)
+        {
+            _logger.LogInformation(e.Progress.Message);
+        }
+
+        private void Installer_Failed(object? sender, InstallerProgressEventArgs e)
+        {
+            _logger.LogError(e.Progress.Message);
+        }
+
+        private void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
+        {
+            _logger.LogInformation(e.Progress.Message);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -117,7 +137,7 @@ namespace NodeService.ServiceProcess
                 using ServiceController serviceController = new ServiceController(serviceName);
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(Debugger.IsAttached ? 0 : 5), stoppingToken);
+                    await Delay(stoppingToken);
                 }
                 serviceController.Refresh();
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
@@ -144,15 +164,44 @@ namespace NodeService.ServiceProcess
             }
         }
 
-        private async Task RunRecovery(string serviceName, Func<string, Task<bool>> recoveryFunc)
+        private async Task Delay(CancellationToken stoppingToken)
         {
             try
             {
-                await recoveryFunc.Invoke(serviceName);
+                if (_installFailedCount > 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                }
+                else
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(Debugger.IsAttached ? 0 : 5), stoppingToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
+            }
+
+        }
+
+        private async Task RunRecovery(string serviceName, Func<string, Task<bool>> recoveryFunc)
+        {
+            try
+            {
+                if (await recoveryFunc.Invoke(serviceName))
+                {
+                    _installFailedCount = 0;
+                }
+                else
+                {
+                    _installFailedCount++;
+                }
+      
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+                _installFailedCount++;
             }
 
         }

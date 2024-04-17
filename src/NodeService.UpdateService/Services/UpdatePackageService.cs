@@ -131,7 +131,7 @@ namespace NodeService.UpdateService.Services
                         return;
                     }
                     var entryPoint = Path.Combine(_currentConfig.InstallDirectory, clientUpdateConfig.PackageConfig.EntryPoint);
-                    using var installer = MyServiceProcessInstaller.Create(ServiceName, ServiceName, string.Empty, entryPoint);
+                    using var installer = CommonServiceProcessInstaller.Create(ServiceName, ServiceName, string.Empty, entryPoint);
                     installer.Failed += Installer_Failed;
                     installer.ProgressChanged += Installer_ProgressChanged;
                     installer.Completed += Installer_Completed; ;

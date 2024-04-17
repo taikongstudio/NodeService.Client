@@ -1,6 +1,6 @@
 ﻿namespace NodeService.ServiceProcess
 {
-    public class MyServiceProcessInstaller : IDisposable
+    public class CommonServiceProcessInstaller : IDisposable
     {
         private readonly ServiceProcessInstaller _serviceProcessInstaller;
         private PackageProvider _packageProvider;
@@ -26,7 +26,7 @@
 
         public event EventHandler<InstallerProgressEventArgs> Completed;
 
-        private MyServiceProcessInstaller(ServiceProcessInstaller serviceProcessInstaller)
+        private CommonServiceProcessInstaller(ServiceProcessInstaller serviceProcessInstaller)
         {
             _serviceProcessInstaller = serviceProcessInstaller;
             AttachEvents();
@@ -165,7 +165,7 @@
                     stopwatch.Reset();
                     await Task.Delay(TimeSpan.FromSeconds(5));
                     waitCount++;
-                } while (waitCount < 13);
+                } while (waitCount < 1);
                 RaiseCompletedEvent("安装成功");
             }
             catch (Exception ex)
@@ -253,10 +253,10 @@
                     message)));
         }
 
-        public static MyServiceProcessInstaller Create(string serviceName, string displayName, string description, string filePath)
+        public static CommonServiceProcessInstaller Create(string serviceName, string displayName, string description, string filePath)
         {
             var serviceInstaller = ServiceProcessInstallerHelper.Create(serviceName, displayName, description, filePath);
-            return new MyServiceProcessInstaller(serviceInstaller);
+            return new CommonServiceProcessInstaller(serviceInstaller);
         }
 
         private Task<bool> ExtractPackageToInstallDirectoryAsync(bool autoCancel = true)
@@ -319,7 +319,7 @@
                             break;
                         case InstallState.Commit:
                             CommitImpl(state);
-                            break;
+                            goto LExit;
                         case InstallState.Rollback:
                             RollBackImpl(state);
                             break;
@@ -327,6 +327,7 @@
                             break;
                     }
                 }
+               LExit:
                 return this._state == InstallState.Commit;
             }
             catch (Exception ex)

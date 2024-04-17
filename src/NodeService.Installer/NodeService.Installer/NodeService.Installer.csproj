@@ -18,6 +18,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
+	  <ProjectReference Include="..\..\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj" />
 	</ItemGroup>
 
 </Project>
