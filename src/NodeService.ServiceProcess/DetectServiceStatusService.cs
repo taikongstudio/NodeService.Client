@@ -174,11 +174,15 @@ namespace NodeService.ServiceProcess
             {
                 if (_installFailedCount > 0)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
                 }
                 else
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(Debugger.IsAttached ? 0 : 5), stoppingToken);
+                    var timeSpan =
+                        Debugger.IsAttached ?
+                        TimeSpan.Zero :
+                        TimeSpan.FromSeconds(Random.Shared.Next(1, 3000));
+                    await Task.Delay(timeSpan, stoppingToken);
                 }
             }
             catch (Exception ex)
