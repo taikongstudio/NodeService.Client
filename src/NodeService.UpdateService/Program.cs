@@ -33,7 +33,7 @@ namespace NodeService.UpdateService
                 builder.ConfigureServices((hostContext, services) =>
                 {
                     services.AddSingleton(options);
-                    services.Configure<AppConfig>(hostContext.Configuration.GetSection("AppConfig"));
+                    services.Configure<ServiceProcessConfiguration>(hostContext.Configuration.GetSection("AppConfig"));
                     services.AddHostedService<DetectServiceStatusService>();
                     services.AddHostedService<ProcessExitService>();
                     services.AddWindowsService(options =>

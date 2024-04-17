@@ -32,7 +32,7 @@ namespace NodeService.DaemonService
                 builder.ConfigureServices((hostContext, services) =>
                 {
                     services.AddSingleton(options);
-                    services.Configure<AppConfig>(hostContext.Configuration.GetSection("AppConfig"));
+                    services.Configure<ServiceProcessConfiguration>(hostContext.Configuration.GetSection("ServiceProcessConfiguration"));
                     services.AddHostedService<DetectServiceStatusService>();
                     services.AddHostedService<ProcessExitService>();
                     services.AddWindowsService(options =>

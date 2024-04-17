@@ -67,7 +67,7 @@ namespace NodeService.WindowsService
                     options.ServiceName = "NodeService.WindowsService";
                 });
                 builder.Services.AddSingleton(options);
-                builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
+                builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("AppConfig"));
                 builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();

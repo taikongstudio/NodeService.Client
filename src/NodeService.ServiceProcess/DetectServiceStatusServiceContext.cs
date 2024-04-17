@@ -1,13 +1,15 @@
-﻿namespace NodeService.ServiceProcess
+﻿using System.Collections.Concurrent;
+
+namespace NodeService.ServiceProcess
 {
     public class DetectServiceStatusServiceContext
     {
         public DetectServiceStatusServiceContext()
         {
-            this.ServiceRecoveries = new Dictionary<string, Func<string, Task<bool>>>();
+            this.RecoveryContexts = new ConcurrentDictionary<string, ServiceProcessDoctor>();
         }
 
-        public Dictionary<string, Func<string, Task<bool>>> ServiceRecoveries { get; private set; } = [];
+        public IDictionary<string, ServiceProcessDoctor> RecoveryContexts { get; private set; }
 
     }
 

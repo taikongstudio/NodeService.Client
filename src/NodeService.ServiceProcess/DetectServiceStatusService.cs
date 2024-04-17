@@ -1,92 +1,61 @@
 ﻿
 
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
+
 namespace NodeService.ServiceProcess
 {
     public class DetectServiceStatusService : BackgroundService
     {
+        private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<DetectServiceStatusService> _logger;
-        private AppConfig _appConfig = new AppConfig();
+        private ServiceProcessConfiguration _appConfig = new ServiceProcessConfiguration();
         private DetectServiceStatusServiceContext _context;
         private int _installFailedCount;
+        private ConcurrentDictionary<string, ApiService> _apiServices;
 
         public DetectServiceStatusService(
             IServiceProvider serviceProvider,
             ILogger<DetectServiceStatusService> logger,
-            IOptionsMonitor<AppConfig> optionsMonitor
+            IOptionsMonitor<ServiceProcessConfiguration> optionsMonitor
             )
         {
+            _serviceProvider = serviceProvider;
             _logger = logger;
             _appConfig = optionsMonitor.CurrentValue;
-            ApplyAppConfig(_appConfig);
-            optionsMonitor.OnChange(OnPackageUpdateConfigChanged);
+            ApplyConfiguration(_appConfig);
+            optionsMonitor.OnChange(OnConfigurationChanged);
+            _apiServices = new ConcurrentDictionary<string, ApiService>();
         }
 
-        private void OnPackageUpdateConfigChanged(AppConfig appConfig, string name)
+        private void OnConfigurationChanged(ServiceProcessConfiguration configuration, string name)
         {
-            ApplyAppConfig(appConfig);
+            ApplyConfiguration(configuration);
         }
 
-        private void ApplyAppConfig(AppConfig appConfig)
+        private void ApplyConfiguration(ServiceProcessConfiguration configuration)
         {
             try
             {
-                _appConfig = appConfig;
+                _appConfig = configuration;
                 var context = new DetectServiceStatusServiceContext();
-                foreach (var packageUpdate in appConfig.PackageUpdates)
+
+                if (_context!=null)
                 {
-                    context.ServiceRecoveries.Add(packageUpdate.ServiceName, async (serviceName) =>
+                    foreach (var item in _context.RecoveryContexts)
                     {
-                        try
-                        {
-                            var filePath = Path.Combine(packageUpdate.InstallDirectory, packageUpdate.ServiceName + ".exe");
-                            var installer = CommonServiceProcessInstaller.Create(
-                                serviceName,
-                                packageUpdate.DisplayName,
-                                packageUpdate.Description,
-                                filePath);
-                            var apiService = new ApiService(new HttpClient()
-                            {
-                                BaseAddress = new Uri(packageUpdate.HttpAddress)
-                            });
-                            var rsp = await apiService.QueryClientUpdateAsync(packageUpdate.ServiceName);
-                            if (rsp.ErrorCode != 0)
-                            {
-                                _logger.LogError(rsp.Message);
-                                return false;
-                            }
-                            var clientUpdateConfig = rsp.Result;
-                            if (clientUpdateConfig == null)
-                            {
-                                _logger.LogError("Could not find update");
-                                return false;
-                            }
-                            var packageConfig = clientUpdateConfig.PackageConfig;
-                            if (packageConfig == null)
-                            {
-                                _logger.LogError("Could not find package");
-                                return false;
-                            }
-                            _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
-                            installer.SetParameters(
-                                new HttpPackageProvider(apiService, packageConfig),
-                                new ServiceProcessInstallContext(packageUpdate.ServiceName,
-                                    packageUpdate.DisplayName,
-                                    packageUpdate.Description,
-                                    packageUpdate.InstallDirectory));
+                        item.Value.Dispose();
+                    }
+                    _context.RecoveryContexts.Clear();
+                }
 
-                            installer.ProgressChanged += Installer_ProgressChanged;
-                            installer.Failed += Installer_Failed;
-                            installer.Completed += Installer_Completed;
-
-                            return await installer.RunAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex.Message);
-                        }
-                        return false;
-
-                    });
+                foreach (var recoveryContext in configuration.Contexts)
+                {
+                    context.RecoveryContexts.Add(
+                        recoveryContext.ServiceName,
+                        new ServiceProcessDoctor(
+                            _serviceProvider.GetService<ILogger<ServiceProcessDoctor>>(),
+                            recoveryContext));
                 }
                 _context = context;
             }
@@ -97,122 +66,34 @@ namespace NodeService.ServiceProcess
 
         }
 
-        private void Installer_Completed(object? sender, InstallerProgressEventArgs e)
-        {
-            _logger.LogInformation(e.Progress.Message);
-        }
-
-        private void Installer_Failed(object? sender, InstallerProgressEventArgs e)
-        {
-            _logger.LogError(e.Progress.Message);
-        }
-
-        private void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
-        {
-            _logger.LogInformation(e.Progress.Message);
-        }
-
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await DetectServiceStatusAsync();
+                await ExecuteServiceDockers();
                 await Task.Delay(TimeSpan.FromSeconds(30));
             }
 
 
         }
 
-        private async ValueTask DetectServiceStatusAsync(CancellationToken stoppingToken = default)
+        private async ValueTask ExecuteServiceDockers(CancellationToken stoppingToken = default)
         {
-            foreach (var kv in _context.ServiceRecoveries)
+            if (this._context == null)
             {
-                await DetectServiceAsync(kv.Key, kv.Value, stoppingToken);
+                return;
+            }
+            if (_context.RecoveryContexts == null || !_context.RecoveryContexts.Any())
+            {
+                return;
+            }
+            foreach (var kv in _context.RecoveryContexts)
+            {
+                await kv.Value.ExecuteAsync(stoppingToken);
             }
         }
 
-        private async Task DetectServiceAsync(
-            string serviceName,
-            Func<string, Task<bool>> recoveryFunc,
-            CancellationToken stoppingToken = default)
-        {
-            try
-            {
-                using ServiceController serviceController = new ServiceController(serviceName);
-                if (serviceController.Status == ServiceControllerStatus.Stopped)
-                {
-                    await Delay(stoppingToken);
-                }
-                serviceController.Refresh();
-                if (serviceController.Status == ServiceControllerStatus.Stopped)
-                {
-                    await RunRecovery(serviceName, recoveryFunc);
-                }
-                serviceController.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
-            }
-            catch (InvalidOperationException ex)
-            {
-                if (ex.InnerException is Win32Exception win32Exception && win32Exception.NativeErrorCode == 1060)
-                {
-                    _logger.LogInformation(ex.Message);
-                    await RunRecovery(serviceName, recoveryFunc);
-                }
-                else
-                {
-                    _logger.LogError(ex.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-        }
 
-        private async Task Delay(CancellationToken stoppingToken)
-        {
-            try
-            {
-                if (_installFailedCount > 0)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-                }
-                else
-                {
-                    var timeSpan =
-                        Debugger.IsAttached ?
-                        TimeSpan.Zero :
-                        TimeSpan.FromSeconds(Random.Shared.Next(1, 3000));
-                    await Task.Delay(timeSpan, stoppingToken);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-
-        }
-
-        private async Task RunRecovery(string serviceName, Func<string, Task<bool>> recoveryFunc)
-        {
-            try
-            {
-                if (await recoveryFunc.Invoke(serviceName))
-                {
-                    _installFailedCount = 0;
-                }
-                else
-                {
-                    _installFailedCount++;
-                }
-      
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-                _installFailedCount++;
-            }
-
-        }
     }
 }
 

@@ -287,10 +287,11 @@
         }
 
 
-        public Task<bool> RunAsync()
+        public Task<bool> RunAsync(CancellationToken cancellationToken)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
+            cancellationToken.Register(Cancel);
             return Task.Run<bool>(RunInstallLoopImpl);
         }
 

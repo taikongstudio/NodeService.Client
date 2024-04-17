@@ -13,14 +13,14 @@ namespace NodeService.UpdateService.Services
     public class UpdatePackageService : BackgroundService
     {
         private readonly ILogger _logger;
-        private PackageUpdateConfig _currentConfig;
+        private ServiceProcessRecoveryContext _currentConfig;
         private IDisposable? _onChangeToken;
         private string _tempPath;
         private ApiService  _apiService;
         private string _clientUpdateConfigId;
 
         public UpdatePackageService(ILogger<UpdatePackageService> logger, 
-            IOptionsMonitor<PackageUpdateConfig> config)
+            IOptionsMonitor<ServiceProcessRecoveryContext> config)
         {
             _clientUpdateConfigId = "NotInstalled";
             _logger = logger;
@@ -29,7 +29,7 @@ namespace NodeService.UpdateService.Services
             InitApiService();
         }
 
-        private void OnUpdateConfigChanged(PackageUpdateConfig updateConfig)
+        private void OnUpdateConfigChanged(ServiceProcessRecoveryContext updateConfig)
         {
             DisposeApiService();
             InitApiService();

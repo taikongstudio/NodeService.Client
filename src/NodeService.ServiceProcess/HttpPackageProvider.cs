@@ -11,7 +11,6 @@
             _packageConfig = packageConfig;
         }
 
-
         public override async Task<bool> DownloadAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             try

@@ -1,6 +1,6 @@
 ﻿namespace NodeService.ServiceProcess
 {
-    public class PackageUpdateConfig
+    public class ServiceProcessRecoveryContext
     {
         public string HttpAddress { get; set; }
 
