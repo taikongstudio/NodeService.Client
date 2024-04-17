@@ -19,8 +19,7 @@ namespace NodeService.WindowsService.Services
         private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
         private CancellationTokenSource _cancellationTokenSource;
         private readonly BatchQueue<LogEntry> _logMessageEntryBatchQueue;
-
-        private ILogger _logger;
+        private readonly ILogger _logger;
 
         public JobExecutionContext(
             ILogger<JobExecutionContext> logger,

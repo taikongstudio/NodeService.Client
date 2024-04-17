@@ -30,7 +30,12 @@ namespace NodeService.ServiceProcess
                 holder = null;
                 try
                 {
-                    var handle = File.OpenHandle(lockFilePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, FileOptions.None);
+                    var handle = File.OpenHandle(
+                        lockFilePath,
+                        FileMode.OpenOrCreate,
+                        FileAccess.ReadWrite,
+                        FileShare.None,
+                        FileOptions.None);
                     holder = new LockFileHolder(handle);
                     return true;
                 }
@@ -45,7 +50,7 @@ namespace NodeService.ServiceProcess
             {
                 if (this._fileHandle != null)
                 {
-                    this._fileHandle.Dispose();
+                    this._fileHandle.Close();
                 }
             }
         }
@@ -91,21 +96,23 @@ namespace NodeService.ServiceProcess
                 var lockFilePath = Path.Combine(EnsurePackageDirectory(), ".lock");
                 if (!LockFileHolder.TryLock(lockFilePath, out holder))
                 {
-                    _logger.LogInformation("Open lock file fail");
+                    _logger.LogInformation($"Open lock file fail:{lockFilePath}");
                     return false;
                 }
+                _logger.LogInformation($"Open lock file success:{lockFilePath}");
                 using ServiceController serviceController = new ServiceController(RecoveryContext.ServiceName);
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
+                    _logger.LogInformation($"{RecoveryContext.ServiceName}:{serviceController.Status}");
                     await Delay(cancellationToken);
                 }
                 serviceController.Refresh();
-
+                _logger.LogInformation($"{RecoveryContext.ServiceName}:{serviceController.Status}");
                 switch (serviceController.Status)
                 {
                     case ServiceControllerStatus.Stopped:
+
                         return await ReinstallAsync(true, cancellationToken);
-                        break;
                     case ServiceControllerStatus.Running:
                         return await ReinstallAsync(false, cancellationToken);
                     default:
@@ -141,23 +148,27 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ReinstallAsync(bool force = false, CancellationToken cancellationToken = default)
         {
+            _logger.LogError($"安装\"{RecoveryContext.ServiceName}\"，强制：{force}");
             bool quickMode = false;
             if (Debugger.IsAttached && quickMode)
             {
                 Environment.SetEnvironmentVariable("QuickMode", "1");
             }
+            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置");
             var rsp = await _apiService.QueryClientUpdateAsync(RecoveryContext.ServiceName);
             if (rsp.ErrorCode != 0)
             {
-                _logger.LogError(rsp.Message);
+                _logger.LogError($"查询客户端更新配置失败：{rsp.Message}");
                 return false;
             }
+
             var clientUpdateConfig = rsp.Result;
             if (clientUpdateConfig == null)
             {
                 _logger.LogError($"Could not find update:{RecoveryContext.ServiceName}");
                 return false;
             }
+            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
             _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
             var packageConfig = clientUpdateConfig.PackageConfig;
             if (packageConfig == null)
@@ -165,12 +176,15 @@ namespace NodeService.ServiceProcess
                 _logger.LogError($"Could not find package:{RecoveryContext.ServiceName}");
                 return false;
             }
+            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
             if (!force && TryComparePackageHash(packageConfig.Hash))
             {
+                _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
                 return true;
             }
-
+            _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"开始安装");
             var filePath = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
+            _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
             var installer = CommonServiceProcessInstaller.Create(
                 RecoveryContext.ServiceName,
                 RecoveryContext.DisplayName,
@@ -197,15 +211,17 @@ namespace NodeService.ServiceProcess
             return false;
         }
 
-        private bool TryComparePackageHash(string hash)
+        private bool TryComparePackageHash(string packageHash)
         {
             try
             {
                 var hashFilePath = Path.Combine(RecoveryContext.InstallDirectory, ".package", "PackageHash");
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始对比Hash");
                 if (File.Exists(hashFilePath))
                 {
-                    var oldHash = File.ReadAllText(hashFilePath);
-                    return oldHash == hash;
+                    var hash = File.ReadAllText(hashFilePath);
+                    _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"读取本地Hash值：{hash}, 包Hash值：{packageHash}");
+                    return hash == packageHash;
                 }
             }
             catch (Exception ex)
@@ -222,11 +238,12 @@ namespace NodeService.ServiceProcess
                 string packageDirectory = EnsurePackageDirectory();
                 var hashFilePath = Path.Combine(packageDirectory, "PackageHash");
                 File.WriteAllText(hashFilePath, hash);
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写入Hash值{hash}到文件{hashFilePath}成功");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写入Hash值{hash}失败");
             }
             return false;
         }
@@ -261,18 +278,12 @@ namespace NodeService.ServiceProcess
         {
             try
             {
-                if (_installFailedCount > 0)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-                }
-                else
-                {
-                    var timeSpan =
-                        Debugger.IsAttached ?
-                        TimeSpan.Zero :
-                        TimeSpan.FromSeconds(Random.Shared.Next(1, 3000));
-                    await Task.Delay(timeSpan, stoppingToken);
-                }
+                var timeSpan =
+                    Debugger.IsAttached ?
+                    TimeSpan.Zero :
+                    TimeSpan.FromSeconds(Random.Shared.Next(1, 3000));
+                _logger.LogInformation($"等待{timeSpan}");
+                await Task.Delay(timeSpan, stoppingToken);
             }
             catch (Exception ex)
             {

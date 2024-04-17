@@ -39,12 +39,37 @@ namespace NodeService.WindowsService
                     return;
                 }
                 Console.WriteLine(JsonSerializer.Serialize(options));
-                await RunAsync(options, args);
+                if (options.mode == "Uninstall")
+                {
+                    const string DaemonServiceName = "NodeService.DaemonService";
+                    const string UpdateServiceName = "NodeService.UpdateService";
+                    const string WindowsServiceName = "NodeService.WindowsService";
+                    const string WorkerServiceName = "NodeService.WorkerService";
+                    const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
+                    await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
+                    [
+                        WorkerServiceName,
+                    UpdateServiceName,
+                    WindowsServiceName,
+                    JobsWorkerDaemonServiceName
+                    ]))
+                    {
+                        Console.WriteLine(progress.Message);
+                    }
+                }
+                else
+                {
+                    await RunAsync(options, args);
+                }
 
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
+            }
+            finally
+            {
+
             }
         }
 

@@ -10,33 +10,6 @@ namespace NodeService.WindowsService.Helper
 {
     public static class CommonHelper
     {
-        public static bool TryGetHostAddressStrings(ILogger logger, out string[]? hostAddressStrings)
-        {
-            hostAddressStrings = null;
-            try
-            {
-                var hostAddresses = Dns.GetHostAddresses(Dns.GetHostName());
-                hostAddressStrings = hostAddresses.Select(x => x.ToString()).ToArray();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex.ToString());
-            }
-            return false;
-        }
-
-        public static string GetIPAddressesString(ILogger logger)
-        {
-            string ipAddresesString = string.Empty;
-            if (TryGetHostAddressStrings(logger, out var hostAddressStrings))
-            {
-                ipAddresesString = string.Join(",", hostAddressStrings);
-            }
-
-            return ipAddresesString;
-        }
-
         public static List<ProcessInfo> CollectProcessList(ILogger logger)
         {
             List<ProcessInfo> processStatList = new List<ProcessInfo>();
@@ -54,8 +27,8 @@ namespace NodeService.WindowsService.Helper
                             ProcessName = process.MainModule.FileName,
                             Id = process.Id,
                             Responding = process.Responding,
-                            StartTime = process.StartTime.ToString("yyyy-MM-dd hh:MM:ss"),
-                            ExitTime = process.HasExited ? process.ExitTime.ToString("yyyy-MM-dd hh:MM:ss") : null,
+                            StartTime = process.StartTime.ToString(NodePropertyModel.DateTimeFormatString),
+                            ExitTime = process.HasExited ? process.ExitTime.ToString(NodePropertyModel.DateTimeFormatString) : null,
                             VirtualMemorySize64 = process.VirtualMemorySize64,
                             PagedMemorySize64 = process.PagedMemorySize64,
                             NonpagedSystemMemorySize64 = process.NonpagedSystemMemorySize64,

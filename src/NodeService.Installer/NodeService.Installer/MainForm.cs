@@ -281,9 +281,11 @@ namespace NodeService.Installer
                 const string DaemonServiceName = "NodeService.DaemonService";
                 const string UpdateServiceName = "NodeService.UpdateService";
                 const string WindowsServiceName = "NodeService.WindowsService";
+                const string WorkerServiceName = "NodeService.WorkerService";
                 const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
                 await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
                 [
+                    WorkerServiceName,
                     UpdateServiceName,
                     WindowsServiceName,
                     JobsWorkerDaemonServiceName

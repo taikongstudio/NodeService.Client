@@ -3,6 +3,10 @@
     "NodeService.WindowsService": {
       "commandName": "Project",
       "commandLineArgs": "--mode WorkerService --env Development"
+    },
+    "NodeService.Uninstall": {
+      "commandName": "Project",
+      "commandLineArgs": "--mode Uninstall --env Development"
     }
   },
   "NodeService.WindowsService": {

@@ -19,9 +19,12 @@ namespace NodeService.WindowsService.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await InstallPythonPackageAsync();
             while (!stoppingToken.IsCancellationRequested)
             {
+                while (!await InstallPythonPackageAsync())
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10));
+                }
                 await Task.Delay(TimeSpan.FromSeconds(10));
             }
         }
@@ -31,7 +34,7 @@ namespace NodeService.WindowsService.Services
             _logger.LogInformation(message);
         }
 
-        private async Task InstallPythonPackageAsync()
+        private async Task<bool> InstallPythonPackageAsync()
         {
             try
             {
@@ -58,11 +61,13 @@ namespace NodeService.WindowsService.Services
 
                 // ok, now use pythonnet from that installation
                 PythonEngine.Initialize();
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
             }
+            return false;
         }
 
     }
