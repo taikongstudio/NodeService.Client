@@ -161,7 +161,7 @@ namespace MaccorUploadTool.Data
                 {
                     if (index == 0)
                     {
-                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(8192);
+                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(8192 * 2);
                     }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);

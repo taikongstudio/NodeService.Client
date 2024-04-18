@@ -238,7 +238,7 @@ namespace MaccorUploadTool.Services
             GC.Collect();
             GC.WaitForPendingFinalizers();
             DataFileReader dataFileReader = null;
-            bool requeue = false;
+            bool parseError = false;
             if (fileSystemChangeRecord.Stat == null)
             {
                 fileSystemChangeRecord.Stat = new MaccorDataUploadStat();
@@ -270,7 +270,6 @@ namespace MaccorUploadTool.Services
                 {
                     if (!await ParseDataFileAsync(fileSystemChangeRecord, dataFileReader))
                     {
-                        requeue = true;
                         return;
                     }
                 }
@@ -310,11 +309,6 @@ namespace MaccorUploadTool.Services
                     {
                         _logger.LogInformation($"Close {fileSystemChangeRecord.LocalFilePath}");
                     }
-                }
-                if (requeue)
-                {
-                    _fileSystemChangeRecordActionBlock.Post(fileSystemChangeRecord);
-                    _logger.LogInformation($"Requeue {fileSystemChangeRecord.LocalFilePath}");
                 }
             }
         }
@@ -393,6 +387,7 @@ namespace MaccorUploadTool.Services
             }
             catch (Exception ex)
             {
+                _maccorDataReaderWriter.Delete(fileSystemChangeRecord.LocalFilePath);
                 _logger.LogError(ex.ToString());
             }
             return false;
