@@ -141,17 +141,13 @@ namespace MaccorUploadTool.Data
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
-                this._fileSystemChangedRecord.Stat.TimeDataUploadCount++;
+                this._fileSystemChangedRecord.Stat.TimeDataUploadCount = this._fileSystemChangedRecord.Stat.TimeDataUploadCount + 1;
                 //_logger.LogInformation($"{this._fileSystemChangedRecord.Stat.TimeDataUploadCount}");
-                if (this._fileSystemChangedRecord.Stat.TimeDataUploadCount >= this._fileSystemChangedRecord.Stat.TimeDataCount)
-                {
-                    this._timeDataChannel.Writer.Complete();
-                }
                 return;
             }
             _logger.LogInformation($"retry:{deliveryReport.Value}");
             this._fileSystemChangedRecord.Stat.TimeDataTotalRetryTimes++;
-            this._timeDataChannel.Writer.WriteAsync(deliveryReport.Message.Value).AsTask().Wait();
+            this._timeDataChannel.Writer.TryWrite(deliveryReport.Value);
         }
 
         public async Task<bool> ProduceTimeDataAsync()
@@ -159,67 +155,60 @@ namespace MaccorUploadTool.Data
             try
             {
                 _ = Task.Run(async () =>
-                 {
-                     try
-                     {
-                         int pageCount = Math.DivRem(this._fileSystemChangedRecord.Stat.TimeDataCount, MaccorDataReaderWriter.PageSize, out var result);
-                         if (result > 0)
-                         {
-                             pageCount += 1;
-                         }
-                         int index = 0;
-                         for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
-                         {
-                             var rentedArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.LocalFilePath, pageIndex);
-
-                             if (!rentedArray.HasValue)
-                             {
-                                 continue;
-                             }
-                             int count = 0;
-                             foreach (var timeData in rentedArray.Value)
-                             {
-                                 if (timeData == null)
-                                 {
-                                     continue;
-                                 }
-                                 index++;
-                                 await this._timeDataChannel.Writer.WriteAsync(timeData);
-                                 count++;
-                             }
-                             if (count > 0)
-                             {
-                                 _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
-                             }
-                             while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > MaccorDataReaderWriter.PageSize)
-                             {
-                                 await Task.Delay(TimeSpan.FromMilliseconds(5));
-                             }
-                         }
-                         if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
-                         {
-                             _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write {index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
-                         }
-                     }
-                     catch (Exception ex)
-                     {
-                         _logger.LogError(ex.ToString());
-                     }
-
-                 });
-
-                int count = 0;
-                await foreach (var message in this._timeDataChannel.Reader.ReadAllAsync())
                 {
-                    Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
-                    count++;
-                    if (count == MaccorDataReaderWriter.PageSize)
+
+                    int pageCount = Math.DivRem(this._fileSystemChangedRecord.Stat.TimeDataCount, MaccorDataReaderWriter.PageSize, out var result);
+                    int index = 0;
+                    for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                     {
-                        count = 0;
-                        Producer.Flush();
+                        var rentedArray = this._maccorDataReaderWriter.ReadTimeData(this._fileSystemChangedRecord.LocalFilePath, pageIndex);
+
+                        if (!rentedArray.HasValue)
+                        {
+                            break;
+                        }
+                        int count = 0;
+                        foreach (var timeData in rentedArray.Value)
+                        {
+                            if (timeData.Item2 == null)
+                            {
+                                continue;
+                            }
+                            index++;
+                            await this._timeDataChannel.Writer.WriteAsync(timeData.Item2);
+                            count++;
+                        }
+                        if (count > 0)
+                        {
+                            _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
+                        }
+                        while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > MaccorDataReaderWriter.PageSize * 2)
+                        {
+                            await Task.Delay(TimeSpan.FromMilliseconds(50));
+                        }
                     }
-                }
-                Producer.Flush();
+                    if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
+                    {
+                        _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write {index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
+                    }
+
+                    while (this._fileSystemChangedRecord.Stat.TimeDataUploadCount < this._fileSystemChangedRecord.Stat.TimeDataCount)
+                    {
+                        if (this._fileSystemChangedRecord.Stat.TimeDataCount - this._fileSystemChangedRecord.Stat.TimeDataUploadCount <= 10)
+                        {
+                            break;
+                        }
+                        await Task.Delay(TimeSpan.FromSeconds(1));
+                    }
+                    _logger.LogInformation($"Uploaded:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} Total:{this._fileSystemChangedRecord.Stat.TimeDataCount}");
+                    this._timeDataChannel.Writer.Complete();
+
+                });
+
+
+
+                await SendTimeDataAsync();
+
                 //_logger.LogInformation($"{deliveryReport.TopicPartitionOffset}");
                 return true;
             }
@@ -236,6 +225,29 @@ namespace MaccorUploadTool.Data
             // Since we are producing synchronously, at this point there will be no messages
             // in-flight and no delivery reports waiting to be acknowledged, so there is no
             // need to call producer.Flush before disposing the producer.
+        }
+
+        private async Task SendTimeDataAsync()
+        {
+            try
+            {
+                int count = 0;
+                await foreach (var message in this._timeDataChannel.Reader.ReadAllAsync())
+                {
+                    Producer.Produce(TimeDataTopicName, new Message<string, string>() { Key = null, Value = message }, TimeDataDeliveryHandler);
+                    count++;
+                    if (count == MaccorDataReaderWriter.PageSize)
+                    {
+                        count = 0;
+                        Producer.Flush();
+                    }
+                }
+                Producer.Flush();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
         }
 
         protected virtual void Dispose(bool disposing)
@@ -265,11 +277,6 @@ namespace MaccorUploadTool.Data
             // 不要更改此代码。请将清理代码放入“Dispose(bool disposing)”方法中
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
-        }
-
-        public void Flush()
-        {
-            Producer.Flush();
         }
     }
 }

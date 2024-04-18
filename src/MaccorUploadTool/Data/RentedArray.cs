@@ -11,14 +11,14 @@ namespace MaccorUploadTool.Data
     {
         private readonly T[] _array;
 
-        public static readonly RentedArray<T> Empty = new([]);
+        public static readonly RentedArray<T> Empty = new(0);
 
-        public RentedArray(T[] array)
+        public RentedArray(int size)
         {
-            this._array = array;
+            this._array = size == 0 ? [] : ArrayPool<T>.Shared.Rent(size);
         }
 
-        public bool HasValue {  get { return _array != null && _array.Length > 0; } }
+        public bool HasValue { get { return _array != null && _array.Length > 0; } }
 
         public T[] Value { get { return _array; } }
 

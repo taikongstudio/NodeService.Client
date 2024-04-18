@@ -410,7 +410,7 @@ namespace MaccorUploadTool.Services
                     for (int i = 0; i < timeDataArray.Length; i++)
                     {
                         var timeData = timeDataArray[i];
-                        if (!timeData.HasValue)
+                        if (timeData.Index == -1)
                         {
                             continue;
                         }

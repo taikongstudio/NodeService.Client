@@ -23,7 +23,7 @@ namespace MaccorUploadTool.Data
 
         public string DatabasePath { get; private set; }
 
-        private readonly ConcurrentDictionary<string, LinkedList<RentedArray<string>>> _timeDataDictionary;
+        private readonly ConcurrentDictionary<string, LinkedList<RentedArray<(int, string)>>> _timeDataDictionary;
 
 
 
@@ -32,9 +32,34 @@ namespace MaccorUploadTool.Data
             )
         {
             _logger = logger;
-            _timeDataDictionary = new ConcurrentDictionary<string, LinkedList<RentedArray<string>>>();
+            _timeDataDictionary = new ConcurrentDictionary<string, LinkedList<RentedArray<(int, string)>>>();
         }
 
+
+        public void Verify(string key)
+        {
+            if (!this._timeDataDictionary.TryGetValue(key, out var linkedList))
+            {
+                return;
+            }
+            int index = -1;
+            foreach (var array in linkedList)
+            {
+                if (!array.HasValue)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                foreach (var data in array.Value)
+                {
+                    if (index != data.Item1 - 1)
+                    {
+                        throw new InvalidOperationException();
+                    }
+                    index = data.Item1;
+                }
+            }
+        }
 
 
         public bool WriteTimeDataArray(string key, params TimeData[] timeDataArray)
@@ -45,39 +70,25 @@ namespace MaccorUploadTool.Data
             }
             try
             {
-                var itemsToWrite = timeDataArray.Where(static x => x.HasValue);
+                var itemsToWrite = timeDataArray.Where(static x => x.Index >= 0);
                 var totalCount = itemsToWrite.Count();
                 var writtenCount = 0;
-                Stack<TimeData> stack = new Stack<TimeData>(PageSize);
-                do
+                int pageCount = Math.DivRem(totalCount, MaccorDataReaderWriter.PageSize, out var result);
+                var linkList = _timeDataDictionary.GetOrAdd(key, new LinkedList<RentedArray<(int,string)>>());
+                for (int i = 0; i < pageCount; i++)
                 {
-                    for (int i = 0; i < totalCount - writtenCount; i++)
-                    {
-                        if (i == PageSize)
-                        {
-                            break;
-                        }
-                        stack.Push(timeDataArray[i]);
-                    }
-   
-                    var array = ArrayPool<string>.Shared.Rent(PageSize);
-                    if (!_timeDataDictionary.TryGetValue(key, out var linkList))
-                    {
-                        linkList = new LinkedList<RentedArray<string>>();
-                        _timeDataDictionary.TryAdd(key, linkList);
-                    }
-                    linkList.AddLast(new LinkedListNode<RentedArray<string>>(new RentedArray<string>(array)));
                     int index = 0;
-                    while (stack.Count > 0)
+                    var rentedArray = new RentedArray<(int, string)>(PageSize);
+                    linkList.AddLast(new LinkedListNode<RentedArray<(int, string)>>(rentedArray));
+                    foreach (var item in itemsToWrite.Skip(i * PageSize).Take(PageSize))
                     {
-                        var entry = stack.Pop();
-                        var value = JsonSerializer.Serialize(entry);
-                        array[index] = value;
+                        var value = JsonSerializer.Serialize(item);
+                        rentedArray.Value[index] = (item.Index, value);
                         index++;
                         writtenCount++;
                     }
-                } while (writtenCount < totalCount);
-
+                }
+                _logger.LogInformation($"Write {writtenCount} total {totalCount}");
                 return true;
             }
             catch (Exception ex)
@@ -102,18 +113,18 @@ namespace MaccorUploadTool.Data
             linkedList.Clear();
         }
 
-        public RentedArray<string> ReadTimeData(string fileName,
+        public RentedArray<(int,string)> ReadTimeData(string fileName,
             int pageIndex,
             CancellationToken cancellationToken = default)
         {
             if (!this._timeDataDictionary.TryGetValue(fileName, out var linkedList))
             {
-                return RentedArray<string>.Empty;
+                return RentedArray<(int, string)>.Empty;
             }
             var rentedObject = linkedList.ElementAtOrDefault(pageIndex);
             if (!rentedObject.HasValue)
             {
-                return RentedArray<string>.Empty;
+                return RentedArray<(int, string)>.Empty;
             }
             return rentedObject;
         }

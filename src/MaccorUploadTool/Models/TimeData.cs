@@ -12,8 +12,13 @@ namespace MaccorUploadTool.Models
 {
     public struct TimeData
     {
+        public TimeData()
+        {
+            Index = -1;
+        }
+
         [JsonIgnore]
-        public bool HasValue {  get; set; }
+        public int Index { get;private set; }
 
         public string FilePath { get; set; }
 
@@ -77,6 +82,11 @@ namespace MaccorUploadTool.Models
             DigIO = timeData.DigIO;//: word;
             FRAStartTime = timeData.FRAStartTime;//: TDateTime;
             FRAExpNum = timeData.FRAExpNum;//: integer;
+        }
+
+        public void SetIndex(int index)
+        {
+            this.Index = index;
         }
 
     }

@@ -352,15 +352,20 @@ namespace MaccorUploadTool.Services
                 _maccorDataReaderWriter.Delete(fileSystemChangeRecord.LocalFilePath);
                 int index = 0;
 
+                int timeDataIndex = -1;
                 await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
                 {
                     int count = 0;
                     for (int i = 0; i < timeDataArray.Length; i++)
                     {
                         var timeData = timeDataArray[i];
-                        if (!timeData.HasValue)
+                        if (timeData.Index == -1)
                         {
                             continue;
+                        }
+                        if (timeDataIndex != timeData.Index - 1)
+                        {
+                            throw new InvalidOperationException();
                         }
                         timeData.IPAddress = _ipAddress;
                         timeData.FilePath = fileName;
@@ -368,12 +373,14 @@ namespace MaccorUploadTool.Services
                         timeDataArray[i] = timeData;
                         fileSystemChangeRecord.Stat.TimeDataCount++;
                         count++;
+                        timeDataIndex = timeData.Index;
                     }
                     _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.LocalFilePath, timeDataArray);
                     _logger.LogInformation($"write {count} items,{index} times");
                     ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
                     index++;
                 }
+                _maccorDataReaderWriter.Verify(fileSystemChangeRecord.LocalFilePath);
                 _logger.LogInformation($"{fileSystemChangeRecord.LocalFilePath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");
                 timeDataStopWatch.Stop();
                 fileSystemChangeRecord.Stat.TimeDataParseElapsedSeconds = timeDataStopWatch.Elapsed.TotalSeconds;

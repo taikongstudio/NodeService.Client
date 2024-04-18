@@ -152,6 +152,7 @@ namespace MaccorUploadTool.Data
             TimeData[] timeDataArray = null;
             int result = 0;
             int index = 0;
+            int count = 0;
             do
             {
 
@@ -164,7 +165,7 @@ namespace MaccorUploadTool.Data
                     }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);
-                    timeData.HasValue = true;
+                    timeData.SetIndex(count);
 
                     if (index == timeDataArray.Length)
                     {
@@ -174,13 +175,14 @@ namespace MaccorUploadTool.Data
                     }
                     timeDataArray[index] = timeData;
                     index++;
+                    count++;
                 }
                 else
                 {
-                    if (timeDataArray != null)
-                    {
-                        yield return timeDataArray;
-                    }
+                    //if (timeDataArray != null)
+                    //{
+                    //    yield return timeDataArray;
+                    //}
                     break;
                 }
             } while (true);

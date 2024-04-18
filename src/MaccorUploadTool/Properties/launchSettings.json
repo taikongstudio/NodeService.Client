@@ -10,7 +10,7 @@
     },
     "Kafka": {
       "commandName": "Project",
-      "commandLineArgs": "--KafkaBrokerList \"10.201.76.22:9092,10.201.76.23:9092,10.201.76.24\"\r\n--Directory \"D:/Maccor\" --ParentProcessId 6760 --NodeId \"DebugMachine\" --DateTime \"2022/04/02\" --Mode Kafka --FtpConfigId 45be0fd8-4823-4523-85d1-783c0778a95a"
+      "commandLineArgs": "--KafkaBrokerList \"10.201.76.22:9092,10.201.76.23:9092,10.201.76.24\"\r\n--Directory \"D:/Maccor\" --ParentProcessId 42100 --NodeId \"DebugMachine\" --DateTime \"2022/04/02\" --Mode Kafka --FtpConfigId 45be0fd8-4823-4523-85d1-783c0778a95a"
     },
     "Ftp": {
       "commandName": "Project",
