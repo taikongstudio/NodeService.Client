@@ -1,4 +1,6 @@
-﻿using NodeService.Infrastructure.NodeSessions;
+﻿using Microsoft.Extensions.Options;
+using NodeService.Infrastructure.NodeSessions;
+using NodeService.WindowsService.Models;
 
 namespace NodeService.WindowsService.Services
 {
@@ -11,13 +13,26 @@ namespace NodeService.WindowsService.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
         private readonly INodeIdentityProvider _nodeIdentityProvider;
+        private readonly IDisposable? _serverOptionsMonitorToken;
+        private ServerOptions _serverOptions;
+
+        public override void Dispose()
+        {
+            if (_serverOptionsMonitorToken != null)
+            {
+                _serverOptionsMonitorToken.Dispose();
+
+            }
+            base.Dispose();
+        }
 
         public JobHostService(
             ILogger<JobHostService> logger,
             IServiceProvider serviceProvider,
             IAsyncQueue<JobExecutionContext> queue,
             JobExecutionContextDictionary jobExecutionContextDictionary,
-            INodeIdentityProvider nodeIdentityProvider
+            INodeIdentityProvider nodeIdentityProvider,
+            IOptionsMonitor<ServerOptions> serverOptionsMonitor
             )
         {
             _logger = logger;
@@ -25,6 +40,13 @@ namespace NodeService.WindowsService.Services
             _serviceProvider = serviceProvider;
             _jobExecutionContextDictionary = jobExecutionContextDictionary;
             _nodeIdentityProvider = nodeIdentityProvider;
+            _serverOptions = serverOptionsMonitor.CurrentValue;
+            _serverOptionsMonitorToken = serverOptionsMonitor.OnChange(OnServerOptionsChanged);
+        }
+
+        private void OnServerOptionsChanged(ServerOptions serverOptions)
+        {
+            _serverOptions = serverOptions;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -54,7 +76,7 @@ namespace NodeService.WindowsService.Services
                     builder.Services.AddSingleton<INodeIdentityProvider>(_nodeIdentityProvider);
                     builder.Services.AddScoped(sp => new HttpClient
                     {
-                        BaseAddress = new Uri(builder.Configuration.GetValue<string>("ServerConfig:HttpAddress"))
+                        BaseAddress = new Uri(_serverOptions.HttpAddress)
                     });
                     builder.Services.AddScoped<ApiService>();
                     builder.Services.AddSingleton<ITargetBlock<LogEntry>>(jobExecutionContext.LogMessageTargetBlock);

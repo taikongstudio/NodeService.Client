@@ -197,49 +197,80 @@ namespace NodeService.WindowsService.Services
             CancellationToken cancellationToken = default)
         {
             FtpStatus ftpStatus = FtpStatus.Failed;
+
+            bool uploadSharingViolationFile = false;
+        LRetry:
             try
             {
                 if (!File.Exists(localFilePath))
                 {
-                    return FtpStatus.Failed;
+                    return FtpStatus.Skipped;
                 }
-                if (!FtpUploadConfig.CleanupRemoteDirectory
-                    && this.FtpUploadConfig.FileExistsTime > 0
-                    && _remoteFileListDict.TryGetValue(remoteFilePath, out var ftpListItem)
-                    && DiffFileInfo(localFilePath, ftpListItem))
+                FtpRemoteExists ftpRemoteExists = ConvertFtpFileExistsToFtpRemoteExists(this.FtpUploadConfig.FtpFileExists);
+                if (uploadSharingViolationFile)
                 {
-                    var fileExists = ConvertFtpFileExistsToFtpRemoteExists(this.FtpUploadConfig.FtpFileExists);
-                    ftpStatus = await ftpClient.UploadFile(
-                          localFilePath,
-                          remoteFilePath,
-                          fileExists,
-                          true,
-                          FtpVerify.None,
-                          _progress, token: cancellationToken);
-                    if (ftpStatus == FtpStatus.Success)
+                    ftpStatus = await UploadSharingViolationFileAsync(ftpClient,
+                        localFilePath,
+                        remoteFilePath,
+                        ftpRemoteExists,
+                        cancellationToken);
+                    return ftpStatus;
+                }
+                if (FtpUploadConfig.CleanupRemoteDirectory
+                    || this.FtpUploadConfig.FileExistsTime <= 0
+                    || !_remoteFileListDict.TryGetValue(remoteFilePath, out var ftpListItem)
+                    || !DiffFileInfo(localFilePath, ftpListItem))
+                {
+                    ftpRemoteExists = FtpRemoteExists.Skip;
+                }
+                ftpStatus = await ftpClient.UploadFile(localFilePath,
+                     remoteFilePath,
+                    ftpRemoteExists,
+                     true,
+                     FtpVerify.None,
+                     _progress, token: cancellationToken);
+                if (ftpStatus == FtpStatus.Success)
+                {
+                    if (ftpRemoteExists == FtpRemoteExists.Overwrite)
                     {
-                        if (fileExists == FtpRemoteExists.Overwrite)
-                        {
-                            overidedCount++;
-                        }
+                        overidedCount++;
                     }
                 }
-                else
-                {
-                    ftpStatus = await ftpClient.UploadFile(localFilePath,
-                         remoteFilePath,
-                         FtpRemoteExists.Skip,
-                         true,
-                         FtpVerify.None,
-                         _progress, token: cancellationToken);
-                }
 
+            }
+            catch (IOException ex) when ((ex.HResult & 0x0000FFFF) == 32)
+            {
+                _logger.LogError(ex.ToString());
+                uploadSharingViolationFile = true;
+                goto LRetry;
             }
             catch (Exception ex)
             {
                 _logger.LogInformation(ex.ToString());
             }
 
+            return ftpStatus;
+        }
+
+        private async Task<FtpStatus> UploadSharingViolationFileAsync(
+            AsyncFtpClient ftpClient,
+            string localFilePath,
+            string remoteFilePath,
+            FtpRemoteExists ftpRemoteExists,
+            CancellationToken cancellationToken = default)
+        {
+            using var fileStream = File.Open(
+                localFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite);
+            var ftpStatus = await ftpClient.UploadStream(
+                fileStream,
+                remoteFilePath,
+                ftpRemoteExists,
+                true,
+                this._progress,
+                cancellationToken);
             return ftpStatus;
         }
 
@@ -264,7 +295,7 @@ namespace NodeService.WindowsService.Services
                 default:
                     break;
             }
-            return FtpRemoteExists.Overwrite;
+            return FtpRemoteExists.Skip;
         }
 
         private bool DiffFileInfo(string localFilePath, FtpListItem remoteFileInfo)
@@ -325,8 +356,8 @@ namespace NodeService.WindowsService.Services
 
         private static string CaculateRemoteFilePath(string remoteRootDir, string rootPath, string? localFilePath)
         {
-            var parentDir = Path.GetDirectoryName(localFilePath);
-            var relativePath = Path.GetRelativePath(rootPath, parentDir);
+            var parentDirectory = Path.GetDirectoryName(localFilePath);
+            var relativePath = Path.GetRelativePath(rootPath, parentDirectory);
             var fileName = Path.GetFileName(localFilePath);
             var remoteFilePath = Path.Combine(remoteRootDir, relativePath, fileName);
             remoteFilePath = remoteFilePath.Replace("\\", "/");
