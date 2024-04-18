@@ -288,6 +288,8 @@ namespace MaccorUploadTool.Services
                     fileRecord.CreationDateTime = File.GetCreationTimeUtc(fileSystemChangeRecord.LocalFilePath);
                     fileRecord.Size = fileSystemChangeRecord.Stat.FileSize;
                     fileRecord.FileHashValue = fileHashValue;
+                    fileRecord.CompressedFileHashValue = "null";
+                    fileRecord.CompressedSize = 0;
                 }
                 fileRecord.ModifyDateTime = DateTime.Now;
                 fileRecord.Properties = JsonSerializer.Serialize(fileSystemChangeRecord.Stat);
@@ -326,11 +328,14 @@ namespace MaccorUploadTool.Services
                 Stopwatch headerStopWatch = Stopwatch.StartNew();
 
                 fileSystemChangeRecord.DataFile = new DataFile();
+
+                var fileName = Path.GetFileName(fileSystemChangeRecord.LocalFilePath);
+
                 await foreach (var dataFileHeader in dataFileReader.ReadHeadersAsync().ConfigureAwait(false))
                 {
                     var header = dataFileHeader;
                     header.IPAddress = _ipAddress;
-                    header.FilePath = fileSystemChangeRecord.LocalFilePath;
+                    header.FilePath = fileName;
                     header.DnsName = fileSystemChangeRecord.Stat.DnsName;
 
                     fileSystemChangeRecord.Stat.HeaderDataCount++;
@@ -358,7 +363,7 @@ namespace MaccorUploadTool.Services
                             continue;
                         }
                         timeData.IPAddress = _ipAddress;
-                        timeData.FilePath = fileSystemChangeRecord.LocalFilePath;
+                        timeData.FilePath = fileName;
                         timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
                         timeDataArray[i] = timeData;
                         fileSystemChangeRecord.Stat.TimeDataCount++;
@@ -547,6 +552,7 @@ namespace MaccorUploadTool.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("EB6E7F66-F11C-4F7C-827B-73F387D8F23E");
             while (!stoppingToken.IsCancellationRequested)
             {
                 try

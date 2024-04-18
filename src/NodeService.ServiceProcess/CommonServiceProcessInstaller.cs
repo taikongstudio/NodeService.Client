@@ -159,6 +159,10 @@
         {
             try
             {
+                if (this._cancellationTokenSource != null && this._cancellationTokenSource.IsCancellationRequested)
+                {
+                    return;
+                }
                 using ServiceController serviceController = new ServiceController(_installContext.ServiceName);
                 serviceController.Start();
                 RaiseProgressChangedEvent($"等待服务\"{_installContext.ServiceName}\"运行");
@@ -291,10 +295,55 @@
 
         private Task<bool> ExtractPackageToInstallDirectoryAsync(bool autoCancel = true)
         {
-            return Task.Run<bool>(() =>
+            return Task.Run<bool>(async () =>
             {
+                int retryCount = 0;
+            LRetry:
                 try
                 {
+                    switch (retryCount)
+                    {
+                        case 1:
+                            RaiseProgressChangedEvent("文件被占用，尝试杀死目录内可执行文件启动的进程。");
+                            var executableFile = Directory.GetFiles(_installContext.InstallDirectory, "*.exe",
+                            new EnumerationOptions()
+                            {
+                                RecurseSubdirectories = true,
+                                MatchCasing = MatchCasing.PlatformDefault
+                            }
+                            );
+                            foreach (var file in executableFile)
+                            {
+                                var moduleName = Path.GetFileName(file);
+                                var processName = Path.GetFileNameWithoutExtension(file);
+                                RaiseProgressChangedEvent($"尝试关闭进程:{processName}");
+                                var processes = Process.GetProcessesByName(processName);
+                                RaiseProgressChangedEvent($"可执行文件\"{processName}\"有{processes.Length}个疑似进程");
+                                foreach (var process in processes)
+                                {
+                                    var installerPath = Path.GetFullPath(_installContext.InstallDirectory);
+                                    var directory = Path.GetFullPath(Path.GetDirectoryName(process.MainModule.FileName));
+                                    if (process.MainModule.ModuleName.Equals(moduleName, StringComparison.OrdinalIgnoreCase) &&
+                                    directory.Equals(installerPath, StringComparison.OrdinalIgnoreCase)
+                                    )
+                                    {
+                                        process.Kill(true);
+                                        RaiseProgressChangedEvent($"杀死进程\"{process.ProcessName}\"");
+                                    }
+
+                                }
+                            }
+                            break;
+                        case 2:
+                            if (TryWriteExitFile())
+                            {
+                                await Task.Delay(TimeSpan.FromSeconds(10));
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+
                     if (IsQuickMode())
                     {
                         return true;
@@ -304,6 +353,21 @@
                     ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, true);
                     RaiseProgressChangedEvent($"解压成功");
                     return true;
+                }
+                catch (IOException ex)
+                {
+                    if (retryCount < 2)
+                    {
+                        RaiseProgressChangedEvent(ex.Message);
+                        retryCount++;
+                        goto LRetry;
+                    }
+                    else
+                    {
+                        RaiseFailedEvent(ex.Message);
+                        Cancel();
+                    }
+
                 }
                 catch (Exception ex)
                 {
@@ -319,6 +383,20 @@
 
         }
 
+        private bool TryWriteExitFile()
+        {
+            try
+            {
+                var exitTxtFile = Path.Combine(_installContext.InstallDirectory, "exit.txt");
+                File.WriteAllText(exitTxtFile, string.Empty);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RaiseProgressChangedEvent(ex.Message);
+            }
+            return false;
+        }
 
         public Task<bool> RunAsync(CancellationToken cancellationToken = default)
         {
@@ -370,6 +448,11 @@
             catch (Exception ex)
             {
                 RollBackImpl(state);
+            }
+            finally
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
             }
             return false;
         }

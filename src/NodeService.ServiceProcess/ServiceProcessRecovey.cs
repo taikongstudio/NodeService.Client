@@ -12,7 +12,7 @@ namespace NodeService.ServiceProcess
 {
 
 
-    public class ServiceProcessDoctor : IDisposable
+    public class ServiceProcessRecovey : IDisposable
     {
         private class LockFileHolder : IDisposable
         {
@@ -58,11 +58,11 @@ namespace NodeService.ServiceProcess
             }
         }
 
-        private readonly ILogger<ServiceProcessDoctor> _logger;
+        private readonly ILogger<ServiceProcessRecovey> _logger;
         private readonly ApiService _apiService;
 
 
-        public ServiceProcessDoctor(ILogger<ServiceProcessDoctor> logger, ServiceProcessRecoveryContext recoveryContext)
+        public ServiceProcessRecovey(ILogger<ServiceProcessRecovey> logger, ServiceProcessRecoveryContext recoveryContext)
         {
             _logger = logger;
             RecoveryContext = recoveryContext;

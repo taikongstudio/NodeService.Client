@@ -16,7 +16,7 @@ namespace NodeService.WindowsService
         [Option("mode", HelpText = "mode")]
         public string mode { get; set; }
 
-        [Option("env", Default = nameof(Environments.Development), HelpText = "env")]
+        [Option("env", Default = nameof(Environments.Production), HelpText = "env")]
         public string env { get; set; }
 
         public string ToJsonString()

@@ -55,6 +55,9 @@
             btnImport = new Button();
             BtnUninstall = new Button();
             BtnInstall = new Button();
+            lblServiceStatusWindowsService = new Label();
+            lblServiceStatusUpdateService = new Label();
+            lblServiceStatusWorkerService = new Label();
             groupConfig.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDownPort).BeginInit();
             SuspendLayout();
@@ -85,14 +88,14 @@
             groupConfig.Controls.Add(label1);
             groupConfig.Location = new Point(12, 12);
             groupConfig.Name = "groupConfig";
-            groupConfig.Size = new Size(868, 571);
+            groupConfig.Size = new Size(1010, 418);
             groupConfig.TabIndex = 27;
             groupConfig.TabStop = false;
             groupConfig.Text = "配置信息";
             // 
             // txtUri
             // 
-            txtUri.Location = new Point(166, 461);
+            txtUri.Location = new Point(166, 337);
             txtUri.Name = "txtUri";
             txtUri.Size = new Size(659, 30);
             txtUri.TabIndex = 53;
@@ -100,7 +103,7 @@
             // 
             // label9
             // 
-            label9.Location = new Point(38, 458);
+            label9.Location = new Point(38, 334);
             label9.Name = "label9";
             label9.Size = new Size(113, 36);
             label9.TabIndex = 52;
@@ -109,7 +112,7 @@
             // 
             // txtHost
             // 
-            txtHost.Location = new Point(166, 82);
+            txtHost.Location = new Point(166, 64);
             txtHost.Name = "txtHost";
             txtHost.Size = new Size(383, 30);
             txtHost.TabIndex = 51;
@@ -136,14 +139,14 @@
             // cmbEntryPoint
             // 
             cmbEntryPoint.FormattingEnabled = true;
-            cmbEntryPoint.Location = new Point(166, 409);
+            cmbEntryPoint.Location = new Point(166, 299);
             cmbEntryPoint.Name = "cmbEntryPoint";
             cmbEntryPoint.Size = new Size(659, 32);
             cmbEntryPoint.TabIndex = 48;
             // 
             // label7
             // 
-            label7.Location = new Point(38, 406);
+            label7.Location = new Point(38, 296);
             label7.Name = "label7";
             label7.Size = new Size(113, 36);
             label7.TabIndex = 47;
@@ -152,14 +155,14 @@
             // 
             // txtServiceName
             // 
-            txtServiceName.Location = new Point(166, 341);
+            txtServiceName.Location = new Point(166, 263);
             txtServiceName.Name = "txtServiceName";
             txtServiceName.Size = new Size(659, 30);
             txtServiceName.TabIndex = 46;
             // 
             // lblServiceName
             // 
-            lblServiceName.Location = new Point(38, 338);
+            lblServiceName.Location = new Point(38, 260);
             lblServiceName.Name = "lblServiceName";
             lblServiceName.Size = new Size(113, 36);
             lblServiceName.TabIndex = 45;
@@ -168,7 +171,7 @@
             // 
             // BtnBrowseInstallPath
             // 
-            BtnBrowseInstallPath.Location = new Point(716, 279);
+            BtnBrowseInstallPath.Location = new Point(716, 214);
             BtnBrowseInstallPath.Name = "BtnBrowseInstallPath";
             BtnBrowseInstallPath.Size = new Size(109, 43);
             BtnBrowseInstallPath.TabIndex = 44;
@@ -177,14 +180,14 @@
             // 
             // txtInstallPath
             // 
-            txtInstallPath.Location = new Point(166, 285);
+            txtInstallPath.Location = new Point(166, 220);
             txtInstallPath.Name = "txtInstallPath";
             txtInstallPath.Size = new Size(526, 30);
             txtInstallPath.TabIndex = 43;
             // 
             // label6
             // 
-            label6.Location = new Point(38, 282);
+            label6.Location = new Point(38, 217);
             label6.Name = "label6";
             label6.Size = new Size(113, 36);
             label6.TabIndex = 42;
@@ -193,23 +196,23 @@
             // 
             // ProgressBar
             // 
-            ProgressBar.Location = new Point(38, 543);
+            ProgressBar.Location = new Point(38, 383);
             ProgressBar.Name = "ProgressBar";
             ProgressBar.Size = new Size(787, 22);
             ProgressBar.TabIndex = 39;
             // 
             // NumericUpDownPort
             // 
-            NumericUpDownPort.Location = new Point(683, 82);
+            NumericUpDownPort.Location = new Point(716, 61);
             NumericUpDownPort.Maximum = new decimal(new int[] { 65535, 0, 0, 0 });
             NumericUpDownPort.Name = "NumericUpDownPort";
-            NumericUpDownPort.Size = new Size(142, 30);
+            NumericUpDownPort.Size = new Size(111, 30);
             NumericUpDownPort.TabIndex = 28;
             NumericUpDownPort.Value = new decimal(new int[] { 21, 0, 0, 0 });
             // 
             // label5
             // 
-            label5.Location = new Point(572, 82);
+            label5.Location = new Point(641, 58);
             label5.Name = "label5";
             label5.Size = new Size(69, 36);
             label5.TabIndex = 35;
@@ -218,29 +221,29 @@
             // 
             // txtUserName
             // 
-            txtUserName.Location = new Point(166, 134);
+            txtUserName.Location = new Point(166, 100);
             txtUserName.Name = "txtUserName";
-            txtUserName.Size = new Size(383, 30);
+            txtUserName.Size = new Size(659, 30);
             txtUserName.TabIndex = 31;
             // 
             // txtPassword
             // 
-            txtPassword.Location = new Point(166, 179);
+            txtPassword.Location = new Point(166, 136);
             txtPassword.Name = "txtPassword";
             txtPassword.PasswordChar = '*';
-            txtPassword.Size = new Size(383, 30);
+            txtPassword.Size = new Size(659, 30);
             txtPassword.TabIndex = 32;
             // 
             // txtPath
             // 
-            txtPath.Location = new Point(166, 233);
+            txtPath.Location = new Point(166, 172);
             txtPath.Name = "txtPath";
             txtPath.Size = new Size(659, 30);
             txtPath.TabIndex = 34;
             // 
             // label4
             // 
-            label4.Location = new Point(38, 230);
+            label4.Location = new Point(38, 169);
             label4.Name = "label4";
             label4.Size = new Size(113, 36);
             label4.TabIndex = 33;
@@ -249,7 +252,7 @@
             // 
             // label3
             // 
-            label3.Location = new Point(38, 176);
+            label3.Location = new Point(38, 133);
             label3.Name = "label3";
             label3.Size = new Size(113, 36);
             label3.TabIndex = 30;
@@ -258,7 +261,7 @@
             // 
             // label2
             // 
-            label2.Location = new Point(38, 131);
+            label2.Location = new Point(38, 97);
             label2.Name = "label2";
             label2.Size = new Size(113, 36);
             label2.TabIndex = 29;
@@ -267,7 +270,7 @@
             // 
             // label1
             // 
-            label1.Location = new Point(38, 79);
+            label1.Location = new Point(38, 61);
             label1.Name = "label1";
             label1.Size = new Size(113, 36);
             label1.TabIndex = 27;
@@ -276,17 +279,17 @@
             // 
             // txtInfo
             // 
-            txtInfo.Location = new Point(12, 589);
+            txtInfo.Location = new Point(12, 436);
             txtInfo.Multiline = true;
             txtInfo.Name = "txtInfo";
             txtInfo.ReadOnly = true;
             txtInfo.ScrollBars = ScrollBars.Vertical;
-            txtInfo.Size = new Size(868, 191);
+            txtInfo.Size = new Size(1010, 191);
             txtInfo.TabIndex = 41;
             // 
             // btnImport
             // 
-            btnImport.Location = new Point(58, 786);
+            btnImport.Location = new Point(12, 786);
             btnImport.Name = "btnImport";
             btnImport.Size = new Size(146, 56);
             btnImport.TabIndex = 40;
@@ -296,7 +299,7 @@
             // 
             // BtnUninstall
             // 
-            BtnUninstall.Location = new Point(679, 786);
+            BtnUninstall.Location = new Point(876, 786);
             BtnUninstall.Name = "BtnUninstall";
             BtnUninstall.Size = new Size(146, 56);
             BtnUninstall.TabIndex = 38;
@@ -306,7 +309,7 @@
             // 
             // BtnInstall
             // 
-            BtnInstall.Location = new Point(359, 786);
+            BtnInstall.Location = new Point(462, 786);
             BtnInstall.Name = "BtnInstall";
             BtnInstall.Size = new Size(146, 56);
             BtnInstall.TabIndex = 36;
@@ -314,11 +317,38 @@
             BtnInstall.UseVisualStyleBackColor = true;
             BtnInstall.Click += BtnInstall_Click;
             // 
+            // lblServiceStatusWindowsService
+            // 
+            lblServiceStatusWindowsService.AutoSize = true;
+            lblServiceStatusWindowsService.Location = new Point(58, 643);
+            lblServiceStatusWindowsService.Name = "lblServiceStatusWindowsService";
+            lblServiceStatusWindowsService.Size = new Size(0, 24);
+            lblServiceStatusWindowsService.TabIndex = 42;
+            // 
+            // lblServiceStatusUpdateService
+            // 
+            lblServiceStatusUpdateService.AutoSize = true;
+            lblServiceStatusUpdateService.Location = new Point(58, 694);
+            lblServiceStatusUpdateService.Name = "lblServiceStatusUpdateService";
+            lblServiceStatusUpdateService.Size = new Size(0, 24);
+            lblServiceStatusUpdateService.TabIndex = 43;
+            // 
+            // lblServiceStatusWorkerService
+            // 
+            lblServiceStatusWorkerService.AutoSize = true;
+            lblServiceStatusWorkerService.Location = new Point(58, 742);
+            lblServiceStatusWorkerService.Name = "lblServiceStatusWorkerService";
+            lblServiceStatusWorkerService.Size = new Size(0, 24);
+            lblServiceStatusWorkerService.TabIndex = 44;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(897, 854);
+            ClientSize = new Size(1050, 854);
+            Controls.Add(lblServiceStatusWorkerService);
+            Controls.Add(lblServiceStatusUpdateService);
+            Controls.Add(lblServiceStatusWindowsService);
             Controls.Add(groupConfig);
             Controls.Add(txtInfo);
             Controls.Add(BtnInstall);
@@ -364,5 +394,8 @@
         private Label label1;
         private TextBox txtUri;
         private Label label9;
+        private Label lblServiceStatusWindowsService;
+        private Label lblServiceStatusUpdateService;
+        private Label lblServiceStatusWorkerService;
     }
 }

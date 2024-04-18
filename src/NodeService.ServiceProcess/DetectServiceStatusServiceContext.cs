@@ -6,10 +6,10 @@ namespace NodeService.ServiceProcess
     {
         public DetectServiceStatusServiceContext()
         {
-            this.RecoveryContexts = new ConcurrentDictionary<string, ServiceProcessDoctor>();
+            this.RecoveryContexts = new ConcurrentDictionary<string, ServiceProcessRecovey>();
         }
 
-        public IDictionary<string, ServiceProcessDoctor> RecoveryContexts { get; private set; }
+        public IDictionary<string, ServiceProcessRecovey> RecoveryContexts { get; private set; }
 
     }
 

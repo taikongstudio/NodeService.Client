@@ -137,7 +137,7 @@ namespace MaccorUploadTool.Data
             this._headerChanel.Writer.TryWrite(deliveryReport.Message);
         }
 
-        private async void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
+        private void TimeDataDeliveryHandler(DeliveryReport<string, string> deliveryReport)
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
@@ -149,8 +149,9 @@ namespace MaccorUploadTool.Data
                 }
                 return;
             }
+            _logger.LogInformation($"retry:{deliveryReport.Value}");
             this._fileSystemChangedRecord.Stat.TimeDataTotalRetryTimes++;
-            await this._timeDataChannel.Writer.WriteAsync(deliveryReport.Message.Value);
+            this._timeDataChannel.Writer.WriteAsync(deliveryReport.Message.Value).AsTask().Wait();
         }
 
         public async Task<bool> ProduceTimeDataAsync()
@@ -197,7 +198,7 @@ namespace MaccorUploadTool.Data
                          }
                          if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
                          {
-                             _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write{index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
+                             _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write {index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
                          }
                      }
                      catch (Exception ex)

@@ -26,7 +26,7 @@ namespace NodeService.WindowsService
                               options.env = Environments.Production;
                           }
                       }
-                      if (options.env == null)
+                      if (options.env == null|| Debugger.IsAttached)
                       {
                           options.env = Environments.Development;
                       }

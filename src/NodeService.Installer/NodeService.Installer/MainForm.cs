@@ -1,7 +1,10 @@
 using FluentFTP;
 using NodeService.Infrastructure;
 using NodeService.ServiceProcess;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
+using System.ServiceProcess;
 using System.Text.Json;
 
 namespace NodeService.Installer
@@ -123,7 +126,7 @@ namespace NodeService.Installer
                     _selectedInstallConfig.ServiceName,
                     string.Empty,
                     _selectedInstallConfig.EntryPoint,
-                    null
+                    Debugger.IsAttached ? "--mode WindowsService --env Development" : null
                     );
                 installer.SetParameters(BuildPackageProvider(), BuildIntallContext());
                 installer.ProgressChanged += Installer_ProgressChanged;
@@ -285,6 +288,7 @@ namespace NodeService.Installer
                 const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
                 await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
                 [
+                    DaemonServiceName,
                     WorkerServiceName,
                     UpdateServiceName,
                     WindowsServiceName,
@@ -314,10 +318,99 @@ namespace NodeService.Installer
 
         }
 
+        private void CheckServiceStatus()
+        {
+            Task.Run(CheckSericeStatusImpl);
+        }
+
+        const string WorkerServiceName = "NodeService.WorkerService";
+        const string UpdateServiceName = "NodeService.UpdateService";
+        const string WindowsServiceName = "NodeService.WindowsService";
+
+        private async void CheckSericeStatusImpl()
+        {
+            ConcurrentDictionary<string, ServiceController> controllers = new ConcurrentDictionary<string, ServiceController>();
+            while (true)
+            {
+                try
+                {
+                    string[] serviceNames = [WindowsServiceName, UpdateServiceName, WorkerServiceName];
+                    foreach (var serviceName in serviceNames)
+                    {
+                        try
+                        {
+                            var serviceController = controllers.GetOrAdd(serviceName, new ServiceController(serviceName));
+                            serviceController.Refresh();
+                            UpdateServiceStatus(serviceName, serviceController.Status.ToString());
+                        }
+                        catch (Exception ex)
+                        {
+                            UpdateServiceStatus(serviceName, ex.Message.ToString());
+                        }
+
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                }
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+        }
+
+        private void UpdateServiceStatus(string serviceName, string status)
+        {
+            this.Invoke(() =>
+            {
+                switch (serviceName)
+                {
+                    case UpdateServiceName:
+                        this.lblServiceStatusUpdateService.Text = $"{serviceName}:{status}";
+                        if (status == "Running")
+                        {
+                            this.lblServiceStatusUpdateService.ForeColor = Color.Green;
+                        }
+                        else
+                        {
+                            this.lblServiceStatusUpdateService.ForeColor = Color.Red;
+                        }
+                        break;
+                    case WindowsServiceName:
+                        this.lblServiceStatusWindowsService.Text = $"{serviceName}:{status}";
+                        if (status == "Running")
+                        {
+                            this.lblServiceStatusWindowsService.ForeColor = Color.Green;
+                        }
+                        else
+                        {
+                            this.lblServiceStatusWindowsService.ForeColor = Color.Red;
+                        }
+                        break;
+                    case WorkerServiceName:
+                        this.lblServiceStatusWorkerService.Text = $"{serviceName}:{status}";
+                        this.lblServiceStatusWorkerService.Text = $"{serviceName}:{status}";
+                        if (status == "Running")
+                        {
+                            this.lblServiceStatusWorkerService.ForeColor = Color.Green;
+                        }
+                        else
+                        {
+                            this.lblServiceStatusWorkerService.ForeColor = Color.Red;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
+            });
+        }
+
         private async void MainForm_Load(object sender, EventArgs e)
         {
             try
             {
+                CheckServiceStatus();
                 const string PackagesFileName = "/NodeService.WebServer/packages/packages.json";
                 var form = new AuthForm();
                 form.Owner = this;

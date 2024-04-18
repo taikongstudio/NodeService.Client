@@ -53,8 +53,8 @@ namespace NodeService.ServiceProcess
                 {
                     context.RecoveryContexts.Add(
                         recoveryContext.ServiceName,
-                        new ServiceProcessDoctor(
-                            _serviceProvider.GetService<ILogger<ServiceProcessDoctor>>(),
+                        new ServiceProcessRecovey(
+                            _serviceProvider.GetService<ILogger<ServiceProcessRecovey>>(),
                             recoveryContext));
                 }
                 _context = context;
@@ -70,27 +70,43 @@ namespace NodeService.ServiceProcess
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await ExecuteServiceDockers();
+                await RecoveryService();
                 await Task.Delay(TimeSpan.FromSeconds(30));
             }
 
 
         }
 
-        private async ValueTask ExecuteServiceDockers(CancellationToken stoppingToken = default)
+        private async ValueTask RecoveryService(CancellationToken stoppingToken = default)
         {
-            if (this._context == null)
+            try
             {
-                return;
+                if (this._context == null)
+                {
+                    return;
+                }
+                if (_context.RecoveryContexts == null || !_context.RecoveryContexts.Any())
+                {
+                    return;
+                }
+                foreach (var kv in _context.RecoveryContexts)
+                {
+                    try
+                    {
+                        await kv.Value.ExecuteAsync(stoppingToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex.ToString());
+                    }
+
+                }
             }
-            if (_context.RecoveryContexts == null || !_context.RecoveryContexts.Any())
+            catch (Exception ex)
             {
-                return;
+                _logger.LogError(ex.ToString());
             }
-            foreach (var kv in _context.RecoveryContexts)
-            {
-                await kv.Value.ExecuteAsync(stoppingToken);
-            }
+
         }
 
 
