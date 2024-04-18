@@ -526,7 +526,7 @@
 
         public void Dispose()
         {
-            if (this._stream!=null)
+            if (this._stream != null)
             {
                 this._stream.Dispose();
                 this._stream = null;

@@ -8,6 +8,6 @@ namespace NodeService.WindowsService
 {
     public class Constants
     {
-        public const string Version = "B95E81A1-41C4-4F9D-A703-8ABB8C9B684B";
+        public const string Version = "33CCB865-70CB-4BDB-B06B-B360F72775C8";
     }
 }

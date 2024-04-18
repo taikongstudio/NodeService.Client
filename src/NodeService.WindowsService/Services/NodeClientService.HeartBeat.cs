@@ -170,7 +170,7 @@ namespace NodeService.WindowsService.Services
                                 switch (property.Name)
                                 {
                                     case nameof(ServiceProcessInfo.Name):
-                                        serviceProcessInfo.Name = property.Name;
+                                        serviceProcessInfo.Name = property.Value as string;
                                         break;
                                     case nameof(ServiceProcessInfo.PathName):
                                         serviceProcessInfo.PathName = property.Value as string;

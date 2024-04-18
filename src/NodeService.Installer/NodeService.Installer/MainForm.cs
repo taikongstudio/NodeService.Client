@@ -135,9 +135,6 @@ namespace NodeService.Installer
                 installer.Failed += Installer_Failed;
                 installer.Completed += Installer_Completed;
                 await installer.RunAsync();
-                installer.ProgressChanged -= Installer_ProgressChanged;
-                installer.Failed -= Installer_Failed;
-                installer.Completed -= Installer_Completed;
 
             }
             catch (Exception ex)

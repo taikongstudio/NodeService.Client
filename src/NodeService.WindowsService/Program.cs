@@ -46,6 +46,7 @@ namespace NodeService.WindowsService
                     return;
                 }
                 Console.WriteLine(JsonSerializer.Serialize(options));
+                Console.WriteLine($"ClientVersion:{Constants.Version}");
                 if (options.mode == "Uninstall")
                 {
                     const string DaemonServiceName = "NodeService.DaemonService";
