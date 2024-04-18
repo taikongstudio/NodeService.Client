@@ -11,12 +11,12 @@
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            while (!stoppingToken.IsCancellationRequested && !await InstallPythonPackageAsync())
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+            }
             while (!stoppingToken.IsCancellationRequested)
             {
-                while (!await InstallPythonPackageAsync())
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(10));
-                }
                 await Task.Delay(TimeSpan.FromSeconds(10));
             }
         }

@@ -30,16 +30,16 @@ namespace NodeService.WindowsService.Services
                 Logger.LogError("no code");
                 return;
             }
-
-
-
+            PythonEngine.Initialize();
             // call Python's sys.version to prove we are executing the right version
             dynamic sys = Py.Import("sys");
             Console.WriteLine("### Python version:\n\t" + sys.version);
-
-            PythonEngine.Exec(options.Code);
-            // This calls my.py's Py_Write(string)
-            //			test.Py_Write("csharp to ip");
+            using (Py.GIL())
+            {
+                PythonEngine.Exec(options.Code);
+                // This calls my.py's Py_Write(string)
+                //			test.Py_Write("csharp to ip");
+            }
         }
     }
 }

@@ -109,6 +109,7 @@ namespace NodeService.WindowsService
                     builder.Services.AddSingleton<TaskExecutionContextDictionary>();
                     builder.Services.AddHostedService<TaskHostService>();
                     builder.Services.AddHostedService<NodeClientService>();
+                    builder.Services.AddHostedService<PythonRuntimeService>();
                     builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
                     builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
                     builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
