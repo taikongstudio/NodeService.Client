@@ -15,7 +15,6 @@ namespace NodeService.Installer
         public MainForm()
         {
             InitializeComponent();
-
         }
 
         private const string DefaultInstallConfigPath = "InstallConfig.json";
@@ -74,8 +73,11 @@ namespace NodeService.Installer
 
         }
 
+        private bool _installed = false;
+
         private async void BtnInstall_Click(object sender, EventArgs e)
         {
+            _installed = false;
             if (this.apiService != null && this.apiService.HttpClient.BaseAddress.ToString() != this.txtUri.Text)
             {
                 this.apiService.Dispose();
@@ -144,6 +146,7 @@ namespace NodeService.Installer
             }
             finally
             {
+                _installed = true;
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 EnableControls();
@@ -335,6 +338,7 @@ namespace NodeService.Installer
                 try
                 {
                     string[] serviceNames = [WindowsServiceName, UpdateServiceName, WorkerServiceName];
+                    int count = 0;
                     foreach (var serviceName in serviceNames)
                     {
                         try
@@ -342,12 +346,26 @@ namespace NodeService.Installer
                             var serviceController = controllers.GetOrAdd(serviceName, new ServiceController(serviceName));
                             serviceController.Refresh();
                             UpdateServiceStatus(serviceName, serviceController.Status.ToString());
+                            if (serviceController.Status== ServiceControllerStatus.Running)
+                            {
+                                count++;
+                            }
                         }
                         catch (Exception ex)
                         {
                             UpdateServiceStatus(serviceName, ex.Message.ToString());
                         }
-
+                    }
+                    if (count == serviceNames.Length && _installed)
+                    {
+                        this.Invoke(() =>
+                        {
+                            if (this.chkAutoExit.Checked)
+                            {
+                                Environment.Exit(0);
+                            }
+                        });
+ 
                     }
                 }
                 catch (Exception ex)

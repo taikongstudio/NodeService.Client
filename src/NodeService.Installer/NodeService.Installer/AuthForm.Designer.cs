@@ -31,8 +31,8 @@
             label9 = new Label();
             txtKey = new TextBox();
             groupBox2 = new GroupBox();
-            BtnVerify = new Button();
             BtnImport = new Button();
+            BtnVerify = new Button();
             groupBox2.SuspendLayout();
             SuspendLayout();
             // 
@@ -67,16 +67,6 @@
             groupBox2.TabStop = false;
             groupBox2.Text = "授权验证";
             // 
-            // BtnVerify
-            // 
-            BtnVerify.Location = new Point(295, 362);
-            BtnVerify.Name = "BtnVerify";
-            BtnVerify.Size = new Size(164, 52);
-            BtnVerify.TabIndex = 29;
-            BtnVerify.Text = "验证";
-            BtnVerify.UseVisualStyleBackColor = true;
-            BtnVerify.Click += BtnVerify_Click;
-            // 
             // BtnImport
             // 
             BtnImport.Location = new Point(560, 25);
@@ -87,12 +77,23 @@
             BtnImport.UseVisualStyleBackColor = true;
             BtnImport.Click += BtnImport_Click;
             // 
+            // BtnVerify
+            // 
+            BtnVerify.Location = new Point(295, 362);
+            BtnVerify.Name = "BtnVerify";
+            BtnVerify.Size = new Size(164, 52);
+            BtnVerify.TabIndex = 29;
+            BtnVerify.Text = "验证";
+            BtnVerify.UseVisualStyleBackColor = true;
+            BtnVerify.Click += BtnVerify_Click;
+            // 
             // AuthForm
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
             Controls.Add(groupBox2);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             Name = "AuthForm";
             StartPosition = FormStartPosition.CenterScreen;

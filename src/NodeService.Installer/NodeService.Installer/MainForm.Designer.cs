@@ -58,6 +58,7 @@
             lblServiceStatusWindowsService = new Label();
             lblServiceStatusUpdateService = new Label();
             lblServiceStatusWorkerService = new Label();
+            chkAutoExit = new CheckBox();
             groupConfig.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDownPort).BeginInit();
             SuspendLayout();
@@ -341,11 +342,24 @@
             lblServiceStatusWorkerService.Size = new Size(0, 24);
             lblServiceStatusWorkerService.TabIndex = 44;
             // 
+            // chkAutoExit
+            // 
+            chkAutoExit.AutoSize = true;
+            chkAutoExit.Checked = true;
+            chkAutoExit.CheckState = CheckState.Checked;
+            chkAutoExit.Location = new Point(200, 801);
+            chkAutoExit.Name = "chkAutoExit";
+            chkAutoExit.Size = new Size(198, 28);
+            chkAutoExit.TabIndex = 54;
+            chkAutoExit.Text = "安装完成后自动退出";
+            chkAutoExit.UseVisualStyleBackColor = true;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1050, 854);
+            Controls.Add(chkAutoExit);
             Controls.Add(lblServiceStatusWorkerService);
             Controls.Add(lblServiceStatusUpdateService);
             Controls.Add(lblServiceStatusWindowsService);
@@ -354,8 +368,10 @@
             Controls.Add(BtnInstall);
             Controls.Add(BtnUninstall);
             Controls.Add(btnImport);
+            FormBorderStyle = FormBorderStyle.Fixed3D;
             MaximizeBox = false;
             Name = "MainForm";
+            SizeGripStyle = SizeGripStyle.Hide;
             StartPosition = FormStartPosition.CenterScreen;
             Text = "守护进程安装程序";
             Load += MainForm_Load;
@@ -397,5 +413,6 @@
         private Label lblServiceStatusWindowsService;
         private Label lblServiceStatusUpdateService;
         private Label lblServiceStatusWorkerService;
+        private CheckBox chkAutoExit;
     }
 }
