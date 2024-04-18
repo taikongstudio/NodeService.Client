@@ -82,9 +82,11 @@ namespace NodeService.WindowsService.Services
                 process.BeginErrorReadLine();
 
                 // 等待脚本执行完毕
-                await process.WaitForExitAsync(cancellationToken: stoppingToken);
-
-
+                int taskIndex = Task.WaitAny(process.WaitForExitAsync(), Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken));
+                if (taskIndex == 1)
+                {
+                    process.Kill(true);
+                }
             }
             catch (Exception ex)
             {
