@@ -13,9 +13,7 @@ namespace NodeService.WindowsService.Services
 {
     public partial class NodeClientService
     {
-        private long _heartBeatCounter;
-        private ServerOptions _serverOptions;
-        private readonly IDisposable? _serverOptionsMonitorToken;
+
 
         private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
@@ -54,7 +52,7 @@ namespace NodeService.WindowsService.Services
 
                 CollectDiskInfo(heartBeatRsp);
 
-                CollectServices(heartBeatRsp);
+                CollectWin32Services(heartBeatRsp);
 
             }
             catch (Exception ex)
@@ -142,7 +140,7 @@ namespace NodeService.WindowsService.Services
                 try
                 {
 
-                    //heartBeatRsp.Properties.Add(NodePropertyModel.Domain_ComputerDomain_Key, domain.Name);
+
                 }
                 catch (Exception ex)
                 {
@@ -151,11 +149,14 @@ namespace NodeService.WindowsService.Services
 
             }
 
-            void CollectServices(HeartBeatResponse heartBeatRsp)
+            void CollectWin32Services(HeartBeatResponse heartBeatRsp)
             {
                 try
                 {
-
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        return;
+                    }
                     using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Service");
                     using var objectCollection = searcher.Get();
                     List<ServiceProcessInfo> services = new List<ServiceProcessInfo>(objectCollection.Count);

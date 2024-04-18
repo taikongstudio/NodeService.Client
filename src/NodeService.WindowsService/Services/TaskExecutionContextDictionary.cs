@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NodeService.WindowsService.Collections
+namespace NodeService.WindowsService.Services
 {
-    public class JobExecutionContextDictionary : ConcurrentDictionary<string, JobExecutionContext>
+    public class TaskExecutionContextDictionary : ConcurrentDictionary<string, TaskExecutionContext>
     {
 
     }

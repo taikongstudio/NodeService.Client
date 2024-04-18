@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace NodeService.WindowsService.Services
 {
-    public class ExecutePythonCodeJob : Job
+    public class ExecutePythonCodeJob : TaskBase
     {
-        public ExecutePythonCodeJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public ExecutePythonCodeJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
         }
 

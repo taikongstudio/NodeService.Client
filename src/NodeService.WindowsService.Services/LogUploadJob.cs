@@ -5,11 +5,11 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class LogUploadJob : Job, IProgress<FtpProgress>
+    public class LogUploadJob : TaskBase, IProgress<FtpProgress>
     {
         private readonly string _dnsName;
 
-        public LogUploadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public LogUploadJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
             _dnsName = Dns.GetHostName();
         }

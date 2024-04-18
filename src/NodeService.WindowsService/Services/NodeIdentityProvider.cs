@@ -1,12 +1,4 @@
-﻿using Microsoft.Win32;
-using NodeService.Infrastructure.NodeSessions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace NodeService.WindowsService.Services
+﻿namespace NodeService.WindowsService.Services
 {
     public class NodeIdentityProvider : INodeIdentityProvider
     {
@@ -24,16 +16,16 @@ namespace NodeService.WindowsService.Services
             {
                 nodeRegisty = softwareSubKey.OpenSubKey(ServiceName, true);
             }
-            string machineId = null;
+            string nodeIdentity = null;
             if (!nodeRegisty.GetValueNames().Any(x => x == nameof(NodeClientHeaders.NodeId)))
             {
-                machineId = Guid.NewGuid().ToString();
-                nodeRegisty.SetValue(nameof(NodeClientHeaders.NodeId), machineId);
+                nodeIdentity = Guid.NewGuid().ToString();
+                nodeRegisty.SetValue(nameof(NodeClientHeaders.NodeId), nodeIdentity);
 
             }
-            machineId = nodeRegisty.GetValue(nameof(NodeClientHeaders.NodeId)) as string;
+            nodeIdentity = nodeRegisty.GetValue(nameof(NodeClientHeaders.NodeId)) as string;
             nodeRegisty.Dispose();
-            return machineId;
+            return nodeIdentity;
         }
 
     }

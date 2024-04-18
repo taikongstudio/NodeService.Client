@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace NodeService.WindowsService.Services
 {
-    public class FtpDownloadJob : Job, IProgress<FtpProgress>
+    public class FtpDownloadJob : TaskBase, IProgress<FtpProgress>
     {
-        public FtpDownloadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public FtpDownloadJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
 
         }

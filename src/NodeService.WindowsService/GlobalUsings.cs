@@ -32,6 +32,19 @@ global using System.Threading.Tasks.Dataflow;
 global using NodeService.Infrastructure.Logging;
 global using NodeService.Infrastructure.Messages;
 global using NodeService.WindowsService.Collections;
+global using Microsoft.Win32;
+global using NodeService.Infrastructure.NodeSessions;
+global using System;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Text;
+global using System.Threading.Tasks;
+global using Microsoft.Extensions.Options;
+global using NodeService.Infrastructure.NodeSessions;
+global using NodeService.WindowsService.Models;
+global using System.Globalization;
+global using Python.Deployment;
+global using Python.Runtime;
 
 global using static NodeService.Infrastructure.Services.NodeService;
 

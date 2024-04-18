@@ -12,7 +12,7 @@ namespace NodeService.WindowsService.Helper
     {
         public static List<ProcessInfo> CollectProcessList(ILogger logger)
         {
-            List<ProcessInfo> processStatList = new List<ProcessInfo>();
+            List<ProcessInfo> processInfoList = new List<ProcessInfo>();
             try
             {
                 var processes = Process.GetProcesses();
@@ -21,7 +21,7 @@ namespace NodeService.WindowsService.Helper
                 {
                     try
                     {
-                        ProcessInfo processStatInfo = new ProcessInfo()
+                        ProcessInfo processInfo = new ProcessInfo()
                         {
                             FileName = process.ProcessName,
                             ProcessName = process.MainModule.FileName,
@@ -35,7 +35,7 @@ namespace NodeService.WindowsService.Helper
                             PagedSystemMemorySize64 = process.PagedSystemMemorySize64,
                             HandleCount = process.HandleCount,
                         };
-                        processStatList.Add(processStatInfo);
+                        processInfoList.Add(processInfo);
                     }
                     catch (Exception ex)
                     {
@@ -61,7 +61,7 @@ namespace NodeService.WindowsService.Helper
             {
                 logger?.LogError(ex.ToString());
             }
-            return processStatList;
+            return processInfoList;
         }
 
     }

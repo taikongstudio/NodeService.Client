@@ -1,33 +1,21 @@
-﻿
-using NodeService.Infrastructure.Interfaces;
-using NodeService.Infrastructure.Logging;
-using NodeService.WindowsService.Collections;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
-
-namespace NodeService.WindowsService.Services
+﻿namespace NodeService.WindowsService.Services
 {
-    public class JobExecutionContext : IAsyncDisposable
+    public class TaskExecutionContext : IAsyncDisposable
     {
         private readonly IAsyncQueue<JobExecutionReport> _reportChannel;
         private readonly ActionBlock<LogEntry> _logActionBlock;
-        private readonly JobExecutionContextDictionary _jobExecutionContextDictionary;
+        private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
         private CancellationTokenSource _cancellationTokenSource;
         private readonly BatchQueue<LogEntry> _logMessageEntryBatchQueue;
         private readonly ILogger _logger;
 
-        public JobExecutionContext(
-            ILogger<JobExecutionContext> logger,
-            JobCreationParameters parameters,
+        public TaskExecutionContext(
+            ILogger<TaskExecutionContext> logger,
+            TaskCreationParameters parameters,
             IAsyncQueue<JobExecutionReport> reportQueue,
-            JobExecutionContextDictionary jobContextDictionary)
+            TaskExecutionContextDictionary taskExecutionContextDictionary)
         {
-            _jobExecutionContextDictionary = jobContextDictionary;
+            _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _cancellationTokenSource = new CancellationTokenSource();
             _reportChannel = reportQueue;
             _logger = logger;
@@ -50,7 +38,7 @@ namespace NodeService.WindowsService.Services
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
-                        await this.EnqueueLogsAsync((JobExecutionStatus)status, logStatusGroup.Select(LogMessageEntryToJobExecutionLogEntry));
+                        await this.EnqueueLogsAsync((JobExecutionStatus)status, logStatusGroup.Select(LogEntryToTaskExecutionLogEntry));
                     }
                 }
             }
@@ -60,13 +48,13 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private static JobExecutionLogEntry LogMessageEntryToJobExecutionLogEntry(LogEntry logMessageEntry)
+        private static JobExecutionLogEntry LogEntryToTaskExecutionLogEntry(LogEntry logEntry)
         {
             return new JobExecutionLogEntry()
             {
-                Type = (JobExecutionLogEntry.Types.JobExecutionLogEntryType)logMessageEntry.Type,
-                DateTime = Timestamp.FromDateTime(logMessageEntry.DateTimeUtc),
-                Value = logMessageEntry.Value,
+                Type = (JobExecutionLogEntry.Types.JobExecutionLogEntryType)logEntry.Type,
+                DateTime = Timestamp.FromDateTime(logEntry.DateTimeUtc),
+                Value = logEntry.Value,
             };
         }
 
@@ -89,7 +77,7 @@ namespace NodeService.WindowsService.Services
 
 
 
-        public JobCreationParameters Parameters { get; private set; }
+        public TaskCreationParameters Parameters { get; private set; }
 
         public JobExecutionStatus Status { get; private set; }
 
@@ -131,7 +119,7 @@ namespace NodeService.WindowsService.Services
                 _cancellationTokenSource.Cancel();
                 _cancellationTokenSource.Dispose();
             }
-            _jobExecutionContextDictionary.TryRemove(Parameters.Id, out _);
+            _taskExecutionContextDictionary.TryRemove(Parameters.Id, out _);
             await Task.Delay(TimeSpan.FromSeconds(15));
             await this._logMessageEntryBatchQueue.DisposeAsync();
         }

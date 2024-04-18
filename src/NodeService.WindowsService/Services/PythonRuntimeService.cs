@@ -1,12 +1,4 @@
-﻿using Python.Deployment;
-using Python.Runtime;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace NodeService.WindowsService.Services
+﻿namespace NodeService.WindowsService.Services
 {
     public class PythonRuntimeService : BackgroundService
     {
@@ -40,7 +32,7 @@ namespace NodeService.WindowsService.Services
             {
                 Installer.Source = new Installer.EmbeddedResourceInstallationSource()
                 {
-                    Assembly = typeof(Job).Assembly,
+                    Assembly = typeof(TaskBase).Assembly,
                     Force = true,
                     ResourceName = "python-3.8.5-embed-amd64.zip"
                 };

@@ -10,7 +10,7 @@ using System.Threading.Tasks.Dataflow;
 
 namespace NodeService.WindowsService.Services
 {
-    public abstract class Job
+    public abstract class TaskBase
     {
         public ILogger Logger { get; private set; }
 
@@ -18,9 +18,7 @@ namespace NodeService.WindowsService.Services
 
         public ApiService ApiService { get; private set; }
 
-        public EventId EventId { get; private set; }
-
-        protected Job(ApiService apiService, ILogger<Job> logger)
+        protected TaskBase(ApiService apiService, ILogger<TaskBase> logger)
         {
             ApiService = apiService;
             Logger = logger;
@@ -31,7 +29,6 @@ namespace NodeService.WindowsService.Services
         public void SetJobScheduleConfig(JobScheduleConfigModel jobScheduleConfig)
         {
             this.JobScheduleConfig = jobScheduleConfig;
-            this.EventId = new EventId(0, jobScheduleConfig.Id);
         }
 
     }

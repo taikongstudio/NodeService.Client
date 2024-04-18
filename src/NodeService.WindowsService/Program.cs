@@ -104,13 +104,13 @@ namespace NodeService.WindowsService
                 builder.Services.AddHostedService<ProcessExitService>();
                 if (options.mode == "WindowsService")
                 {
-                    builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerConfiguration"));
+                    builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
                     builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
-                    builder.Services.AddSingleton<JobExecutionContextDictionary>();
-                    builder.Services.AddHostedService<JobHostService>();
+                    builder.Services.AddSingleton<TaskExecutionContextDictionary>();
+                    builder.Services.AddHostedService<TaskHostService>();
                     builder.Services.AddHostedService<NodeClientService>();
                     builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
-                    builder.Services.AddSingleton<IAsyncQueue<JobExecutionContext>, AsyncQueue<JobExecutionContext>>();
+                    builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
                     builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
                 }
                 builder.Logging.ClearProviders();

@@ -5,14 +5,14 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class ExecuteBatchScriptJob : Job
+    public class ExecuteBatchScriptJob : TaskBase
     {
         private readonly INodeIdentityProvider _nodeIdentityProvider;
 
         public ExecuteBatchScriptJob(
             INodeIdentityProvider nodeIdentityProvider,
             ApiService apiService,
-            ILogger<Job> logger) : base(apiService, logger)
+            ILogger<TaskBase> logger) : base(apiService, logger)
         {
             _nodeIdentityProvider = nodeIdentityProvider;
         }
@@ -27,7 +27,7 @@ namespace NodeService.WindowsService.Services
             Logger.LogError(e.Data);
         }
 
-        private string EnsureScriptsDirectory()
+        private string EnsureScriptsHomeDirectory()
         {
             var path = "C:/shouhu/scripts";
             if (!Directory.Exists(path))
@@ -43,7 +43,7 @@ namespace NodeService.WindowsService.Services
             using var process = new Process();
             try
             {
-                batchScriptTempFile = Path.Combine(EnsureScriptsDirectory(), $"{Guid.NewGuid()}.bat");
+                batchScriptTempFile = Path.Combine(EnsureScriptsHomeDirectory(), $"{Guid.NewGuid()}.bat");
                 ExecuteBatchScriptJobOptions options = new ExecuteBatchScriptJobOptions();
                 await options.InitAsync(this.JobScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
@@ -62,11 +62,11 @@ namespace NodeService.WindowsService.Services
                 }
 
 
-                string cmdFileName = ResolveCmdPath();
+                string cmdFilePath = ResolveCmdExecutablePath();
 
-                Logger.LogInformation($"{cmdFileName} Execute script :{scripts} at {workingDirectory} createNoWindow:{createNoWindow}");
+                Logger.LogInformation($"{cmdFilePath} Execute scripts:{Environment.NewLine}{scripts}{Environment.NewLine} at {workingDirectory} createNoWindow:{createNoWindow}");
 
-                process.StartInfo.FileName = cmdFileName;
+                process.StartInfo.FileName = cmdFilePath;
                 process.StartInfo.Arguments = $"/c \"{batchScriptTempFile}\"";
                 process.StartInfo.WorkingDirectory = workingDirectory;
                 process.StartInfo.UseShellExecute = false;
@@ -102,7 +102,7 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private static string ResolveCmdPath()
+        private static string ResolveCmdExecutablePath()
         {
             var cmdFilePath = $"{Environment.GetEnvironmentVariable("SystemRoot")}\\system32\\cmd.exe";
             if (!File.Exists(cmdFilePath))

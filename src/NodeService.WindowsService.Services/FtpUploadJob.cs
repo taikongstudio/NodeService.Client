@@ -5,7 +5,7 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class FtpUploadJob : Job, IProgress<FtpProgress>
+    public class FtpUploadJob : TaskBase, IProgress<FtpProgress>
     {
 
         public FtpUploadJob(ApiService apiService, ILogger<FtpUploadJob> logger) : base(apiService, logger)

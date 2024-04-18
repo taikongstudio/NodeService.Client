@@ -5,12 +5,12 @@ using System.Net;
 
 namespace NodeService.WindowsService.Services
 {
-    public class ShouHuUploadJob : Job
+    public class ShouHuUploadJob : TaskBase
     {
         private ProducerUtil _producerUtil;
         private WindowsUtil _windowsUtil;
 
-        public ShouHuUploadJob(ApiService apiService, ILogger<Job> logger) : base(apiService, logger)
+        public ShouHuUploadJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
         }
 
