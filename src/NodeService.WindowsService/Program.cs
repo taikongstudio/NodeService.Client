@@ -3,6 +3,7 @@ using NodeService.ServiceProcess;
 using NodeService.WindowsService.Models;
 using Python.Deployment;
 using Python.Runtime;
+using System.Management;
 
 namespace NodeService.WindowsService
 {
@@ -11,6 +12,7 @@ namespace NodeService.WindowsService
 
         public static async Task Main(string[] args)
         {
+       
             await Parser
                   .Default
                   .ParseArguments<Options>(args)
@@ -19,6 +21,10 @@ namespace NodeService.WindowsService
                       if (options.mode == null)
                       {
                           options.mode = "WindowsService";
+                          if (options.env == null)
+                          {
+                              options.env = Environments.Production;
+                          }
                       }
                       if (options.env == null)
                       {

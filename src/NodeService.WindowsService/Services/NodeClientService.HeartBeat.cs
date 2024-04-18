@@ -4,6 +4,8 @@ using NodeService.WindowsService.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Management;
+using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -52,11 +54,17 @@ namespace NodeService.WindowsService.Services
 
                 CollectDiskInfo(heartBeatRsp);
 
-                heartBeatRsp.Properties.Add(NodePropertyModel.LastUpdateDateTime_Key, DateTime.Now.ToString(NodePropertyModel.DateTimeFormatString));
+                CollectServices(heartBeatRsp);
+
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
+            }
+            finally
+            {
+                heartBeatRsp.Properties.Add(NodePropertyModel.LastUpdateDateTime_Key, DateTime.Now.ToString(NodePropertyModel.DateTimeFormatString));
+
             }
 
 
@@ -141,6 +149,124 @@ namespace NodeService.WindowsService.Services
                     _logger.LogError(ex.ToString());
                 }
 
+            }
+
+            void CollectServices(HeartBeatResponse heartBeatRsp)
+            {
+                try
+                {
+
+                    using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Service");
+                    using var objectCollection = searcher.Get();
+                    List<ServiceProcessInfo> services = new List<ServiceProcessInfo>(objectCollection.Count);
+                    foreach (var service in objectCollection)
+                    {
+                        ServiceProcessInfo serviceProcessInfo = new ServiceProcessInfo();
+
+                        foreach (var property in service.Properties)
+                        {
+                            try
+                            {
+                                switch (property.Name)
+                                {
+                                    case nameof(ServiceProcessInfo.Name):
+                                        serviceProcessInfo.Name = property.Name;
+                                        break;
+                                    case nameof(ServiceProcessInfo.PathName):
+                                        serviceProcessInfo.PathName = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.ProcessId):
+                                        serviceProcessInfo.ProcessId = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.Started):
+                                        serviceProcessInfo.Started = (bool)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.StartMode):
+                                        serviceProcessInfo.StartMode = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.ExitCode):
+                                        serviceProcessInfo.ExitCode = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.Status):
+                                        serviceProcessInfo.Status = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.SystemName):
+                                        serviceProcessInfo.SystemName = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.WaitHint):
+                                        serviceProcessInfo.WaitHint = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.Caption):
+                                        serviceProcessInfo.Caption = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.CheckPoint):
+                                        serviceProcessInfo.CheckPoint = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.InstallDate):
+                                        serviceProcessInfo.InstallDate = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.AcceptPause):
+                                        serviceProcessInfo.AcceptPause = (bool)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.AcceptStop):
+                                        serviceProcessInfo.AcceptStop = (bool)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.CreationClassName):
+                                        serviceProcessInfo.CreationClassName = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.DelayedAutoStart):
+                                        serviceProcessInfo.DelayedAutoStart = (bool)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.Description):
+                                        serviceProcessInfo.Description = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.DesktopInteract):
+                                        serviceProcessInfo.DesktopInteract = (bool)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.ErrorControl):
+                                        serviceProcessInfo.ErrorControl = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.ServiceSpecificExitCode):
+                                        serviceProcessInfo.ServiceSpecificExitCode = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.ServiceType):
+                                        serviceProcessInfo.ServiceType = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.StartName):
+                                        serviceProcessInfo.StartName = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.SystemCreationClassName):
+                                        serviceProcessInfo.SystemCreationClassName = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.TagId):
+                                        serviceProcessInfo.TagId = (uint)property.Value;
+                                        break;
+                                    case nameof(ServiceProcessInfo.State):
+                                        serviceProcessInfo.State = property.Value as string;
+                                        break;
+                                    case nameof(ServiceProcessInfo.DisplayName):
+                                        serviceProcessInfo.DisplayName = property.Value as string;
+                                        break;
+
+                                    default:
+                                        break;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.ToString());
+                            }
+                        }
+
+                        services.Add(serviceProcessInfo);
+
+                    }
+                    heartBeatRsp.Properties.Add(NodePropertyModel.System_Win32Services_Key, JsonSerializer.Serialize(services));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
             }
         }
     }

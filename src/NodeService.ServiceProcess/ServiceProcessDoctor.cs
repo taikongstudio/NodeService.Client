@@ -306,7 +306,7 @@ namespace NodeService.ServiceProcess
                 var timeSpan =
                     Debugger.IsAttached ?
                     TimeSpan.Zero :
-                    TimeSpan.FromSeconds(Random.Shared.Next(1, 300));
+                    TimeSpan.FromSeconds(Random.Shared.Next(1, 60));
                 _logger.LogInformation($"等待{timeSpan}");
                 await Task.Delay(timeSpan, stoppingToken);
             }

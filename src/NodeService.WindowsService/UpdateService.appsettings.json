@@ -15,7 +15,7 @@
         "InstallDirectory": "C:/shouhu/NodeService.WindowsService/",
         "DurationMinutes": 10,
         "ServiceName": "NodeService.WindowsService",
-        "Arguments": "--mode WindowsService --env Production"
+        "Arguments": ""
       },
       {
         "DisplayName": "NodeService.WorkerService",
