@@ -13,8 +13,6 @@ namespace MaccorUploadTool.Models
 {
     public struct DataFileHeader
     {
-        [JsonIgnore]
-        public bool HasValue {  get; set; }
         public string FilePath { get; set; }
 
         public string IPAddress { get; set; }

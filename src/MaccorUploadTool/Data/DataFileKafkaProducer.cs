@@ -2,9 +2,11 @@
 using Google.Protobuf.WellKnownTypes;
 using MaccorUploadTool.Models;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Buffers;
 using System.Reflection.PortableExecutable;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace MaccorUploadTool.Data
@@ -12,7 +14,7 @@ namespace MaccorUploadTool.Data
     public class DataFileKafkaProducer : IDisposable
     {
         private bool disposedValue;
-        private readonly FileSystemChangedRecord _fileSystemChangedRecord;
+        private readonly DataFileContext context;
         private ILogger _logger;
         private ProducerConfig _producerConfig;
         private Channel<Message<string, string>> _headerChanel;
@@ -20,17 +22,17 @@ namespace MaccorUploadTool.Data
 
         public DataFileKafkaProducer(
             ILogger logger,
-            FileSystemChangedRecord fileSystemChangedRecord,
+            DataFileContext fileSystemChangedRecord,
             string brokerList,
             string headerTopicName,
             string timeDataTopicName)
         {
             _headerChanel = Channel.CreateUnbounded<Message<string, string>>();
-            _timeDataChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1024)
+            _timeDataChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1024 * 4)
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
-            _fileSystemChangedRecord = fileSystemChangedRecord;
+            context = fileSystemChangedRecord;
             _logger = logger;
             BrokerList = brokerList;
             HeaderTopicName = headerTopicName;
@@ -83,7 +85,7 @@ namespace MaccorUploadTool.Data
             try
             {
 
-                foreach (var header in _fileSystemChangedRecord.DataFile.DataFileHeader)
+                foreach (var header in context.DataFile.DataFileHeader)
                 {
                     await this._headerChanel.Writer.WriteAsync(new Message<string, string> { Key = null, Value = header.AsJsonString() });
 
@@ -123,14 +125,14 @@ namespace MaccorUploadTool.Data
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
-                this._fileSystemChangedRecord.Stat.HeaderDataUploadCount++;
-                if (this._fileSystemChangedRecord.Stat.HeaderDataCount == this._fileSystemChangedRecord.Stat.HeaderDataUploadCount)
+                this.context.Stat.HeaderDataUploadCount++;
+                if (this.context.Stat.HeaderDataCount == this.context.Stat.HeaderDataUploadCount)
                 {
                     this._headerChanel.Writer.Complete();
                 }
                 return;
             }
-            this._fileSystemChangedRecord.Stat.HeaderDataTotalRetryTimes++;
+            this.context.Stat.HeaderDataTotalRetryTimes++;
             this._headerChanel.Writer.TryWrite(deliveryReport.Message);
         }
 
@@ -138,12 +140,12 @@ namespace MaccorUploadTool.Data
         {
             if (deliveryReport.Error.Code == ErrorCode.NoError)
             {
-                this._fileSystemChangedRecord.Stat.IncrementTimeDataUploadCount();
+                this.context.Stat.IncrementTimeDataUploadCount();
                 //_logger.LogInformation($"{this._fileSystemChangedRecord.Stat.TimeDataUploadCount}");
                 return;
             }
             _logger.LogInformation($"retry:{deliveryReport.Value}");
-            this._fileSystemChangedRecord.Stat.TimeDataTotalRetryTimes++;
+            this.context.Stat.TimeDataTotalRetryTimes++;
             this._timeDataChannel.Writer.TryWrite(deliveryReport.Value);
             this._timeDataChannel.Writer.TryWrite(null);
         }
@@ -154,45 +156,46 @@ namespace MaccorUploadTool.Data
             {
                 _ = Task.Run(async () =>
                 {
-
                     int index = 0;
-                    for (int pageIndex = 0; pageIndex < this._fileSystemChangedRecord.DataFile.TimeDataLinkedList.Count; pageIndex++)
+                    int count = 0;
+                    foreach (var timeData in this.context.DataFile.TimeDatas)
                     {
-                        var timeDataArray = this._fileSystemChangedRecord.DataFile.ReadTimeData(pageIndex);
+                        if (timeData == null)
+                        {
+                            continue;
+                        }
 
-                        if (timeDataArray == null)
+                        timeData.Json = JsonSerializer.Serialize(timeData);
+
+                        index++;
+                        count++;
+                        await this._timeDataChannel.Writer.WriteAsync(timeData.Json);
+
+                        if (count >= DataFile.PageSize)
                         {
-                            break;
-                        }
-                        int count = 0;
-                        foreach (var timeData in timeDataArray)
-                        {
-                            if (timeData == null)
-                            {
-                                continue;
-                            }
-                            index++;
-                            await this._timeDataChannel.Writer.WriteAsync(timeData.Json);
-                            count++;
-                        }
-                        if (count > 0)
-                        {
-                            _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write {count} items, total write {index}/{this._fileSystemChangedRecord.Stat.TimeDataCount} items,sent {this._fileSystemChangedRecord.Stat.TimeDataUploadCount}/{this._fileSystemChangedRecord.Stat.TimeDataCount}");
-                        }
-                        while (this._timeDataChannel.Reader.CanCount && this._timeDataChannel.Reader.Count > DataFile.PageSize * 2)
-                        {
-                            await Task.Delay(TimeSpan.FromSeconds(5));
+                            _logger.LogInformation($"{this.context.LocalFilePath}:read {index} items, read {index}/{this.context.DataFileReader.TimeDataCount} items,sent {this.context.Stat.TimeDataUploadCount}");
+                            count = 0;
                         }
                     }
+
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+
+                    _logger.LogInformation($"{this.context.LocalFilePath}:read {index} items, read {index}/{this.context.DataFileReader.TimeDataCount} items,sent {this.context.Stat.TimeDataUploadCount}");
+
+
                     await this._timeDataChannel.Writer.WriteAsync(null);
-                    if (index == this._fileSystemChangedRecord.Stat.TimeDataCount)
+
+                    this.context.Stat.TimeDataCount = this.context.DataFileReader.TimeDataCount;
+
+                    if (index == this.context.Stat.TimeDataCount)
                     {
-                        _logger.LogInformation($"{this._fileSystemChangedRecord.LocalFilePath}:Write completed,Write {index} items,sent:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} items");
+                        _logger.LogInformation($"{this.context.LocalFilePath}:Write completed,Write {index} items,sent:{this.context.Stat.TimeDataUploadCount} items");
                     }
                     int waitCount = 0;
-                    while (this._fileSystemChangedRecord.Stat.TimeDataUploadCount < this._fileSystemChangedRecord.Stat.TimeDataCount)
+                    while (this.context.Stat.TimeDataUploadCount < this.context.Stat.TimeDataCount)
                     {
-                        if (this._fileSystemChangedRecord.Stat.TimeDataCount == this._fileSystemChangedRecord.Stat.TimeDataUploadCount)
+                        if (this.context.Stat.TimeDataCount == this.context.Stat.TimeDataUploadCount)
                         {
                             break;
                         }
@@ -201,10 +204,10 @@ namespace MaccorUploadTool.Data
                         if (waitCount % 20 == 0)
                         {
                             await this._timeDataChannel.Writer.WriteAsync(null);
-                            _logger.LogInformation($"Wait for upload completed:Total {this._fileSystemChangedRecord.Stat.TimeDataCount} Uploaded:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount}");
+                            _logger.LogInformation($"Wait for upload completed:Total {this.context.Stat.TimeDataCount} Uploaded:{this.context.Stat.TimeDataUploadCount}");
                         }
                     }
-                    _logger.LogInformation($"Uploaded:{this._fileSystemChangedRecord.Stat.TimeDataUploadCount} Total:{this._fileSystemChangedRecord.Stat.TimeDataCount}");
+                    _logger.LogInformation($"Uploaded:{this.context.Stat.TimeDataUploadCount} Total:{this.context.Stat.TimeDataCount}");
                     this._timeDataChannel.Writer.Complete();
 
                 });

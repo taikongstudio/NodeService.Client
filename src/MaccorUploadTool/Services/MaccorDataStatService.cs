@@ -24,8 +24,8 @@ namespace MaccorUploadTool.Services
         private readonly ApiService _apiService;
         private readonly string _nodeId;
         private Dictionary<string, FileSystemWatcher> _fileSystemWatcherDictionary;
-        private ActionBlock<FileSystemChangedRecord> _uploadFileRecordActionBlock;
-        private ActionBlock<FileSystemChangedRecord> _fileSystemChangeRecordActionBlock;
+        private ActionBlock<DataFileContext> _uploadFileRecordActionBlock;
+        private ActionBlock<DataFileContext> _fileSystemChangeRecordActionBlock;
         private readonly ConcurrentDictionary<string, object?> _files;
 
         private string _ipAddress;
@@ -51,18 +51,18 @@ namespace MaccorUploadTool.Services
             }
             _fileSystemWatcherDictionary = new Dictionary<string, FileSystemWatcher>();
             _files = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            _fileSystemChangeRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(ConsumeFileSystemChangeRecord, new ExecutionDataflowBlockOptions()
+            _fileSystemChangeRecordActionBlock = new ActionBlock<DataFileContext>(ConsumeFileSystemChangeRecord, new ExecutionDataflowBlockOptions()
             {
                 MaxDegreeOfParallelism = 4,
             });
             _logger = logger;
-            _uploadFileRecordActionBlock = new ActionBlock<FileSystemChangedRecord>(AddOrUpdateFileRecordAsync, new ExecutionDataflowBlockOptions()
+            _uploadFileRecordActionBlock = new ActionBlock<DataFileContext>(AddOrUpdateFileRecordAsync, new ExecutionDataflowBlockOptions()
             {
                 MaxDegreeOfParallelism = 4,
             });
         }
 
-        private async Task AddOrUpdateFileRecordAsync(FileSystemChangedRecord changeRecord)
+        private async Task AddOrUpdateFileRecordAsync(DataFileContext changeRecord)
         {
             bool repost = true;
             try
@@ -90,7 +90,7 @@ namespace MaccorUploadTool.Services
 
         private void _fileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
         {
-            _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
+            _fileSystemChangeRecordActionBlock.Post(new DataFileContext()
             {
                 LocalFilePath = e.FullPath,
                 ChangeTypes = e.ChangeType,
@@ -98,7 +98,7 @@ namespace MaccorUploadTool.Services
             });
         }
 
-        private async Task ConsumeFileSystemChangeRecord(FileSystemChangedRecord fileSystemChangeRecord)
+        private async Task ConsumeFileSystemChangeRecord(DataFileContext fileSystemChangeRecord)
         {
             _logger.LogCritical($"[DataReportService] ConsumeFileSystemChangeRecord {fileSystemChangeRecord.LocalFilePath} at {DateTime.Now}");
             switch (fileSystemChangeRecord.ChangeTypes)
@@ -123,7 +123,7 @@ namespace MaccorUploadTool.Services
             }
         }
 
-        private async Task ConsumeFileSystemCreatedRecord(FileSystemChangedRecord fileSystemChangeRecord)
+        private async Task ConsumeFileSystemCreatedRecord(DataFileContext fileSystemChangeRecord)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -213,7 +213,7 @@ namespace MaccorUploadTool.Services
 
         private void _fileSystemWatcher_Created(object sender, FileSystemEventArgs e)
         {
-            _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
+            _fileSystemChangeRecordActionBlock.Post(new DataFileContext()
             {
                 LocalFilePath = e.FullPath,
                 ChangeTypes = e.ChangeType,
@@ -294,7 +294,7 @@ namespace MaccorUploadTool.Services
                     {
                         continue;
                     }
-                    _fileSystemChangeRecordActionBlock.Post(new FileSystemChangedRecord()
+                    _fileSystemChangeRecordActionBlock.Post(new DataFileContext()
                     {
                         ChangeTypes = WatcherChangeTypes.Created,
                         LocalFilePath = fileInfo.FullName,

@@ -1,4 +1,5 @@
 ﻿
+using MaccorUploadTool.Data;
 using NodeService.Infrastructure.DataModels;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace MaccorUploadTool.Models
 {
-    public class FileSystemChangedRecord
+    public class DataFileContext
     {
         public string LocalFilePath { get; set; }
 
@@ -20,6 +21,8 @@ namespace MaccorUploadTool.Models
         public WatcherChangeTypes ChangeTypes { get; set; }
 
         public DataFile DataFile { get; set; }
+
+        public DataFileReader DataFileReader { get; set; }
 
         public MaccorDataUploadStat? Stat { get; set; }
 

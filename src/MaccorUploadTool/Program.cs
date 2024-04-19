@@ -40,6 +40,7 @@ namespace MaccorUploadTool
         {
             try
             {
+                Console.WriteLine("1C3424CA-2683-45A6-A60A-30BF0C268125");
                 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
                 builder.Services.AddSingleton<Options>(options);

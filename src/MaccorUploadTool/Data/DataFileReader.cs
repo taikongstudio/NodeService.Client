@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -70,12 +71,12 @@ namespace MaccorUploadTool.Data
         /// 枚举<see cref="DataFileHeader"/>
         /// </summary>
         /// <returns><see cref="IEnumerable{T}" /></returns>
-        public async IAsyncEnumerable<DataFileHeader> ReadHeadersAsync()
+        public IEnumerable<DataFileHeader> ReadHeaders(ReadDataParameters parameters)
         {
-            await ValueTask.CompletedTask;
             int handleTemp = _handle;
             int index = 0;
             DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
+            Stopwatch stopwatch = Stopwatch.StartNew();
             handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
             var dataFileHeader = new DataFileHeader();
             dataFileHeader.Init(_handle, dllDataFileHeader);
@@ -98,37 +99,63 @@ namespace MaccorUploadTool.Data
                 }
                 dataFileHeader = new DataFileHeader();
                 dataFileHeader.Init(_handle, dllDataFileHeader);
+                dataFileHeader.DnsName = parameters.DnsName;
+                dataFileHeader.FilePath = parameters.FilePath;
+                dataFileHeader.IPAddress = parameters.IPAddress;
                 yield return dataFileHeader;
             } while (handleTemp == 0);
+
+            stopwatch.Stop();
+            this.HeaderDataParseTime = stopwatch.Elapsed;
             yield break;
         }
+
+        long _timeDataCount;
+
+        public int TimeDataCount { get { return (int)Interlocked.Read(ref _timeDataCount); } }
+
+        public TimeSpan TimeDataParseTime { get; private set; }
+        public TimeSpan HeaderDataParseTime { get; private set; }
+
+        private void IncrementTimeDataCount()
+        {
+            Interlocked.Increment(ref this._timeDataCount);
+        }
+
+
 
         /// <summary>
         /// 枚举<see cref="TimeData"/>
         /// </summary>
         /// <returns></returns>
-        public  IEnumerable<TimeData> ReadTimeDataAsync()
+        public IEnumerable<TimeData> ReadTimeData(ReadDataParameters parameters)
         {
             DLLTimeData dllTimeData = default;
             int result = 0;
-            int index = 0;
+            Stopwatch stopwatch = Stopwatch.StartNew();
             do
             {
-
+                stopwatch.Start();
                 result = NativeMethods.LoadAndGetNextTimeData(_handle, ref dllTimeData);
                 if (result == 0)
                 {
                     TimeData timeData = new TimeData();
+                    timeData.DnsName = parameters.DnsName;
+                    timeData.FilePath = parameters.FilePath;
+                    timeData.IPAddress = parameters.IPAddress;
                     timeData.Init(dllTimeData);
-                    timeData.SetIndex(index);
+                    timeData.SetIndex((int)TimeDataCount);
+                    stopwatch.Stop();
+                    IncrementTimeDataCount();
                     yield return timeData;
-                    index++;
                 }
                 else
                 {
                     break;
                 }
             } while (true);
+            stopwatch.Stop();
+            this.TimeDataParseTime = stopwatch.Elapsed;
             yield break;
         }
 
