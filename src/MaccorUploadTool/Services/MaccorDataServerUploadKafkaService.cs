@@ -407,9 +407,9 @@ namespace MaccorUploadTool.Services
                 await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
                 {
                     int count = 0;
-                    for (int i = 0; i < timeDataArray.Length; i++)
+                    for (int i = 0; i < timeDataArray.Value.Length; i++)
                     {
-                        var timeData = timeDataArray[i];
+                        var timeData = timeDataArray.Value[i];
                         if (timeData.Index == -1)
                         {
                             continue;
@@ -417,13 +417,13 @@ namespace MaccorUploadTool.Services
                         timeData.IPAddress = _ipAddress;
                         timeData.FilePath = fileSystemChangeRecord.LocalFilePath;
                         timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
-                        timeDataArray[i] = timeData;
+                        timeDataArray.Value[i] = timeData;
                         fileSystemChangeRecord.Stat.TimeDataCount++;
                         count++;
                     }
                     _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.LocalFilePath, timeDataArray);
                     _logger.LogInformation($"write {count} items,{index} times");
-                    ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
+                    timeDataArray.Dispose();
                     index++;
                 }
                 _logger.LogInformation($"{fileSystemChangeRecord.LocalFilePath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");

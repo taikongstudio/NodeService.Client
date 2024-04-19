@@ -20,12 +20,6 @@ namespace MaccorUploadTool.Models
         [JsonIgnore]
         public int Index { get;private set; }
 
-        public string FilePath { get; set; }
-
-        public string IPAddress { get; set; }
-
-        public string DnsName { get; set; }
-
         public uint RecNum { get; set; }//dword;
         public int CycleNumProc { get; set; }//integer;
         public int HalfCycleNumCalc { get; set; }//integer;
@@ -50,6 +44,12 @@ namespace MaccorUploadTool.Models
         public short DigIO { get; set; }//word;
         public long FRAStartTime { get; set; }//TDateTime;
         public int FRAExpNum { get; set; }//integer;
+
+        public string FilePath { get; set; }
+
+        public string IPAddress { get; set; }
+
+        public string DnsName { get; set; }
 
         public string AsJsonString()
         {

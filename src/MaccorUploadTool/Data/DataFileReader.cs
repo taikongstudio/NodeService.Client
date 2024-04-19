@@ -82,74 +82,36 @@ namespace MaccorUploadTool.Data
             yield return dataFileHeader;
             do
             {
-
-                if (handleTemp >= 0)
+                if (handleTemp != 0)
                 {
-                    try
-                    {
-                        handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
-                        if (handleTemp < 0)
-                        {
-                            break;
-                        }
-                        handleTemp = NativeMethods.GetDataFileHeader(handleTemp, ref dllDataFileHeader);
-                        if (handleTemp < 0)
-                        {
-                            break;
-                        }
-                        dataFileHeader = new DataFileHeader();
-                        dataFileHeader.Init(_handle, dllDataFileHeader);
-                    }
-                    catch (Exception ex)
-                    {
-
-                    }
-
-                    yield return dataFileHeader;
+                    break;
                 }
-                break;
-            } while (handleTemp >= 0);
+                handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
+                if (handleTemp != 0)
+                {
+                    break;
+                }
+                handleTemp = NativeMethods.GetDataFileHeader(handleTemp, ref dllDataFileHeader);
+                if (handleTemp != 0)
+                {
+                    break;
+                }
+                dataFileHeader = new DataFileHeader();
+                dataFileHeader.Init(_handle, dllDataFileHeader);
+                yield return dataFileHeader;
+            } while (handleTemp == 0);
             yield break;
         }
-
-        //public async IAsyncEnumerable<DataFile> ReadDataFilesAsync()
-        //{
-        //    await ValueTask.CompletedTask;
-        //    DataFile dataFile = new DataFile();
-        //    int handleTemp = _handle;
-        //    DLLDataFileHeader dllDataFileHeader = new DLLDataFileHeader();
-        //    handleTemp = NativeMethods.GetDataFileHeader(_handle, ref dllDataFileHeader);
-        //    do
-        //    {
-
-        //        if (handleTemp >= 0)
-        //        {
-        //            var dataFileHeader = new DataFileHeader();
-        //            dataFileHeader.Init(_handle, dllDataFileHeader);
-        //            dataFileHeader.HasValue = true;
-        //            dataFile.DataFileHeader = dataFileHeader;
-        //            await foreach (var item in ReadTimeDataAsync(handleTemp))
-        //            {
-        //                dataFile.TimeDataList.Add(item);
-        //            }
-        //            yield return dataFile;
-        //            handleTemp = NativeMethods.LoadNextDataFileHeader(_handle);
-        //        }
-
-        //    } while (handleTemp >= 0);
-        //    yield break;
-        //}
-
 
         /// <summary>
         /// 枚举<see cref="TimeData"/>
         /// </summary>
         /// <returns></returns>
-        public async IAsyncEnumerable<TimeData[]> ReadTimeDataAsync()
+        public async IAsyncEnumerable<RentedArray<TimeData>> ReadTimeDataAsync()
         {
             await ValueTask.CompletedTask;
             DLLTimeData dllTimeData = default;
-            TimeData[] timeDataArray = null;
+            RentedArray<TimeData> timeDataArray = RentedArray<TimeData>.Empty;
             int result = 0;
             int index = 0;
             int count = 0;
@@ -161,28 +123,24 @@ namespace MaccorUploadTool.Data
                 {
                     if (index == 0)
                     {
-                        timeDataArray = ArrayPool<TimeData>.Shared.Rent(8192 * 2);
+                        timeDataArray = new RentedArray<TimeData>(MaccorDataReaderWriter.PageSize);
                     }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);
                     timeData.SetIndex(count);
 
-                    if (index == timeDataArray.Length)
+                    if (index == timeDataArray.Value.Length)
                     {
                         index = 0;
                         yield return timeDataArray;
                         continue;
                     }
-                    timeDataArray[index] = timeData;
+                    timeDataArray.Value[index] = timeData;
                     index++;
                     count++;
                 }
                 else
                 {
-                    //if (timeDataArray != null)
-                    //{
-                    //    yield return timeDataArray;
-                    //}
                     break;
                 }
             } while (true);

@@ -284,13 +284,12 @@ namespace MaccorUploadTool.Services
                     fileRecord.Id = _nodeId;
                     fileRecord.Name = filePathHash;
                     fileRecord.OriginalFileName = fileSystemChangeRecord.LocalFilePath;
-                    fileRecord.CreationDateTime = File.GetCreationTimeUtc(fileSystemChangeRecord.LocalFilePath);
                     fileRecord.Size = fileSystemChangeRecord.Stat.FileSize;
                     fileRecord.FileHashValue = fileHashValue;
                     fileRecord.CompressedFileHashValue = "null";
                     fileRecord.CompressedSize = 0;
+                    fileRecord.Category = "Maccor";
                 }
-                fileRecord.ModifyDateTime = DateTime.Now;
                 fileRecord.Properties = JsonSerializer.Serialize(fileSystemChangeRecord.Stat);
                 fileSystemChangeRecord.FileRecord = fileRecord;
                 _uploadFileRecordActionBlock.Post(fileSystemChangeRecord);
@@ -350,9 +349,9 @@ namespace MaccorUploadTool.Services
                 await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
                 {
                     int count = 0;
-                    for (int i = 0; i < timeDataArray.Length; i++)
+                    for (int i = 0; i < timeDataArray.Value.Length; i++)
                     {
-                        var timeData = timeDataArray[i];
+                        var timeData = timeDataArray.Value[i];
                         if (timeData.Index == -1)
                         {
                             continue;
@@ -364,14 +363,14 @@ namespace MaccorUploadTool.Services
                         timeData.IPAddress = _ipAddress;
                         timeData.FilePath = fileName;
                         timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
-                        timeDataArray[i] = timeData;
+                        timeDataArray.Value[i] = timeData;
                         fileSystemChangeRecord.Stat.TimeDataCount++;
                         count++;
                         timeDataIndex = timeData.Index;
                     }
                     _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.LocalFilePath, timeDataArray);
                     _logger.LogInformation($"write {count} items,{index} times");
-                    ArrayPool<TimeData>.Shared.Return(timeDataArray, true);
+                    timeDataArray.Dispose();
                     index++;
                 }
                 _maccorDataReaderWriter.Verify(fileSystemChangeRecord.LocalFilePath);

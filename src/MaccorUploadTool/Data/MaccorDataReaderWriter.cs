@@ -62,15 +62,15 @@ namespace MaccorUploadTool.Data
         }
 
 
-        public bool WriteTimeDataArray(string key, params TimeData[] timeDataArray)
+        public bool WriteTimeDataArray(string key, RentedArray<TimeData> timeDataArray)
         {
-            if (!timeDataArray.Any())
+            if (!timeDataArray.HasValue)
             {
                 return true;
             }
             try
             {
-                var itemsToWrite = timeDataArray.Where(static x => x.Index >= 0);
+                var itemsToWrite = timeDataArray.Value.Where(static x => x.Index >= 0);
                 var totalCount = itemsToWrite.Count();
                 var writtenCount = 0;
                 int pageCount = Math.DivRem(totalCount, MaccorDataReaderWriter.PageSize, out var result);
