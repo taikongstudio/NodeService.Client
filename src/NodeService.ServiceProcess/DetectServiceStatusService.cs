@@ -11,8 +11,6 @@ namespace NodeService.ServiceProcess
         private readonly ILogger<DetectServiceStatusService> _logger;
         private ServiceProcessConfiguration _appConfig = new ServiceProcessConfiguration();
         private DetectServiceStatusServiceContext _context;
-        private int _installFailedCount;
-        private ConcurrentDictionary<string, ApiService> _apiServices;
 
         public DetectServiceStatusService(
             IServiceProvider serviceProvider,
@@ -25,7 +23,6 @@ namespace NodeService.ServiceProcess
             _appConfig = optionsMonitor.CurrentValue;
             ApplyConfiguration(_appConfig);
             optionsMonitor.OnChange(OnConfigurationChanged);
-            _apiServices = new ConcurrentDictionary<string, ApiService>();
         }
 
         private void OnConfigurationChanged(ServiceProcessConfiguration configuration, string name)
@@ -71,14 +68,14 @@ namespace NodeService.ServiceProcess
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
-                await RecoveryService();
+                await RecoveryServiceAsync();
                 await Task.Delay(TimeSpan.FromSeconds(30));
             }
 
 
         }
 
-        private async ValueTask RecoveryService(CancellationToken stoppingToken = default)
+        private async ValueTask RecoveryServiceAsync(CancellationToken stoppingToken = default)
         {
             try
             {

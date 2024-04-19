@@ -379,7 +379,10 @@ namespace MaccorUploadTool.Services
                 fileSystemChangeRecord.Stat.TimeDataParseElapsedSeconds = timeDataStopWatch.Elapsed.TotalSeconds;
 
                 var scopeTrace = dataFileReader.GetScopeTrace();
-
+                if (scopeTrace.Samples.Length > 0)
+                {
+                    _logger.LogInformation($"scopeTrace:{scopeTrace.Samples.Length}");
+                }
                 _logger.LogInformation($"Processed {fileSystemChangeRecord.LocalFilePath}");
 
                 return true;

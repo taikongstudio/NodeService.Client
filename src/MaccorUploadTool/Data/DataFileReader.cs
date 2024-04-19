@@ -151,10 +151,6 @@ namespace MaccorUploadTool.Data
         {
             DLLScopeTrace dllScopeTrace = new DLLScopeTrace();
             int ret = NativeMethods.GetScopeTrace(_handle, ref dllScopeTrace);
-            if (ret >= 0)
-            {
-                return new ScopeTrace();
-            }
 
             Sample[] samples = new Sample[dllScopeTrace.Samples];
 
