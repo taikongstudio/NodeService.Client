@@ -22,7 +22,7 @@ namespace MaccorUploadTool.Services
 {
     public class MaccorDataUploadKafkaService : BackgroundService
     {
-        private readonly MaccorDataReaderWriter _maccorDataReaderWriter;
+
         private readonly ApiService _apiService;
         private readonly string _nodeId;
         private Dictionary<string, FileSystemWatcher> _fileSystemWatcherDictionary;
@@ -48,12 +48,10 @@ namespace MaccorUploadTool.Services
 
         public MaccorDataUploadKafkaService(
             ILogger<MaccorDataUploadKafkaService> logger,
-            MaccorDataReaderWriter maccorDataReaderWriter,
             ApiService apiService,
             Options options)
         {
             LimitDateTime = DateTime.MinValue;
-            _maccorDataReaderWriter = maccorDataReaderWriter;
             _apiService = apiService;
             _nodeId = options.NodeId;
             if (!DateTime.TryParse(options.DateTime, out LimitDateTime))
@@ -117,7 +115,6 @@ namespace MaccorUploadTool.Services
                 using DataFileKafkaProducer _kafkaProducer = new DataFileKafkaProducer(
                                     _logger,
                     fileSystemChangedRecord,
-                    _maccorDataReaderWriter,
                     Options.KafkaConfig.BrokerList,
                      Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "header_topic_name").Value,
                      Options.KafkaConfig.Topics.FirstOrDefault(x => x.Name == "time_data_topic_name").Value
@@ -158,7 +155,6 @@ namespace MaccorUploadTool.Services
                 fileSystemChangedRecord.FileRecord.Properties = JsonSerializer.Serialize(fileSystemChangedRecord.Stat);
                 _uploadFileRecordActionBlock.Post(fileSystemChangedRecord);
                 Interlocked.Decrement(ref _uploadingFiles);
-                _maccorDataReaderWriter.Delete(fileSystemChangedRecord.LocalFilePath);
                 _parsedUnuploadFiles.TryRemove(fileSystemChangedRecord.LocalFilePath, out _);
             }
         }
@@ -342,38 +338,32 @@ namespace MaccorUploadTool.Services
                 Stopwatch timeDataStopWatch = Stopwatch.StartNew();
 
                 _logger.LogInformation($"try delete {fileSystemChangeRecord.LocalFilePath}");
-                _maccorDataReaderWriter.Delete(fileSystemChangeRecord.LocalFilePath);
                 int index = 0;
 
                 int timeDataIndex = -1;
-                await foreach (var timeDataArray in dataFileReader.ReadTimeDataAsync().ConfigureAwait(false))
+                List<TimeData> timeDataList = new List<TimeData>();
+
+                foreach (var timeData in dataFileReader.ReadTimeDataAsync())
                 {
-                    int count = 0;
-                    for (int i = 0; i < timeDataArray.Value.Length; i++)
+
+                    if (timeData.Index == -1)
                     {
-                        var timeData = timeDataArray.Value[i];
-                        if (timeData.Index == -1)
-                        {
-                            continue;
-                        }
-                        if (timeDataIndex != timeData.Index - 1)
-                        {
-                            throw new InvalidOperationException();
-                        }
-                        timeData.IPAddress = _ipAddress;
-                        timeData.FilePath = fileName;
-                        timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
-                        timeDataArray.Value[i] = timeData;
-                        fileSystemChangeRecord.Stat.TimeDataCount++;
-                        count++;
-                        timeDataIndex = timeData.Index;
+                        continue;
                     }
-                    _maccorDataReaderWriter.WriteTimeDataArray(fileSystemChangeRecord.LocalFilePath, timeDataArray);
-                    _logger.LogInformation($"write {count} items,{index} times");
-                    timeDataArray.Dispose();
-                    index++;
+                    if (timeDataIndex != timeData.Index - 1)
+                    {
+                        throw new InvalidOperationException();
+                    }
+                    timeData.IPAddress = _ipAddress;
+                    timeData.FilePath = fileName;
+                    timeData.DnsName = fileSystemChangeRecord.Stat.DnsName;
+                    fileSystemChangeRecord.Stat.TimeDataCount++;
+                    timeDataIndex = timeData.Index;
+                    timeDataList.Add(timeData);
                 }
-                _maccorDataReaderWriter.Verify(fileSystemChangeRecord.LocalFilePath);
+                fileSystemChangeRecord.DataFile.WriteTimeData(timeDataList);
+                fileSystemChangeRecord.DataFile.VerifyTimeData();
+                _logger.LogInformation($"write {timeDataList.Count} items");
                 _logger.LogInformation($"{fileSystemChangeRecord.LocalFilePath}:Write {fileSystemChangeRecord.Stat.TimeDataCount} items");
                 timeDataStopWatch.Stop();
                 fileSystemChangeRecord.Stat.TimeDataParseElapsedSeconds = timeDataStopWatch.Elapsed.TotalSeconds;
@@ -389,7 +379,6 @@ namespace MaccorUploadTool.Services
             }
             catch (Exception ex)
             {
-                _maccorDataReaderWriter.Delete(fileSystemChangeRecord.LocalFilePath);
                 _logger.LogError(ex.ToString());
             }
             return false;

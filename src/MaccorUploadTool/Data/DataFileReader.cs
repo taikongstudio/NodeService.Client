@@ -107,37 +107,22 @@ namespace MaccorUploadTool.Data
         /// 枚举<see cref="TimeData"/>
         /// </summary>
         /// <returns></returns>
-        public async IAsyncEnumerable<RentedArray<TimeData>> ReadTimeDataAsync()
+        public  IEnumerable<TimeData> ReadTimeDataAsync()
         {
-            await ValueTask.CompletedTask;
             DLLTimeData dllTimeData = default;
-            RentedArray<TimeData> timeDataArray = RentedArray<TimeData>.Empty;
             int result = 0;
             int index = 0;
-            int count = 0;
             do
             {
 
                 result = NativeMethods.LoadAndGetNextTimeData(_handle, ref dllTimeData);
                 if (result == 0)
                 {
-                    if (index == 0)
-                    {
-                        timeDataArray = new RentedArray<TimeData>(MaccorDataReaderWriter.PageSize);
-                    }
                     TimeData timeData = new TimeData();
                     timeData.Init(dllTimeData);
-                    timeData.SetIndex(count);
-
-                    if (index == timeDataArray.Value.Length)
-                    {
-                        index = 0;
-                        yield return timeDataArray;
-                        continue;
-                    }
-                    timeDataArray.Value[index] = timeData;
+                    timeData.SetIndex(index);
+                    yield return timeData;
                     index++;
-                    count++;
                 }
                 else
                 {

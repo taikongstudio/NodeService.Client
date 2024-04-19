@@ -55,12 +55,9 @@ namespace MaccorUploadTool
                     case "Stat":
                         break;
                     case "Kafka":
-                        builder.Services.AddSingleton<MaccorDataReaderWriter>();
                         builder.Services.AddHostedService<MaccorDataUploadKafkaService>();
                         break;
                     case "ServerKafka":
-                        builder.Services.AddSingleton<MaccorDataReaderWriter>();
-                        builder.Services.AddHostedService<MaccorDataServerUploadKafkaService>();
                         break;
                     case "Ftp":
                         builder.Services.AddHostedService<MaccorDataUploadFtpService>();

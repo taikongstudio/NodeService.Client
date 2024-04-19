@@ -10,7 +10,7 @@ using MaccorUploadTool.Helper;
 
 namespace MaccorUploadTool.Models
 {
-    public struct TimeData
+    public class TimeData
     {
         public TimeData()
         {
@@ -19,6 +19,9 @@ namespace MaccorUploadTool.Models
 
         [JsonIgnore]
         public int Index { get;private set; }
+
+        [JsonIgnore]
+        public string Json { get; set; }
 
         public uint RecNum { get; set; }//dword;
         public int CycleNumProc { get; set; }//integer;
