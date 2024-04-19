@@ -1,7 +1,9 @@
 ﻿using NodeService.Infrastructure;
+using NodeService.Infrastructure.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
@@ -60,7 +62,7 @@ namespace NodeService.ServiceProcess
 
         private readonly ILogger<ServiceProcessRecovey> _logger;
         private readonly ApiService _apiService;
-
+        private ClientUpdateConfigModel? _clientUpdateConfig;
 
         public ServiceProcessRecovey(ILogger<ServiceProcessRecovey> logger, ServiceProcessRecoveryContext recoveryContext)
         {
@@ -176,15 +178,15 @@ namespace NodeService.ServiceProcess
                 return false;
             }
 
-            var clientUpdateConfig = rsp.Result;
-            if (clientUpdateConfig == null)
+            _clientUpdateConfig = rsp.Result;
+            if (_clientUpdateConfig == null)
             {
                 _logger.LogError($"Could not find update:{RecoveryContext.ServiceName}");
                 return false;
             }
             _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
-            _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
-            var packageConfig = clientUpdateConfig.PackageConfig;
+            _logger.LogInformation(_clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
+            var packageConfig = _clientUpdateConfig.PackageConfig;
             if (packageConfig == null)
             {
                 _logger.LogError($"Could not find package:{RecoveryContext.ServiceName}");
@@ -292,6 +294,15 @@ namespace NodeService.ServiceProcess
         private void Installer_Failed(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogError(e.Progress.Message);
+            if (_clientUpdateConfig!=null)
+            {
+                _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+                {
+                    ClientUpdateConfigId = _clientUpdateConfig.Id,
+                    NodeName = Dns.GetHostName(),
+                    CategoryName = e.Progress.Message
+                });
+            }
         }
 
         private void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
