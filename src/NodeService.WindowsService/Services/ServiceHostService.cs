@@ -536,12 +536,12 @@ namespace NodeService.WindowsService.Services
 
         private void WriteOutput(object sender, DataReceivedEventArgs e)
         {
-            _logger.LogInformation(e.Data);
+            //_logger.LogInformation(e.Data);
         }
 
         private void WriteError(object sender, DataReceivedEventArgs e)
         {
-            _logger.LogError(e.Data);
+            //_logger.LogError(e.Data);
         }
 
         private void ServiceHostProcess_Exited(object? sender, EventArgs e)

@@ -48,6 +48,12 @@ namespace NodeService.ServiceProcess
 
                 foreach (var recoveryContext in configuration.Contexts)
                 {
+                    if (!Path.IsPathFullyQualified(recoveryContext.InstallDirectory))
+                    {
+                        var path = Path.Combine(AppContext.BaseDirectory, recoveryContext.InstallDirectory);
+                        recoveryContext.InstallDirectory = Path.GetFullPath(path);
+                    }
+                    
                     context.RecoveryContexts.Add(
                         recoveryContext.ServiceName,
                         new ServiceProcessRecovey(

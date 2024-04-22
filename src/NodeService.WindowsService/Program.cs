@@ -135,13 +135,13 @@ namespace NodeService.WindowsService
                 });
 
                 builder.Services.AddSingleton(options);
-                builder.WebHost.ConfigureKestrel(serverOptions =>
-                {
-                    serverOptions.ListenNamedPipe(serviceName, listenOptions =>
-                    {
-                        listenOptions.Protocols = HttpProtocols.Http2;
-                    });
-                });
+                //builder.WebHost.ConfigureKestrel(serverOptions =>
+                //{
+                //    serverOptions.ListenNamedPipe(serviceName, listenOptions =>
+                //    {
+                //        listenOptions.Protocols = HttpProtocols.Http2;
+                //    });
+                //});
                 builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddHostedService<RegisterTaskService>();

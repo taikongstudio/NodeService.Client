@@ -49,11 +49,8 @@ namespace NodeService.WindowsService.Services
                     if (task == null)
                     {
                         task = folder.RegisterTaskDefinition(taskName, taskDefinition);
-                    }
-                    if (task.Definition.XmlText != taskDefinition.XmlText)
-                    {
-                        task.Definition.XmlText = taskDefinition.XmlText;
-                        task.RegisterChanges();
+                        _logger.LogInformation($"Register task {taskName}");
+                        task.Dispose();
                     }
                 }
                 folder.Dispose();
