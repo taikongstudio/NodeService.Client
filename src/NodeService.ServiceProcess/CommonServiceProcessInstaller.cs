@@ -1,11 +1,14 @@
-﻿namespace NodeService.ServiceProcess
+﻿using System.Collections;
+
+namespace NodeService.ServiceProcess
 {
     public class CommonServiceProcessInstaller : IDisposable
     {
         private readonly ServiceProcessInstaller _serviceProcessInstaller;
         private PackageProvider _packageProvider;
         private ServiceProcessInstallContext _installContext;
-        private MemoryStream _stream;
+        private MemoryStream? _stream;
+        private IDictionary _installerState = new ListDictionary();
 
         private enum InstallState
         {
@@ -13,7 +16,7 @@
             Install,
             Commit,
             Rollback,
-            Error,
+            Finished,
         }
 
         private InstallState _state;
@@ -126,7 +129,7 @@
 
         private void _serviceProcessInstaller_AfterRollback(object sender, InstallEventArgs e)
         {
-
+            CheckServiceStatusAsync().Wait();
         }
 
         private void _serviceProcessInstaller_BeforeRollback(object sender, InstallEventArgs e)
@@ -152,6 +155,10 @@
 
         private void _serviceProcessInstaller_AfterInstall(object sender, InstallEventArgs e)
         {
+            if (!DeployPackageImpl().Result)
+            {
+                throw new InvalidOperationException();
+            }
             CheckServiceStatusAsync().Wait();
         }
 
@@ -159,10 +166,6 @@
         {
             try
             {
-                if (this._cancellationTokenSource != null && this._cancellationTokenSource.IsCancellationRequested)
-                {
-                    return;
-                }
                 using ServiceController serviceController = new ServiceController(_installContext.ServiceName);
                 serviceController.Start();
                 RaiseProgressChangedEvent($"等待服务\"{_installContext.ServiceName}\"运行");
@@ -201,10 +204,7 @@
 
         private void _serviceProcessInstaller_BeforeInstall(object sender, InstallEventArgs e)
         {
-            if (!DeployPackageImpl().Result)
-            {
-                throw new InvalidOperationException();
-            }
+
         }
 
         private async Task<bool> DeployPackageImpl()
@@ -337,15 +337,27 @@
                                 RaiseProgressChangedEvent($"可执行文件\"{processName}\"有{processes.Length}个相关进程");
                                 foreach (var process in processes)
                                 {
-                                    var installerPath = Path.GetFullPath(_installContext.InstallDirectory);
-                                    var directory = Path.GetFullPath(Path.GetDirectoryName(process.MainModule.FileName));
-                                    if (process.MainModule.ModuleName.Equals(moduleName, StringComparison.OrdinalIgnoreCase) &&
-                                    directory.Equals(installerPath, StringComparison.OrdinalIgnoreCase)
-                                    )
+                                    try
                                     {
-                                        process.Kill(true);
-                                        RaiseProgressChangedEvent($"杀死进程\"{process.ProcessName}\"");
+                                        var installerPath = Path.GetFullPath(_installContext.InstallDirectory);
+                                        var directory = Path.GetFullPath(Path.GetDirectoryName(process.MainModule.FileName));
+                                        if (process.MainModule.ModuleName.Equals(moduleName, StringComparison.OrdinalIgnoreCase) &&
+                                        directory.Equals(installerPath, StringComparison.OrdinalIgnoreCase)
+                                        )
+                                        {
+                                            process.Kill(true);
+                                            RaiseProgressChangedEvent($"杀死服务进程\"{process.ProcessName}\"");
+                                        }
                                     }
+                                    catch (Exception ex)
+                                    {
+                                        RaiseFailedEvent($"杀死服务进程{process.Id}时发生错误:{ex}");
+                                    }
+                                    finally
+                                    {
+                                        process.Dispose();
+                                    }
+ 
 
                                 }
                             }
@@ -426,15 +438,14 @@
         private bool RunInstallLoopImpl()
         {
             _cancellationTokenSource = new CancellationTokenSource();
-            ListDictionary state = new ListDictionary();
             try
             {
-                while (!_cancellationTokenSource.IsCancellationRequested)
+                while (!_cancellationTokenSource.IsCancellationRequested || this._state == InstallState.Rollback)
                 {
                     switch (this._state)
                     {
                         case InstallState.Uninstall:
-                            if (!UninstallImpl())
+                            if (!UninstallImpl(null))
                             {
                                 this._state = InstallState.Rollback;
                                 continue;
@@ -442,7 +453,7 @@
                             this._state = InstallState.Install;
                             break;
                         case InstallState.Install:
-                            if (!InstallImpl(state))
+                            if (!InstallImpl(_installerState))
                             {
                                 this._state = InstallState.Rollback;
                                 continue;
@@ -450,21 +461,35 @@
                             this._state = InstallState.Commit;
                             break;
                         case InstallState.Commit:
-                            CommitImpl(state);
+                            CommitImpl(_installerState);
                             goto LExit;
                         case InstallState.Rollback:
-                            RollBackImpl(state);
+                            if (RollBackImpl(_installerState))
+                            {
+                                _installerState.Remove("_reserved_lastInstallerAttempted");
+                                _installerState.Remove("_reserved_nestedSavedStates");
+                                if (!_cancellationTokenSource.IsCancellationRequested)
+                                {
+                                    Task.Delay(TimeSpan.FromSeconds(30), cancellationToken: _cancellationTokenSource.Token).Wait();
+                                }
+                                else
+                                {
+                                    Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+                                }
+                                RaiseProgressChangedEvent("重试安装");
+                                goto case InstallState.Install;
+                            }
                             break;
                         default:
                             break;
                     }
                 }
                LExit:
-                return this._state == InstallState.Commit;
+                return this._state >= InstallState.Commit;
             }
             catch (Exception ex)
             {
-                RollBackImpl(state);
+                RollBackImpl(_installerState);
             }
             finally
             {
@@ -474,11 +499,11 @@
             return false;
         }
 
-        private bool RollBackImpl(ListDictionary listDictionary)
+        private bool RollBackImpl(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Rollback(listDictionary);
+                _serviceProcessInstaller.Rollback(state);
                 return true;
             }
             catch (Exception ex)
@@ -489,11 +514,11 @@
             return false;
         }
 
-        private bool CommitImpl(ListDictionary listDictionary)
+        private bool CommitImpl(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Commit(listDictionary);
+                _serviceProcessInstaller.Commit(state);
                 return true;
             }
             catch (Exception ex)
@@ -504,11 +529,11 @@
             return false;
         }
 
-        private bool InstallImpl(ListDictionary listDictionary)
+        private bool InstallImpl(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Install(listDictionary);
+                _serviceProcessInstaller.Install(state);
                 return true;
             }
             catch (Exception ex)
@@ -519,11 +544,11 @@
             return false;
         }
 
-        private bool UninstallImpl()
+        private bool UninstallImpl(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Uninstall(null);
+                _serviceProcessInstaller.Uninstall(state);
                 RaiseProgressChangedEvent("卸载成功");
                 return true;
             }

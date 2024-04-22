@@ -2,7 +2,7 @@
   "profiles": {
     "NodeService.WindowsService": {
       "commandName": "Project",
-      "commandLineArgs": "--mode WindowsService --env Development"
+      "commandLineArgs": "--mode WindowsService --env Development --doctor true"
     },
     "NodeService.Uninstall": {
       "commandName": "Project",

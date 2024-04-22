@@ -32,6 +32,8 @@ namespace NodeService.WindowsService
         {
             try
             {
+                Console.WriteLine("Waiting for debugger");
+                Console.ReadLine();
                 if (!CheckEnvironment())
                 {
                     return;
@@ -59,9 +61,9 @@ namespace NodeService.WindowsService
                         Console.WriteLine(progress.Message);
                     }
                 }
-                else if (options.mode.Equals("Doctor", StringComparison.OrdinalIgnoreCase))
+                else if (options.doctor)
                 {
-
+                    await RunDoctorAsync(options, args);
                 }
                 else
                 {
@@ -125,7 +127,6 @@ namespace NodeService.WindowsService
                     $"{options.mode}.appsettings.{(builder.Environment.IsDevelopment() ? "Development." : string.Empty)}json",
                     false, true);
                 builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("ServiceProcessConfiguration"));
-                builder.Services.Configure<ServiceOptions>(builder.Configuration.GetSection("ServerOptions"));
                 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
                 string serviceName = $"NodeService.{options.mode}";
                 builder.Services.AddWindowsService(windowsServiceOptions =>
@@ -141,9 +142,9 @@ namespace NodeService.WindowsService
                         listenOptions.Protocols = HttpProtocols.Http2;
                     });
                 });
-                //builder.Services.AddHostedService<DetectServiceStatusService>();
+                builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
-
+                builder.Services.AddHostedService<RegisterTaskService>();
 
                 if (options.mode == "WindowsService")
                 {
@@ -166,6 +167,40 @@ namespace NodeService.WindowsService
 
 
         }
+
+
+        private static async Task RunDoctorAsync(ServiceOptions options, string[] args)
+        {
+
+            try
+            {
+                Environment.CurrentDirectory = AppContext.BaseDirectory;
+                LogManager.AutoShutdown = true;
+                Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", options.env);
+                var builder = WebApplication.CreateBuilder(args);
+
+                builder.Services.AddSingleton(options);
+                builder.Services.AddHostedService<RegisterTaskService>();
+                builder.Services.AddHostedService<DoctorService>();
+                builder.Logging.ClearProviders();
+                builder.Logging.AddConsole();
+                builder.Logging.AddNLog($"{options.mode}.NLog.config");
+
+                using var app = builder.Build();
+
+                await app.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                LogManager.Flush();
+                LogManager.Shutdown();
+            }
+
+
+        }
+
+
 
     }
 }

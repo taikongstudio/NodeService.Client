@@ -19,6 +19,9 @@ namespace NodeService.WindowsService.Models
         [Option("env", Default = nameof(Environments.Production), HelpText = "env")]
         public string env { get; set; }
 
+        [Option("doctor", Default =false, HelpText = "doctor")]
+        public bool doctor { get; set; }
+
         public string ToJsonString()
         {
             return JsonSerializer.Serialize(this);
