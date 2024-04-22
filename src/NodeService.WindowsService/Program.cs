@@ -32,8 +32,12 @@ namespace NodeService.WindowsService
         {
             try
             {
-                Console.WriteLine("Waiting for debugger");
-                Console.ReadLine();
+                if (options.waitfordebugger)
+                {
+                    Console.WriteLine("Waiting for debugger");
+                    Console.ReadLine();
+                }
+
                 if (!CheckEnvironment())
                 {
                     return;

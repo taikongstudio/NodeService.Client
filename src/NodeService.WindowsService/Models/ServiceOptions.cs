@@ -19,8 +19,12 @@ namespace NodeService.WindowsService.Models
         [Option("env", Default = nameof(Environments.Production), HelpText = "env")]
         public string env { get; set; }
 
-        [Option("doctor", Default =false, HelpText = "doctor")]
+        [Option("doctor", Default = false, HelpText = "doctor")]
         public bool doctor { get; set; }
+
+
+        [Option("waitfordebugger", Default = false, HelpText = "waitfordebugger")]
+        public bool waitfordebugger { get; set; }
 
         public string ToJsonString()
         {
