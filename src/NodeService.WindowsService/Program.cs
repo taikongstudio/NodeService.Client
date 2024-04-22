@@ -1,9 +1,16 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Options;
+using NLog;
+using NLog.Extensions.Logging;
+using NodeService.Infrastructure;
+using NodeService.Infrastructure.Messages;
+using NodeService.Infrastructure.Models;
 using NodeService.Infrastructure.NodeSessions;
 using NodeService.ServiceProcess;
 using NodeService.WindowsService.Models;
-using Python.Deployment;
-using Python.Runtime;
-using System.Management;
+using NodeService.WindowsService.Services;
 
 namespace NodeService.WindowsService
 {
@@ -12,42 +19,28 @@ namespace NodeService.WindowsService
 
         public static async Task Main(string[] args)
         {
-       
             await Parser
                   .Default
-                  .ParseArguments<Options>(args)
+                  .ParseArguments<ServiceOptions>(args)
                   .WithParsedAsync((options) =>
                   {
-                      if (options.mode == null)
-                      {
-                          options.mode = "WindowsService";
-                          if (options.env == null)
-                          {
-                              options.env = Environments.Production;
-                          }
-                      }
-                      if (options.env == null|| Debugger.IsAttached)
-                      {
-                          options.env = Environments.Development;
-                      }
                       return RunWithOptionsAsync(options, args);
                   });
         }
 
-        private static async Task RunWithOptionsAsync(Options options, string[] args)
+        private static async Task RunWithOptionsAsync(ServiceOptions options, string[] args)
         {
             try
             {
-                if (!Environment.IsPrivilegedProcess)
+                if (!CheckEnvironment())
                 {
-                    Console.WriteLine("Need Privileged Process,exit");
-                    Console.Out.Flush();
-                    Environment.Exit(-1);
                     return;
                 }
+
+                EnsureOptions(options);
                 Console.WriteLine(JsonSerializer.Serialize(options));
                 Console.WriteLine($"ClientVersion:{Constants.Version}");
-                if (options.mode == "Uninstall")
+                if (options.mode.Equals("Uninstall", StringComparison.OrdinalIgnoreCase))
                 {
                     const string DaemonServiceName = "NodeService.DaemonService";
                     const string UpdateServiceName = "NodeService.UpdateService";
@@ -56,6 +49,7 @@ namespace NodeService.WindowsService
                     const string JobsWorkerDaemonServiceName = "JobsWorkerDaemonService";
                     await foreach (var progress in ServiceProcessInstallerHelper.UninstallAllService(
                     [
+                        DaemonServiceName,
                         WorkerServiceName,
                         UpdateServiceName,
                         WindowsServiceName,
@@ -64,6 +58,10 @@ namespace NodeService.WindowsService
                     {
                         Console.WriteLine(progress.Message);
                     }
+                }
+                else if (options.mode.Equals("Doctor", StringComparison.OrdinalIgnoreCase))
+                {
+
                 }
                 else
                 {
@@ -77,42 +75,79 @@ namespace NodeService.WindowsService
             }
             finally
             {
+                Console.Out.Flush();
+            }
 
+            static void EnsureOptions(ServiceOptions options)
+            {
+                if (string.IsNullOrEmpty(options.mode))
+                {
+                    options.mode = "WindowsService";
+                    if (options.env == null)
+                    {
+                        options.env = Environments.Production;
+                    }
+                }
+                if (options.env == null)
+                {
+                    if (Debugger.IsAttached)
+                    {
+                        options.env = Environments.Development;
+                    }
+                    else
+                    {
+                        options.env = Environments.Production;
+                    }
+                }
             }
         }
 
-        private static async Task RunAsync(Options options, string[] args)
+        private static bool CheckEnvironment()
         {
+            if (!Environment.IsPrivilegedProcess)
+            {
+                Console.WriteLine("Need Privileged Process");
+                return false;
+            }
+            return true;
+        }
+
+        private static async Task RunAsync(ServiceOptions options, string[] args)
+        {
+
             try
             {
                 Environment.CurrentDirectory = AppContext.BaseDirectory;
                 LogManager.AutoShutdown = true;
                 Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", options.env);
-                HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+                var builder = WebApplication.CreateBuilder(args);
                 builder.Configuration.AddJsonFile(
                     $"{options.mode}.appsettings.{(builder.Environment.IsDevelopment() ? "Development." : string.Empty)}json",
-                    false,
-                    true);
-
+                    false, true);
+                builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("ServiceProcessConfiguration"));
+                builder.Services.Configure<ServiceOptions>(builder.Configuration.GetSection("ServerOptions"));
+                builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
+                string serviceName = $"NodeService.{options.mode}";
                 builder.Services.AddWindowsService(windowsServiceOptions =>
                 {
-                    windowsServiceOptions.ServiceName = $"NodeService.{options.mode}";
+                    windowsServiceOptions.ServiceName = serviceName;
                 });
+
                 builder.Services.AddSingleton(options);
-                builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("ServiceProcessConfiguration"));
-                builder.Services.AddHostedService<DetectServiceStatusService>();
+                builder.WebHost.ConfigureKestrel(serverOptions =>
+                {
+                    serverOptions.ListenNamedPipe(serviceName, listenOptions =>
+                    {
+                        listenOptions.Protocols = HttpProtocols.Http2;
+                    });
+                });
+                //builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
+
+
                 if (options.mode == "WindowsService")
                 {
-                    builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
-                    builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
-                    builder.Services.AddSingleton<TaskExecutionContextDictionary>();
-                    builder.Services.AddHostedService<TaskHostService>();
-                    builder.Services.AddHostedService<NodeClientService>();
-                    builder.Services.AddHostedService<PythonRuntimeService>();
-                    builder.Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
-                    builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
-                    builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
+                    builder.Services.AddHostedService<ServiceHostService>();
                 }
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
@@ -128,6 +163,7 @@ namespace NodeService.WindowsService
                 LogManager.Flush();
                 LogManager.Shutdown();
             }
+
 
         }
 

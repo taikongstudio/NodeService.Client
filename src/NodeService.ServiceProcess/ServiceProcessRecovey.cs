@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace NodeService.ServiceProcess
 {
@@ -16,63 +17,32 @@ namespace NodeService.ServiceProcess
 
     public class ServiceProcessRecovey : IDisposable
     {
-        private class LockFileHolder : IDisposable
-        {
-
-
-            private readonly SafeHandle _fileHandle;
-
-            public LockFileHolder(SafeHandle safeHandle,string fullName)
-            {
-                _fileHandle = safeHandle;
-                FullName = fullName;
-            }
-
-            public string FullName {  get; private set; }
-
-            public static bool TryLock(string lockFilePath, out LockFileHolder? holder)
-            {
-                holder = null;
-                try
-                {
-                    var handle = File.OpenHandle(
-                        lockFilePath,
-                        FileMode.OpenOrCreate,
-                        FileAccess.ReadWrite,
-                        FileShare.None,
-                        FileOptions.None);
-                    holder = new LockFileHolder(handle, lockFilePath);
-                    return true;
-                }
-                catch (Exception ex)
-                {
-
-                }
-                return false;
-            }
-
-            public void Dispose()
-            {
-                if (this._fileHandle != null)
-                {
-                    this._fileHandle.Close();
-                }
-            }
-        }
 
         private readonly ILogger<ServiceProcessRecovey> _logger;
         private readonly ApiService _apiService;
         private ClientUpdateConfigModel? _clientUpdateConfig;
+        private ActionBlock<ServiceProcessInstallerProgress> _uploadActionBlock;
 
         public ServiceProcessRecovey(ILogger<ServiceProcessRecovey> logger, ServiceProcessRecoveryContext recoveryContext)
         {
             _logger = logger;
-            RecoveryContext = recoveryContext;
-            var httpAddress = RecoveryContext.HttpAddress ?? "http://172.27.242.223:50060/";
+            var httpAddress = recoveryContext.HttpAddress ?? "http://172.27.242.223:50060/";
             _apiService = new ApiService(new HttpClient()
             {
                 BaseAddress = new Uri(httpAddress),
                 Timeout = TimeSpan.FromSeconds(100)
+            });
+            RecoveryContext = recoveryContext;
+            _uploadActionBlock = new ActionBlock<ServiceProcessInstallerProgress>(UploadAsync);
+        }
+
+        private async Task UploadAsync(ServiceProcessInstallerProgress progress)
+        {
+            await _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+            {
+                ClientUpdateConfigId = _clientUpdateConfig.Id,
+                NodeName = Dns.GetHostName(),
+                CategoryName = progress.Message
             });
         }
 
@@ -93,23 +63,23 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ExecuteCoreAsync(CancellationToken cancellationToken = default)
         {
-            LockFileHolder? updateLock = null;
-            LockFileHolder? currentServiceLock = null;
+            PackageDatabase? targetServiceDatabase = null;
+            PackageDatabase? currentServiceDatabase = null;
             try
             {
-                var currentServiceLockPath = Path.Combine(EnsureCurrentServicePackageDirectory(), ".lock");
-                if (!LockFileHolder.TryLock(currentServiceLockPath, out currentServiceLock))
+                var currentServiceDatabasePath = CurrentServicePackageDirectory();
+                if (!PackageDatabase.TryOpen(currentServiceDatabasePath, out currentServiceDatabase))
                 {
-                    _logger.LogInformation($"Open lock file fail:{currentServiceLockPath}");
+                    _logger.LogInformation($"打开数据库失败:{currentServiceDatabasePath}");
                     return false;
                 }
-                var lockFilePath = Path.Combine(EnsurePackageDirectory(), ".lock");
-                if (!LockFileHolder.TryLock(lockFilePath, out updateLock))
+                var targetServiceDatabse = EnsurePackageDirectory();
+                if (!PackageDatabase.TryOpen(targetServiceDatabse, out targetServiceDatabase))
                 {
-                    _logger.LogInformation($"Open lock file fail:{lockFilePath}");
+                    _logger.LogInformation($"打开数据库失败:{targetServiceDatabse}");
                     return false;
                 }
-                _logger.LogInformation($"Open lock file success:{lockFilePath}");
+                _logger.LogInformation($"打开数据库成功:{targetServiceDatabse}");
                 using ServiceController serviceController = new ServiceController(RecoveryContext.ServiceName);
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
@@ -148,15 +118,15 @@ namespace NodeService.ServiceProcess
             }
             finally
             {
-                if (updateLock != null)
+                if (targetServiceDatabase != null)
                 {
-                    updateLock.Dispose();
-                    _logger.LogInformation($"释放服务\"{RecoveryContext.ServiceName}\"文件锁:{updateLock.FullName}");
+                    targetServiceDatabase.Dispose();
+                    _logger.LogInformation($"释放服务\"{RecoveryContext.ServiceName}\"数据库:{targetServiceDatabase.FullName}");
                 }
-                if (currentServiceLock != null)
+                if (currentServiceDatabase != null)
                 {
-                    currentServiceLock.Dispose();
-                    _logger.LogInformation($"释放服务当前服务的文件锁:{currentServiceLock.FullName}");
+                    currentServiceDatabase.Dispose();
+                    _logger.LogInformation($"释放服务当前服务的数据库:{currentServiceDatabase.FullName}");
                 }
             }
             return false;
@@ -164,13 +134,13 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ReinstallAsync(bool force = false, CancellationToken cancellationToken = default)
         {
-            _logger.LogError($"安装\"{RecoveryContext.ServiceName}\"，强制：{force}");
+            _logger.LogInformation($"安装\"{RecoveryContext.ServiceName}\"，强制：{force}");
             bool quickMode = false;
             if (Debugger.IsAttached && quickMode)
             {
                 Environment.SetEnvironmentVariable("QuickMode", "1");
             }
-            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置");
+            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置");
             var rsp = await _apiService.QueryClientUpdateAsync(RecoveryContext.ServiceName);
             if (rsp.ErrorCode != 0)
             {
@@ -181,26 +151,26 @@ namespace NodeService.ServiceProcess
             _clientUpdateConfig = rsp.Result;
             if (_clientUpdateConfig == null)
             {
-                _logger.LogError($"Could not find update:{RecoveryContext.ServiceName}");
+                _logger.LogError($"查询更新失败:{RecoveryContext.ServiceName}");
                 return false;
             }
-            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
+            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
             _logger.LogInformation(_clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
             var packageConfig = _clientUpdateConfig.PackageConfig;
             if (packageConfig == null)
             {
-                _logger.LogError($"Could not find package:{RecoveryContext.ServiceName}");
+                _logger.LogError($"包内容缺失:{RecoveryContext.ServiceName}");
                 return false;
             }
-            _logger.LogError($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
+            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
             if (!force && TryComparePackageHash(packageConfig.Hash))
             {
-                _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
+                _logger.LogWarning($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
                 return true;
             }
-            _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"开始安装");
+            _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始安装");
             var filePath = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
-            _logger.LogError($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
+            _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
             using var installer = CommonServiceProcessInstaller.Create(
                 RecoveryContext.ServiceName,
                 RecoveryContext.DisplayName,
@@ -267,47 +237,31 @@ namespace NodeService.ServiceProcess
         private string EnsurePackageDirectory()
         {
             var packageDirectory = Path.Combine(RecoveryContext.InstallDirectory, ".package");
-            if (!Directory.Exists(packageDirectory))
-            {
-                Directory.CreateDirectory(packageDirectory);
-            }
-
             return packageDirectory;
         }
 
-        private string EnsureCurrentServicePackageDirectory()
+        private string CurrentServicePackageDirectory()
         {
             var packageDirectory = Path.Combine(AppContext.BaseDirectory, ".package");
-            if (!Directory.Exists(packageDirectory))
-            {
-                Directory.CreateDirectory(packageDirectory);
-            }
-
             return packageDirectory;
         }
 
         private void Installer_Completed(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogInformation(e.Progress.Message);
+            this._uploadActionBlock.Post(e.Progress);
         }
 
         private void Installer_Failed(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogError(e.Progress.Message);
-            if (_clientUpdateConfig!=null)
-            {
-                _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
-                {
-                    ClientUpdateConfigId = _clientUpdateConfig.Id,
-                    NodeName = Dns.GetHostName(),
-                    CategoryName = e.Progress.Message
-                });
-            }
+            this._uploadActionBlock.Post(e.Progress);
         }
 
         private void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogInformation(e.Progress.Message);
+            this._uploadActionBlock.Post(e.Progress);
         }
 
         private async Task Delay(CancellationToken stoppingToken)
@@ -333,6 +287,10 @@ namespace NodeService.ServiceProcess
             if (this._apiService != null)
             {
                 this._apiService.Dispose();
+            }
+            if (this._uploadActionBlock != null)
+            {
+                this._uploadActionBlock.Complete();
             }
         }
     }

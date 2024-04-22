@@ -17,7 +17,7 @@
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                     if (File.Exists(exitFileName))
                     {
                         File.Delete(exitFileName);
@@ -27,7 +27,6 @@
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
-                    break;
                 }
 
             }

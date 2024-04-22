@@ -1,7 +1,0 @@
-{
-  "profiles": {
-    "NodeService.DaemonService": {
-      "commandName": "Project"
-    }
-  }
-}

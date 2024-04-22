@@ -201,18 +201,21 @@
 
         private void _serviceProcessInstaller_BeforeInstall(object sender, InstallEventArgs e)
         {
-            DownloadPackageImpl().Wait();
+            if (!DeployPackageImpl().Result)
+            {
+                throw new InvalidOperationException();
+            }
         }
 
-        private async Task DownloadPackageImpl()
+        private async Task<bool> DeployPackageImpl()
         {
             try
             {
                 if (IsQuickMode())
                 {
-                    return;
+                    return true;
                 }
-                InitStream();
+                ResetStream();
                 RaiseProgressChangedEvent($"开始安装");
 
                 RaiseProgressChangedEvent($"开始下载服务\"{_installContext.ServiceName}\"的安装包");
@@ -220,17 +223,32 @@
                 {
                     RaiseFailedEvent("下载文件失败");
                     Cancel();
-                    return;
+                    return false;
                 }
                 RaiseProgressChangedEvent($"下载成功，大小:{_stream.Length}");
-                await ExtractPackageToInstallDirectoryAsync();
+                return await ExtractPackageToInstallDirectoryAsync();
             }
             catch (Exception ex)
             {
                 RaiseFailedEvent(ex.Message);
                 Cancel();
             }
+            finally
+            {
+                DisposeStream();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+            return false;
+        }
 
+        private void DisposeStream()
+        {
+            if (this._stream != null)
+            {
+                this._stream.Dispose();
+                this._stream = null;
+            }
         }
 
         public void Cancel()
@@ -241,13 +259,11 @@
             }
         }
 
-        private void InitStream()
+        private void ResetStream()
         {
-            if (this._stream != null)
-            {
-                this._stream.Dispose();
-                this._stream = null;
-            }
+            DisposeStream();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             _stream = new MemoryStream();
         }
 
@@ -316,9 +332,9 @@
                             {
                                 var moduleName = Path.GetFileName(file);
                                 var processName = Path.GetFileNameWithoutExtension(file);
-                                RaiseProgressChangedEvent($"尝试关闭进程:{processName}");
+                                RaiseProgressChangedEvent($"尝试关闭相关进程:{processName}");
                                 var processes = Process.GetProcessesByName(processName);
-                                RaiseProgressChangedEvent($"可执行文件\"{processName}\"有{processes.Length}个疑似进程");
+                                RaiseProgressChangedEvent($"可执行文件\"{processName}\"有{processes.Length}个相关进程");
                                 foreach (var process in processes)
                                 {
                                     var installerPath = Path.GetFullPath(_installContext.InstallDirectory);
@@ -334,7 +350,7 @@
                                 }
                             }
                             break;
-                        case 2:
+                        case 10:
                             if (TryWriteExitFile())
                             {
                                 await Task.Delay(TimeSpan.FromSeconds(10));
@@ -350,13 +366,14 @@
                     }
                     RaiseProgressChangedEvent($"开始解压包到目录:\"{_installContext.InstallDirectory}\"");
                     _stream.Position = 0;
+                    
                     ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, true);
                     RaiseProgressChangedEvent($"解压成功");
                     return true;
                 }
                 catch (IOException ex)
                 {
-                    if (retryCount < 2)
+                    if (retryCount < 10)
                     {
                         RaiseProgressChangedEvent(ex.Message);
                         retryCount++;

@@ -1,4 +1,7 @@
-﻿namespace NodeService.ServiceProcess
+﻿using System.IO;
+using System.Security.Cryptography;
+
+namespace NodeService.ServiceProcess
 {
     public class HttpPackageProvider : PackageProvider
     {
@@ -11,12 +14,24 @@
             _packageConfig = packageConfig;
         }
 
-        public override async Task<bool> DownloadAsync(Stream stream, CancellationToken cancellationToken = default)
+        public override async Task<bool> DownloadAsync(Stream destStream, CancellationToken cancellationToken = default)
         {
             try
             {
-                await _apiService.DownloadPackageAsync(_packageConfig, stream, cancellationToken);
-                return true;
+                var rsp = await _apiService.DownloadPackageAsync(_packageConfig, cancellationToken);
+                if (rsp.ErrorCode == 0 && rsp.Result != null)
+                {
+                    using var srcStream = rsp.Result;
+                    srcStream.Position = 0;
+                    var bytes = await SHA256.HashDataAsync(srcStream).ConfigureAwait(false);
+                    var hash = BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+                    srcStream.Position = 0;
+                    if (hash == _packageConfig.Hash)
+                    {
+                        await srcStream.CopyToAsync(destStream);
+                        return true;
+                    }
+                }
             }
             catch (Exception ex)
             {

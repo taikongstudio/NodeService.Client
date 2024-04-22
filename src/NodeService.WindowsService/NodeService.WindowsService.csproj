@@ -13,14 +13,11 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
-		<PackageReference Include="FluentFTP" Version="48.0.3" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
 		<PackageReference Include="NLog" Version="5.2.7" />
 		<PackageReference Include="NLog.Extensions.Logging" Version="5.3.5" />
 		<PackageReference Include="NLog.Web.AspNetCore" Version="5.3.5" />
-		<PackageReference Include="Quartz" Version="3.8.0" />
-		<PackageReference Include="System.DirectoryServices" Version="8.0.0" />
 		<PackageReference Include="Core.System.Configuration.Install" Version="1.1.0" />
 		<PackageReference Include="Core.System.ServiceProcess" Version="2.0.1" />
 	</ItemGroup>
@@ -30,22 +27,6 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	  <ProjectReference Include="..\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj" />
-	  <ProjectReference Include="..\NodeService.WindowsService.Services\NodeService.WindowsService.Services.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-	  <Content Update="WindowsService.appsettings.Development.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	    <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-	    <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-	  </Content>
-	</ItemGroup>
-	<ItemGroup>
-	  <None Update="appsettings.Development.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-	  <None Update="appsettings.json">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
 	</ItemGroup>
 
 

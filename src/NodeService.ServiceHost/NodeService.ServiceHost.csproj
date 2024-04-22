@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<Platforms>AnyCPU;x64</Platforms>
+	<OutputType>Exe</OutputType>
+	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="python-3.8.5-embed-amd64.zip" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Python.Deployment" Version="2.0.5" />
+		<PackageReference Include="pythonnet_netstandard_py38_win" Version="2.5.2" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+		<PackageReference Include="FluentFTP" Version="50.0.1" />
+		<PackageReference Include="Confluent.Kafka" Version="2.3.0" />
+		<PackageReference Include="System.Diagnostics.Debug" Version="4.3.0" />
+		<PackageReference Include="System.IO.FileSystem.Primitives" Version="4.3.0" />
+		<PackageReference Include="System.Management" Version="8.0.0" />
+		<PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
+		<PackageReference Include="System.Management.Automation" Version="7.4.2" />
+		<PackageReference Include="CommandLineParser" Version="2.9.1" />
+		<PackageReference Include="NLog" Version="5.2.7" />
+		<PackageReference Include="NLog.Extensions.Logging" Version="5.3.5" />
+		<PackageReference Include="NLog.Web.AspNetCore" Version="5.3.5" />
+		<PackageReference Include="System.DirectoryServices" Version="8.0.0" />
+		<PackageReference Include="Core.System.Configuration.Install" Version="1.1.0" />
+		<PackageReference Include="Core.System.ServiceProcess" Version="2.0.1" />
+		<PackageReference Include="System.Management" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
+	</ItemGroup>
+
+</Project>

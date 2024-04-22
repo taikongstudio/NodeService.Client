@@ -2,6 +2,6 @@
 {
     public abstract class PackageProvider
     {
-        public abstract Task<bool> DownloadAsync(Stream stream, CancellationToken cancellationToken = default);
+        public abstract Task<bool> DownloadAsync(Stream destStream, CancellationToken cancellationToken = default);
     }
 }

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NodeService.WindowsService
+namespace NodeService.ServiceHost
 {
     public class Constants
     {

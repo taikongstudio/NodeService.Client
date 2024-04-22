@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "NodeService.ServiceHost": {
+      "commandName": "Project",
+      "commandLineArgs": "--env Development"
+    }
+  }
+}
