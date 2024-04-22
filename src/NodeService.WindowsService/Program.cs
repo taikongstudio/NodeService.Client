@@ -144,10 +144,10 @@ namespace NodeService.WindowsService
                 //});
                 builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
-                builder.Services.AddHostedService<RegisterTaskService>();
 
                 if (options.mode == "WindowsService")
                 {
+                    builder.Services.AddHostedService<RegisterTaskService>();
                     builder.Services.AddHostedService<ServiceHostService>();
                 }
                 builder.Logging.ClearProviders();
