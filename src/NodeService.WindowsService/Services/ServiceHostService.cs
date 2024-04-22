@@ -17,6 +17,7 @@ using NodeService.Infrastructure.Models;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
+using NodeService.Infrastructure.Messages;
 
 namespace NodeService.WindowsService.Services
 {
@@ -30,6 +31,7 @@ namespace NodeService.WindowsService.Services
         private IDisposable? _serverOptionsMonitorToken;
         private Process? _serviceHostProcess;
         private readonly Channel<ProcessCommandRequest> _commandChannel;
+        private readonly BatchQueue<int> _signals;
 
         public ServiceHostService(
             ILogger<ServiceHostService> logger,
@@ -44,6 +46,7 @@ namespace NodeService.WindowsService.Services
             OnServerOptionsChanged(_serverOptions);
             _serverOptionsMonitorToken = _serverOptionsMonitor.OnChange(OnServerOptionsChanged);
             _commandChannel = Channel.CreateUnbounded<ProcessCommandRequest>();
+            _signals = new BatchQueue<int>(1, TimeSpan.FromSeconds(5));
         }
 
         public override void Dispose()
@@ -70,7 +73,7 @@ namespace NodeService.WindowsService.Services
             while (!stoppingToken.IsCancellationRequested)
             {
                 await ExecuteCoreAsync(stoppingToken);
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
         }
 
@@ -89,8 +92,8 @@ namespace NodeService.WindowsService.Services
                         {
                             return;
                         }
-                        
-                      await  KillCurrentServiceProcessAsync(stoppingToken);
+
+                        await KillCurrentServiceProcessAsync(stoppingToken);
                     }
                 }
                 if (packageConfig == null && !TryReadPackageInfo(out packageConfig))
@@ -103,8 +106,10 @@ namespace NodeService.WindowsService.Services
                 }
                 if (!TryGetInstallDirectory(packageConfig, out var installDirectory) || installDirectory == null)
                 {
+                    _logger.LogInformation("获取安装目录失败");
                     return;
                 }
+                _logger.LogInformation("杀死ServiceHost进程");
                 KillServiceHostProcessesAsync(stoppingToken);
                 _ = Task.Factory.StartNew(() =>
                 {
@@ -166,7 +171,7 @@ namespace NodeService.WindowsService.Services
                 {
                     return;
                 }
-                _logger.LogInformation("杀死ServiceHost");
+                _logger.LogInformation("杀死ServiceHost进程");
                 if (!KillServiceHostProcessesAsync(stoppingToken))
                 {
                     return;
@@ -528,8 +533,7 @@ namespace NodeService.WindowsService.Services
                 await pipeClient.ConnectAsync(TimeSpan.FromSeconds(30), cancellationToken);
 
                 _logger.LogInformation($"Connected to pipe {pipeName}");
-                _logger.LogInformation("There are currently {0} pipe server instances open.",
-                   pipeClient.NumberOfServerInstances);
+                _logger.LogInformation($"There are currently {pipeClient.NumberOfServerInstances} pipe server instances open.");
 
                 while (pipeClient.IsConnected && !cancellationToken.IsCancellationRequested)
                 {
