@@ -67,7 +67,7 @@ namespace NodeService.ServiceHost
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<PythonRuntimeService>();
                 builder.Services.AddHostedService<ProcessServerService>();
-
+                builder.Services.AddHostedService<ParentProcessMonitorService>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog($"NLog.config");

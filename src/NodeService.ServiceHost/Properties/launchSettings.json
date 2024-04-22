@@ -2,7 +2,7 @@
   "profiles": {
     "NodeService.ServiceHost": {
       "commandName": "Project",
-      "commandLineArgs": "--env Production"
+      "commandLineArgs": "--env Production --pid 10964"
     }
   }
 }

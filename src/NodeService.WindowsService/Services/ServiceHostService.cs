@@ -473,7 +473,7 @@ namespace NodeService.WindowsService.Services
                 _logger.LogInformation($"启动ServiceHost进程:{fileName}");
                 _serviceHostProcess = new Process();
                 _serviceHostProcess.StartInfo.FileName = Path.Combine(installDirectory, packageConfig.EntryPoint);
-                _serviceHostProcess.StartInfo.Arguments = $"--env {_serviceOptions.env}";
+                _serviceHostProcess.StartInfo.Arguments = $"--env {_serviceOptions.env} --pid {Environment.ProcessId}";
                 _serviceHostProcess.StartInfo.WorkingDirectory = installDirectory;
                 _serviceHostProcess.StartInfo.UseShellExecute = false;
                 _serviceHostProcess.StartInfo.CreateNoWindow = true;

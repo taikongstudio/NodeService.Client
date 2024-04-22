@@ -15,5 +15,8 @@ namespace NodeService.ServiceHost.Models
 
         [Option("env", HelpText = "Env")]
         public string? env { get; set; }
+
+        [Option("pid", HelpText = "pid")]
+        public string? pid { get; set; }
     }
 }

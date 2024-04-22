@@ -8,7 +8,7 @@ namespace NodeService.ServiceHost
 {
     public class Constants
     {
-        public const string Version = "E9B9706B-BF61-4FD1-A77E-8E57D228085C";
+        public const string Version = "7BF69CC8-5783-4F0F-A29B-E0ADA2EE5BF5";
 
         public const string ServiceTypeWindowsService = "WindowsService";
 
