@@ -29,7 +29,7 @@ namespace NodeService.ServiceHost.Tasks
 
         private string EnsureScriptsHomeDirectory()
         {
-            var path = "C:/shouhu/scripts";
+            var path = Path.Combine(AppContext.BaseDirectory, "scripts");
             if (!Directory.Exists(path))
             {
                 Directory.CreateDirectory(path);
