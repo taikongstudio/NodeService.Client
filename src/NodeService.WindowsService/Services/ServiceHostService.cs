@@ -31,7 +31,6 @@ namespace NodeService.WindowsService.Services
         private IDisposable? _serverOptionsMonitorToken;
         private Process? _serviceHostProcess;
         private readonly Channel<ProcessCommandRequest> _commandChannel;
-        private readonly BatchQueue<int> _signals;
 
         public ServiceHostService(
             ILogger<ServiceHostService> logger,
@@ -46,7 +45,6 @@ namespace NodeService.WindowsService.Services
             OnServerOptionsChanged(_serverOptions);
             _serverOptionsMonitorToken = _serverOptionsMonitor.OnChange(OnServerOptionsChanged);
             _commandChannel = Channel.CreateUnbounded<ProcessCommandRequest>();
-            _signals = new BatchQueue<int>(1, TimeSpan.FromSeconds(5));
         }
 
         public override void Dispose()
@@ -268,32 +266,6 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        //private bool WritePackageHash(PackageConfigModel packageConfig)
-        //{
-        //    try
-        //    {
-        //        ArgumentNullException.ThrowIfNull(packageConfig, nameof(packageConfig));
-        //        if (!TryGetInstallDirectory(packageConfig, out var installDirectory) || installDirectory == null)
-        //        {
-        //            return true;
-        //        }
-        //        var packageDirectory = Path.Combine(installDirectory, ".package");
-        //        if (!Directory.Exists(packageDirectory))
-        //        {
-        //            Directory.CreateDirectory(packageDirectory);
-        //        }
-        //        var hashPath = Path.Combine(packageDirectory, ".package", "Hash");
-        //        File.WriteAllText(hashPath, packageConfig.Hash);
-        //        return true;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex.Message);
-        //    }
-
-        //    return false;
-        //}
-
         private bool WritePackageInfo(PackageConfigModel packageConfig)
         {
             try
@@ -375,7 +347,10 @@ namespace NodeService.WindowsService.Services
             using var streamWriter = new StreamWriter(pipeClient, leaveOpen: true);
             streamWriter.AutoFlush = true;
             var jsonString = JsonSerializer.Serialize(req);
-            _logger.LogInformation($"Client send req:{jsonString}.");
+            if (Debugger.IsAttached)
+            {
+                _logger.LogInformation($"Client send req:{jsonString}.");
+            }
             await streamWriter.WriteAsync(jsonString);
             await streamWriter.WriteLineAsync();
         }
@@ -386,7 +361,10 @@ namespace NodeService.WindowsService.Services
         {
             using var streamReader = new StreamReader(pipeClient, leaveOpen: true);
             var jsonString = await streamReader.ReadLineAsync(cancellationToken);
-            _logger.LogInformation($"Client recieve rsp:{jsonString}.");
+            if (Debugger.IsAttached)
+            {
+                _logger.LogInformation($"Client recieve rsp:{jsonString}.");
+            }
             var rsp = JsonSerializer.Deserialize<ProcessCommandResponse>(jsonString);
             return rsp;
         }

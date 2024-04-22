@@ -101,7 +101,10 @@ namespace NodeService.ServiceHost.Services
             using var streamWriter = new StreamWriter(stream, leaveOpen: true);
             streamWriter.AutoFlush = true;
             var jsonString = JsonSerializer.Serialize(rsp);
-            _logger.LogInformation($"Server send rsp:{jsonString}.");
+            if (Debugger.IsAttached)
+            {
+                _logger.LogInformation($"Server send rsp:{jsonString}.");
+            }
             await streamWriter.WriteAsync(jsonString);
             await streamWriter.WriteLineAsync();
         }
@@ -112,7 +115,10 @@ namespace NodeService.ServiceHost.Services
         {
             using var streamReader = new StreamReader(stream, leaveOpen: true);
             var jsonString = await streamReader.ReadLineAsync(cancellationToken);
-            _logger.LogInformation($"Server recieve req:{jsonString}.");
+            if (Debugger.IsAttached)
+            {
+                _logger.LogInformation($"Server recieve req:{jsonString}.");
+            }
             var rsp = JsonSerializer.Deserialize<ProcessCommandRequest>(jsonString);
             return rsp;
         }
