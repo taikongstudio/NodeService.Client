@@ -74,8 +74,8 @@ namespace NodeService.ServiceProcess
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
-                await RecoveryServiceAsync();
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                await RecoveryServiceAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
 
 

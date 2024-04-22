@@ -96,10 +96,12 @@ namespace NodeService.WindowsService.Services
                 }
                 if (packageConfig == null && !TryReadPackageInfo(out packageConfig))
                 {
+                    _logger.LogInformation("获取包信息失败");
                     return;
                 }
                 if (packageConfig == null)
                 {
+                    _logger.LogInformation("获取包信息失败");
                     return;
                 }
                 if (!TryGetInstallDirectory(packageConfig, out var installDirectory) || installDirectory == null)
@@ -172,6 +174,7 @@ namespace NodeService.WindowsService.Services
                 _logger.LogInformation("杀死ServiceHost进程");
                 if (!KillServiceHostProcessesAsync(stoppingToken))
                 {
+                    _logger.LogInformation("杀死ServiceHost进程失败");
                     return;
                 }
                 createNewProcess = InstallPackage(rsp);
@@ -188,16 +191,24 @@ namespace NodeService.WindowsService.Services
 
         private bool InstallPackage((PackageConfigModel? PackageConfig, Stream? Stream) rsp)
         {
-            if (!TryGetInstallDirectory(rsp.PackageConfig, out var installDirectory) || installDirectory == null)
+            if (rsp.PackageConfig == null || rsp.Stream == null)
             {
                 return false;
             }
+            if (!TryGetInstallDirectory(rsp.PackageConfig, out var installDirectory) || installDirectory == null)
+            {
+                _logger.LogInformation("获取安装目录失败");
+                return false;
+            }
+            _logger.LogInformation($"解压安装包到:{installDirectory}");
             ZipFile.ExtractToDirectory(rsp.Stream, installDirectory, true);
             rsp.Stream.Dispose();
             if (!WritePackageInfo(rsp.PackageConfig))
             {
+                _logger.LogInformation("写入包信息失败");
                 return false;
             }
+            _logger.LogInformation("写入包信息成功");
             return true;
         }
 
