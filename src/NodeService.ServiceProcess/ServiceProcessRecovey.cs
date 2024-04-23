@@ -74,13 +74,13 @@ namespace NodeService.ServiceProcess
                     _logger.LogInformation($"打开数据库失败:{currentServiceDatabasePath}");
                     return false;
                 }
-                var targetServiceDatabse = EnsurePackageDirectory();
-                if (!PackageDatabase.TryOpen(targetServiceDatabse, out targetServiceDatabase))
+                var targetServiceDatabasePath = EnsurePackageDirectory();
+                if (!PackageDatabase.TryOpen(targetServiceDatabasePath, out targetServiceDatabase))
                 {
-                    _logger.LogInformation($"打开数据库失败:{targetServiceDatabse}");
+                    _logger.LogInformation($"打开数据库失败:{targetServiceDatabasePath}");
                     return false;
                 }
-                _logger.LogInformation($"打开数据库成功:{targetServiceDatabse}");
+                _logger.LogInformation($"打开数据库成功:{targetServiceDatabasePath}");
                 using ServiceController serviceController = new ServiceController(RecoveryContext.ServiceName);
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
@@ -97,7 +97,7 @@ namespace NodeService.ServiceProcess
                         {
                             serviceController.Start();
                         }
-                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
                         break;
                     case ServiceControllerStatus.Running:
                         return await ReinstallAsync(false, cancellationToken);
