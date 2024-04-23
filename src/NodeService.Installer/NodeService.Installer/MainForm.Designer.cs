@@ -98,7 +98,7 @@
             // 
             txtUri.Location = new Point(166, 337);
             txtUri.Name = "txtUri";
-            txtUri.Size = new Size(659, 30);
+            txtUri.Size = new Size(822, 30);
             txtUri.TabIndex = 53;
             txtUri.Text = "http://172.27.242.223:50060/";
             // 
@@ -115,7 +115,7 @@
             // 
             txtHost.Location = new Point(166, 64);
             txtHost.Name = "txtHost";
-            txtHost.Size = new Size(383, 30);
+            txtHost.Size = new Size(582, 30);
             txtHost.TabIndex = 51;
             // 
             // cmbConfigs
@@ -124,7 +124,7 @@
             cmbConfigs.FormattingEnabled = true;
             cmbConfigs.Location = new Point(166, 26);
             cmbConfigs.Name = "cmbConfigs";
-            cmbConfigs.Size = new Size(383, 32);
+            cmbConfigs.Size = new Size(582, 32);
             cmbConfigs.TabIndex = 50;
             cmbConfigs.SelectedIndexChanged += cmbConfigs_SelectedIndexChanged;
             // 
@@ -142,7 +142,7 @@
             cmbEntryPoint.FormattingEnabled = true;
             cmbEntryPoint.Location = new Point(166, 299);
             cmbEntryPoint.Name = "cmbEntryPoint";
-            cmbEntryPoint.Size = new Size(659, 32);
+            cmbEntryPoint.Size = new Size(822, 32);
             cmbEntryPoint.TabIndex = 48;
             // 
             // label7
@@ -158,7 +158,7 @@
             // 
             txtServiceName.Location = new Point(166, 263);
             txtServiceName.Name = "txtServiceName";
-            txtServiceName.Size = new Size(659, 30);
+            txtServiceName.Size = new Size(822, 30);
             txtServiceName.TabIndex = 46;
             // 
             // lblServiceName
@@ -172,9 +172,9 @@
             // 
             // BtnBrowseInstallPath
             // 
-            BtnBrowseInstallPath.Location = new Point(716, 214);
+            BtnBrowseInstallPath.Location = new Point(864, 214);
             BtnBrowseInstallPath.Name = "BtnBrowseInstallPath";
-            BtnBrowseInstallPath.Size = new Size(109, 43);
+            BtnBrowseInstallPath.Size = new Size(124, 43);
             BtnBrowseInstallPath.TabIndex = 44;
             BtnBrowseInstallPath.Text = "浏览";
             BtnBrowseInstallPath.UseVisualStyleBackColor = true;
@@ -183,7 +183,7 @@
             // 
             txtInstallPath.Location = new Point(166, 220);
             txtInstallPath.Name = "txtInstallPath";
-            txtInstallPath.Size = new Size(526, 30);
+            txtInstallPath.Size = new Size(689, 30);
             txtInstallPath.TabIndex = 43;
             // 
             // label6
@@ -199,23 +199,23 @@
             // 
             ProgressBar.Location = new Point(38, 383);
             ProgressBar.Name = "ProgressBar";
-            ProgressBar.Size = new Size(787, 22);
+            ProgressBar.Size = new Size(950, 22);
             ProgressBar.TabIndex = 39;
             // 
             // NumericUpDownPort
             // 
-            NumericUpDownPort.Location = new Point(716, 61);
+            NumericUpDownPort.Location = new Point(864, 61);
             NumericUpDownPort.Maximum = new decimal(new int[] { 65535, 0, 0, 0 });
             NumericUpDownPort.Name = "NumericUpDownPort";
-            NumericUpDownPort.Size = new Size(111, 30);
+            NumericUpDownPort.Size = new Size(126, 30);
             NumericUpDownPort.TabIndex = 28;
             NumericUpDownPort.Value = new decimal(new int[] { 21, 0, 0, 0 });
             // 
             // label5
             // 
-            label5.Location = new Point(641, 58);
+            label5.Location = new Point(754, 58);
             label5.Name = "label5";
-            label5.Size = new Size(69, 36);
+            label5.Size = new Size(104, 36);
             label5.TabIndex = 35;
             label5.Text = "端口";
             label5.TextAlign = ContentAlignment.MiddleRight;
@@ -224,7 +224,7 @@
             // 
             txtUserName.Location = new Point(166, 100);
             txtUserName.Name = "txtUserName";
-            txtUserName.Size = new Size(659, 30);
+            txtUserName.Size = new Size(822, 30);
             txtUserName.TabIndex = 31;
             // 
             // txtPassword
@@ -232,14 +232,14 @@
             txtPassword.Location = new Point(166, 136);
             txtPassword.Name = "txtPassword";
             txtPassword.PasswordChar = '*';
-            txtPassword.Size = new Size(659, 30);
+            txtPassword.Size = new Size(822, 30);
             txtPassword.TabIndex = 32;
             // 
             // txtPath
             // 
             txtPath.Location = new Point(166, 172);
             txtPath.Name = "txtPath";
-            txtPath.Size = new Size(659, 30);
+            txtPath.Size = new Size(822, 30);
             txtPath.TabIndex = 34;
             // 
             // label4
