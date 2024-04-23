@@ -154,7 +154,7 @@ namespace NodeService.WindowsService
 
                 if (options.mode == "WindowsService")
                 {
-                    builder.Services.AddHostedService<RegisterTaskService>();
+                    //builder.Services.AddHostedService<RegisterTaskService>();
                     builder.Services.AddHostedService<AppHostService>();
                 }
                 builder.Logging.ClearProviders();
