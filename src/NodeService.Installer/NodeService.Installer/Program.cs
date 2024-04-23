@@ -8,6 +8,11 @@ namespace NodeService.Installer
         [STAThread]
         static void Main()
         {
+            if (!Environment.IsPrivilegedProcess)
+            {
+                MessageBox.Show("需要以管理员权限运行");
+                return;
+            }
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             Environment.CurrentDirectory = AppContext.BaseDirectory;
