@@ -116,6 +116,7 @@ namespace NodeService.WindowsService.Services
         {
             try
             {
+                _logger.LogInformation("启动应用");
                 if (!startNewProcess)
                 {
                     if (!IsAppProcessExited(appName))
@@ -163,7 +164,12 @@ namespace NodeService.WindowsService.Services
                     return true;
                 }
                 process.Refresh();
-                return process.HasExited;
+                if (process.HasExited)
+                {
+                    this._processDict.TryRemove(appName, out _);
+                    return true;
+                }
+                return false;
             }
             catch (Exception ex)
             {
@@ -381,12 +387,14 @@ namespace NodeService.WindowsService.Services
                 process.Refresh();
                 if (process.HasExited)
                 {
+                    _processDict.TryRemove(appName, out _);
                     return true;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
+                _processDict.TryRemove(appName, out _);
             }
             finally
             {
