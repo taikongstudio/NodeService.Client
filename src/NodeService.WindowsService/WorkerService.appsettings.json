@@ -12,7 +12,7 @@
         "DisplayName": "NodeService.WindowsService",
         "Description": "NodeService.WindowsService",
         "HttpAddress": "http://172.27.242.223:50060/",
-        "InstallDirectory": "../NodeService.WindowsService/",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WindowsService\\",
         "DurationMinutes": 10,
         "ServiceName": "NodeService.WindowsService",
         "Arguments": ""
@@ -21,7 +21,7 @@
         "DisplayName": "NodeService.UpdateService",
         "Description": "NodeService.UpdateService",
         "HttpAddress": "http://172.27.242.223:50060/",
-        "InstallDirectory": "../NodeService.UpdateService/",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.UpdateService\\",
         "DurationMinutes": 10,
         "ServiceName": "NodeService.UpdateService",
         "Arguments": "--mode UpdateService --env Production"

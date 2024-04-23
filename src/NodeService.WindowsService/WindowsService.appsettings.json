@@ -5,7 +5,7 @@
         "DisplayName": "NodeService.UpdateService",
         "Description": "NodeService.UpdateService",
         "HttpAddress": "http://172.27.242.223:50060/",
-        "InstallDirectory": "../NodeService.UpdateService/",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.UpdateService\\",
         "DurationMinutes": 10,
         "ServiceName": "NodeService.UpdateService",
         "Arguments": "--mode UpdateService --env Production"
@@ -14,7 +14,7 @@
         "DisplayName": "NodeService.WorkerService",
         "Description": "NodeService.WorkerService",
         "HttpAddress": "http://172.27.242.223:50060/",
-        "InstallDirectory": "../NodeService.WorkerService/",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WorkerService\\",
         "DurationMinutes": 10,
         "ServiceName": "NodeService.WorkerService",
         "Arguments": "--mode WorkerService --env Production"
