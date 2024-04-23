@@ -91,14 +91,17 @@ namespace NodeService.ServiceHost.Services
             {
                 if (_taskExecutionContext.CancelledManually)
                 {
+                    message = "Cancelled manually";
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Cancelled, message);
                 }
                 else if (!result)
                 {
+                    message = "Failed";
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Failed, message);
                 }
                 else
                 {
+                    message = "Finished";
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Finished, message);
                 }
             }
