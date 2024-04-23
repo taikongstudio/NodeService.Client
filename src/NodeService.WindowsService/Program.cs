@@ -89,10 +89,7 @@ namespace NodeService.WindowsService
                 if (string.IsNullOrEmpty(options.mode))
                 {
                     options.mode = "WindowsService";
-                    if (options.env == null)
-                    {
-                        options.env = Environments.Production;
-                    }
+                    options.env ??= Environments.Production;
                 }
                 if (options.env == null)
                 {
@@ -104,6 +101,11 @@ namespace NodeService.WindowsService
                     {
                         options.env = Environments.Production;
                     }
+                }
+                var env = Environment.GetEnvironmentVariable("NodeServiceEnvironments", EnvironmentVariableTarget.Machine);
+                if (!string.IsNullOrEmpty(env))
+                {
+                    options.env = env;
                 }
             }
         }
@@ -132,6 +134,7 @@ namespace NodeService.WindowsService
                     false, true);
                 builder.Services.Configure<ServiceProcessConfiguration>(builder.Configuration.GetSection("ServiceProcessConfiguration"));
                 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
+                builder.Services.Configure<AppOptions>(builder.Configuration.GetSection("AppOptions"));
                 string serviceName = $"NodeService.{options.mode}";
                 builder.Services.AddWindowsService(windowsServiceOptions =>
                 {
@@ -139,20 +142,20 @@ namespace NodeService.WindowsService
                 });
 
                 builder.Services.AddSingleton(options);
-                //builder.WebHost.ConfigureKestrel(serverOptions =>
-                //{
-                //    serverOptions.ListenNamedPipe(serviceName, listenOptions =>
-                //    {
-                //        listenOptions.Protocols = HttpProtocols.Http2;
-                //    });
-                //});
+                builder.WebHost.ConfigureKestrel(serverOptions =>
+                {
+                    serverOptions.ListenNamedPipe(serviceName, listenOptions =>
+                    {
+                        listenOptions.Protocols = HttpProtocols.Http2;
+                    });
+                });
                 builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
 
                 if (options.mode == "WindowsService")
                 {
                     builder.Services.AddHostedService<RegisterTaskService>();
-                    builder.Services.AddHostedService<ServiceHostService>();
+                    builder.Services.AddHostedService<AppHostService>();
                 }
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();

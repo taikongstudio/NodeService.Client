@@ -18,24 +18,31 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using NodeService.Infrastructure.Messages;
+using System.Collections.Concurrent;
 
 namespace NodeService.WindowsService.Services
 {
-    public class ServiceHostService : BackgroundService
+    public class AppHostService : BackgroundService
     {
-        private readonly ILogger<ServiceHostService> _logger;
+        private readonly ILogger<AppHostService> _logger;
         private readonly ServiceOptions _serviceOptions;
         private ApiService _apiService;
         private readonly IOptionsMonitor<ServerOptions> _serverOptionsMonitor;
         private ServerOptions _serverOptions;
         private IDisposable? _serverOptionsMonitorToken;
-        private Process? _serviceHostProcess;
+        private ConcurrentDictionary<string,Process> _processDict;
         private readonly Channel<ProcessCommandRequest> _commandChannel;
+        private readonly IOptionsMonitor<AppOptions> _appOptionsMonitor;
+        private readonly IDisposable? _appOptionsMonitorToken;
+        private AppOptions _appOptions;
 
-        public ServiceHostService(
-            ILogger<ServiceHostService> logger,
+        private const string AppPackageInstallDirectory = "AppPackages";
+
+        public AppHostService(
+            ILogger<AppHostService> logger,
             ServiceOptions serviceOptions,
-            IOptionsMonitor<ServerOptions> serverOptionsMonitor
+            IOptionsMonitor<ServerOptions> serverOptionsMonitor,
+            IOptionsMonitor<AppOptions> appOptionsMonitor
             )
         {
             _logger = logger;
@@ -44,12 +51,22 @@ namespace NodeService.WindowsService.Services
             _serverOptions = _serverOptionsMonitor.CurrentValue;
             OnServerOptionsChanged(_serverOptions);
             _serverOptionsMonitorToken = _serverOptionsMonitor.OnChange(OnServerOptionsChanged);
+
+            _appOptionsMonitor = appOptionsMonitor;
+            _appOptions = _appOptionsMonitor.CurrentValue;
+            OnAppOptionsChanged(_appOptions);
+            _appOptionsMonitorToken = _appOptionsMonitor.OnChange(OnAppOptionsChanged);
+
             _commandChannel = Channel.CreateUnbounded<ProcessCommandRequest>();
+
+            this._processDict = new ConcurrentDictionary<string, Process>(StringComparer.OrdinalIgnoreCase);
+
         }
 
         public override void Dispose()
         {
             _serverOptionsMonitorToken?.Dispose();
+            _appOptionsMonitorToken?.Dispose();
             base.Dispose();
         }
 
@@ -66,17 +83,34 @@ namespace NodeService.WindowsService.Services
             });
         }
 
+        private void OnAppOptionsChanged(AppOptions appOptions)
+        {
+            _appOptions = appOptions;
+        }
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await ExecuteCoreAsync(stoppingToken);
+                try
+                {
+                    foreach (var app in _appOptions.Apps)
+                    {
+                        await CheckAppPackageAsync(app.Name, stoppingToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                }
+
+
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
         }
 
-        private async Task StartServiceHostAsync(
-            PackageConfigModel? packageConfig,
+        private async Task StartAppProcessAsync(
+            string appName,
             bool startNewProcess,
             CancellationToken stoppingToken = default)
         {
@@ -84,24 +118,21 @@ namespace NodeService.WindowsService.Services
             {
                 if (!startNewProcess)
                 {
-                    if (this._serviceHostProcess != null)
+                    if (!IsAppProcessExited(appName))
                     {
-                        if (!IsServiceProcessExited())
-                        {
-                            return;
-                        }
-
-                        await KillCurrentServiceProcessAsync(stoppingToken);
+                        return;
                     }
+
+                    await KillAppProcessAsync(appName, stoppingToken);
                 }
-                if (packageConfig == null && !TryReadPackageInfo(out packageConfig))
+                if (!TryReadAppPackageInfo(appName,out var packageConfig))
                 {
-                    _logger.LogInformation("获取包信息失败");
+                    _logger.LogInformation("获取应用包信息失败");
                     return;
                 }
                 if (packageConfig == null)
                 {
-                    _logger.LogInformation("获取包信息失败");
+                    _logger.LogInformation("获取应用包信息失败");
                     return;
                 }
                 if (!TryGetInstallDirectory(packageConfig, out var installDirectory) || installDirectory == null)
@@ -110,10 +141,10 @@ namespace NodeService.WindowsService.Services
                     return;
                 }
                 _logger.LogInformation("杀死ServiceHost进程");
-                KillServiceHostProcessesAsync(stoppingToken);
+                KillAppProcessesAsync(appName, stoppingToken);
                 _ = Task.Factory.StartNew(() =>
                 {
-                    RunServiceHostProcess(installDirectory, packageConfig, stoppingToken);
+                    RunAppProcess(appName, installDirectory, packageConfig, stoppingToken);
                 }, stoppingToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             }
             catch (Exception ex)
@@ -123,35 +154,36 @@ namespace NodeService.WindowsService.Services
 
         }
 
-        private bool IsServiceProcessExited()
+        private bool IsAppProcessExited(string appName)
         {
             try
             {
-                if (this._serviceHostProcess == null)
+                if (!this._processDict.TryGetValue(appName, out var process) || process == null)
                 {
                     return true;
                 }
-                this._serviceHostProcess.Refresh();
-                return this._serviceHostProcess.HasExited;
+                process.Refresh();
+                return process.HasExited;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
+                this._processDict.TryRemove(appName, out _);
             }
             return true;
         }
 
-        private async Task KillCurrentServiceProcessAsync(CancellationToken cancellationToken)
+        private async Task KillAppProcessAsync(string appName,CancellationToken cancellationToken)
         {
             try
             {
-                if (_serviceHostProcess == null)
+                if (_processDict == null)
                 {
                     return;
                 }
-                if (!await KillProcessAsync(_serviceHostProcess, cancellationToken))
+                if (!await KillProcessAsync(appName, cancellationToken))
                 {
-                    _serviceHostProcess.Kill(true);
+                    return;
                 }  
             }
             catch (Exception ex)
@@ -161,49 +193,51 @@ namespace NodeService.WindowsService.Services
 
         }
 
-        private async Task ExecuteCoreAsync(CancellationToken stoppingToken = default)
+        private async Task CheckAppPackageAsync(string appName, CancellationToken stoppingToken = default)
         {
+
             bool createNewProcess = false;
             try
             {
-                var rsp = await FetchLastServiceHostPackage(stoppingToken);
+
+                var rsp = await FetchAppPackageUpdateAsync(appName, stoppingToken);
                 if (rsp == default)
                 {
                     return;
                 }
-                _logger.LogInformation("杀死ServiceHost进程");
-                if (!KillServiceHostProcessesAsync(stoppingToken))
+                _logger.LogInformation($"杀死\"{appName}\"进程");
+                if (!KillAppProcessesAsync(appName, stoppingToken))
                 {
-                    _logger.LogInformation("杀死ServiceHost进程失败");
+                    _logger.LogInformation($"杀死\"{appName}\"进程失败");
                     return;
                 }
-                createNewProcess = InstallPackage(rsp);
+                createNewProcess = InstallAppPackage(rsp);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                _logger.LogError(ex.Message);
             }
             finally
             {
-                await StartServiceHostAsync(default, createNewProcess, stoppingToken);
+                await StartAppProcessAsync(appName, createNewProcess, stoppingToken);
             }
         }
 
-        private bool InstallPackage((PackageConfigModel? PackageConfig, Stream? Stream) rsp)
+        private bool InstallAppPackage((PackageConfigModel? PackageConfig, Stream? Stream) packageInfo)
         {
-            if (rsp.PackageConfig == null || rsp.Stream == null)
+            if (packageInfo.PackageConfig == null || packageInfo.Stream == null)
             {
                 return false;
             }
-            if (!TryGetInstallDirectory(rsp.PackageConfig, out var installDirectory) || installDirectory == null)
+            if (!TryGetInstallDirectory(packageInfo.PackageConfig, out var installDirectory) || installDirectory == null)
             {
                 _logger.LogInformation("获取安装目录失败");
                 return false;
             }
             _logger.LogInformation($"解压安装包到:{installDirectory}");
-            ZipFile.ExtractToDirectory(rsp.Stream, installDirectory, true);
-            rsp.Stream.Dispose();
-            if (!WritePackageInfo(rsp.PackageConfig))
+            ZipFile.ExtractToDirectory(packageInfo.Stream, installDirectory, true);
+            packageInfo.Stream.Dispose();
+            if (!WriteAppPackageInfo(packageInfo.PackageConfig))
             {
                 _logger.LogInformation("写入包信息失败");
                 return false;
@@ -212,13 +246,13 @@ namespace NodeService.WindowsService.Services
             return true;
         }
 
-        private async Task<(PackageConfigModel? PackageConfig, Stream? Stream)> FetchLastServiceHostPackage(CancellationToken stoppingToken = default)
+        private async Task<(PackageConfigModel? PackageConfig, Stream? Stream)> FetchAppPackageUpdateAsync(string appName,CancellationToken stoppingToken = default)
         {
-            _logger.LogInformation("查询ServiceHost更新");
-            var rsp = await _apiService.QueryClientUpdateAsync("NodeService.ServiceHost", stoppingToken);
+            _logger.LogInformation($"查询应用\"{appName}\"更新");
+            var rsp = await _apiService.QueryClientUpdateAsync(appName, stoppingToken);
             if (rsp == null)
             {
-                _logger.LogInformation("查询失败");
+                _logger.LogInformation($"查询应用\"{appName}\"失败");
                 return (default, default);
             }
             if (rsp.ErrorCode != 0)
@@ -229,17 +263,17 @@ namespace NodeService.WindowsService.Services
             var clientUpdateConfig = rsp.Result;
             if (clientUpdateConfig == null)
             {
-                _logger.LogInformation("查询失败");
+                _logger.LogInformation($"查询应用\"{appName}\"失败");
                 return (default, default);
             }
             var packageConfig = clientUpdateConfig.PackageConfig;
             if (packageConfig == null)
             {
-                _logger.LogInformation("查询失败");
+                _logger.LogInformation($"查询应用\"{appName}\"失败");
                 return (default, default);
             }
             _logger.LogInformation($"开始验证包:{JsonSerializer.Serialize(packageConfig)}");
-            if (ValidatePackageInfo(packageConfig))
+            if (TryValidateAppPackageInfo(packageConfig))
             {
                 _logger.LogInformation("验证包结束，无需更新");
                 return (default, default);
@@ -250,7 +284,7 @@ namespace NodeService.WindowsService.Services
             return (packageConfig, downloadPkgRsp.Result);
         }
 
-        private bool ValidatePackageInfo(PackageConfigModel packageConfig)
+        private bool TryValidateAppPackageInfo(PackageConfigModel packageConfig)
         {
             try
             {
@@ -259,7 +293,7 @@ namespace NodeService.WindowsService.Services
                 {
                     return false;
                 }
-                var installedPackagesDirectory = Path.Combine(AppContext.BaseDirectory, ".package", "InstalledPackages");
+                var installedPackagesDirectory = Path.Combine(AppContext.BaseDirectory, ".package", AppPackageInstallDirectory);
                 if (!Directory.Exists(installedPackagesDirectory))
                 {
                     return false;
@@ -267,7 +301,8 @@ namespace NodeService.WindowsService.Services
                 var packageInfoPath = Path.Combine(installedPackagesDirectory, packageConfig.Name);
                 var json = File.ReadAllText(packageInfoPath);
                 var json2 = JsonSerializer.Serialize(packageConfig);
-                return json == json2;
+                var entryPoint = Path.Combine(installDirectory, packageConfig.EntryPoint);
+                return json == json2 && File.Exists(entryPoint);
             }
             catch (Exception ex)
             {
@@ -277,11 +312,11 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private bool WritePackageInfo(PackageConfigModel packageConfig)
+        private bool WriteAppPackageInfo(PackageConfigModel packageConfig)
         {
             try
             {
-                var installedPackagesDirectory = Path.Combine(AppContext.BaseDirectory, ".package", "InstalledPackages");
+                var installedPackagesDirectory = Path.Combine(AppContext.BaseDirectory, ".package", AppPackageInstallDirectory);
                 if (!Directory.Exists(installedPackagesDirectory))
                 {
                     Directory.CreateDirectory(installedPackagesDirectory);
@@ -297,12 +332,12 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private bool TryReadPackageInfo(out PackageConfigModel? packageConfig)
+        private bool TryReadAppPackageInfo(string serviceAppName,out PackageConfigModel? packageConfig)
         {
             packageConfig = null;
             try
             {
-                var packageInfoPath = Path.Combine(AppContext.BaseDirectory, ".package", "InstalledPackages", "NodeService.ServiceHost");
+                var packageInfoPath = Path.Combine(AppContext.BaseDirectory, ".package", AppPackageInstallDirectory, serviceAppName);
                 if (File.Exists(packageInfoPath))
                 {
                     packageConfig = JsonSerializer.Deserialize<PackageConfigModel>(File.ReadAllText(packageInfoPath));
@@ -317,15 +352,15 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private async Task<bool> KillProcessAsync(Process? process, CancellationToken cancellationToken = default)
+        private async Task<bool> KillProcessAsync(string appName, CancellationToken cancellationToken = default)
         {
             try
             {
-                if (process == null)
+                if (!_processDict.TryGetValue(appName, out var process) || process == null)
                 {
                     return true;
                 }
-                string pipeName = $"NodeService.ServiceHost-{process.Id}";
+                string pipeName = $"{appName}-{process.Id}";
                 using var pipeClient = new NamedPipeClientStream(
                     ".",
                     pipeName,
@@ -343,10 +378,19 @@ namespace NodeService.WindowsService.Services
                 await WriteCommandRequest(pipeClient, processCommandReq, cancellationToken);
                 await ReadCommandResponse(pipeClient, cancellationToken);
                 await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                process.Refresh();
+                if (process.HasExited)
+                {
+                    return true;
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
+            }
+            finally
+            {
+
             }
             return false;
         }
@@ -380,11 +424,11 @@ namespace NodeService.WindowsService.Services
             return rsp;
         }
 
-        private bool KillServiceHostProcessesAsync(CancellationToken cancellationToken = default)
+        private bool KillAppProcessesAsync(string appName,CancellationToken cancellationToken = default)
         {
             try
             {
-                var processes = Process.GetProcessesByName("NodeService.ServiceHost");
+                var processes = Process.GetProcessesByName(appName);
                 _logger.LogInformation($"查询到{processes.Length}个ServiceHost进程");
                 foreach (var process in processes)
                 {
@@ -436,7 +480,7 @@ namespace NodeService.WindowsService.Services
             path = null;
             try
             {
-                path = Path.Combine(AppContext.BaseDirectory, "Packages", packageConfig.Name, packageConfig.Id);
+                path = Path.Combine(AppContext.BaseDirectory, AppPackageInstallDirectory, packageConfig.Name, packageConfig.Id);
                 if (!Directory.Exists(path))
                 {
                     if (!createIfNotExits)
@@ -454,41 +498,48 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private void RunServiceHostProcess(string installDirectory, PackageConfigModel packageConfig, CancellationToken stoppingToken = default)
+        private void RunAppProcess(string appName,string installDirectory, PackageConfigModel packageConfig, CancellationToken stoppingToken = default)
         {
+            if (this._processDict.TryGetValue(appName, out var process) && process != null)
+            {
+                return;
+            }
+            process = new Process();
             try
             {
                 var fileName= Path.Combine(installDirectory, packageConfig.EntryPoint);
-                _logger.LogInformation($"启动ServiceHost进程:{fileName}");
-                _serviceHostProcess = new Process();
-                _serviceHostProcess.StartInfo.FileName = Path.Combine(installDirectory, packageConfig.EntryPoint);
-                _serviceHostProcess.StartInfo.Arguments = $"--env {_serviceOptions.env} --pid {Environment.ProcessId}";
-                _serviceHostProcess.StartInfo.WorkingDirectory = installDirectory;
-                _serviceHostProcess.StartInfo.UseShellExecute = false;
-                _serviceHostProcess.StartInfo.CreateNoWindow = true;
-                _serviceHostProcess.StartInfo.RedirectStandardError = true;
-                _serviceHostProcess.StartInfo.RedirectStandardOutput = true;
-                _serviceHostProcess.Start();
-                _serviceHostProcess.Exited += ServiceHostProcess_Exited;
-                _serviceHostProcess.OutputDataReceived += WriteOutput;
-                _serviceHostProcess.ErrorDataReceived += WriteError;
-                _serviceHostProcess.BeginOutputReadLine();
-                _serviceHostProcess.BeginErrorReadLine();
+                _logger.LogInformation($"启动进程:{fileName}");
+             
+                process.StartInfo.FileName = Path.Combine(installDirectory, packageConfig.EntryPoint);
+                process.StartInfo.Arguments = $"--env {_serviceOptions.env} --pid {Environment.ProcessId}";
+                process.StartInfo.WorkingDirectory = installDirectory;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.RedirectStandardError = true;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.Start();
+                process.Exited += AppProcess_Exited;
+                process.OutputDataReceived += AppProcessWriteOutput;
+                process.ErrorDataReceived += AppProcessWriteError;
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                _processDict.TryAdd(appName, process);
 
                 int taskIndex = Task.WaitAny(
-                    _serviceHostProcess.WaitForExitAsync(),
+                    process.WaitForExitAsync(),
                     Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken), Task.Run(() => {
-                        RunProcessClientAsync(stoppingToken).Wait(stoppingToken);
+                        RunAppProcessPipeClientAsync(appName, stoppingToken).Wait(stoppingToken);
                     }, stoppingToken));
 
-                _serviceHostProcess.Exited -= ServiceHostProcess_Exited;
-                _serviceHostProcess.OutputDataReceived -= WriteOutput;
-                _serviceHostProcess.ErrorDataReceived -= WriteError;
+                process.Exited -= AppProcess_Exited;
+                process.OutputDataReceived -= AppProcessWriteOutput;
+                process.ErrorDataReceived -= AppProcessWriteError;
 
                 if (taskIndex != 0)
                 {
-                    _logger.LogInformation($"杀死ServiceHost进程:{fileName}");
-                    _serviceHostProcess.Kill(true);
+                    _logger.LogInformation($"杀死应用进程:{fileName}");
+                    process.Kill(true);
                 }
             }
             catch (Exception ex)
@@ -497,22 +548,23 @@ namespace NodeService.WindowsService.Services
             }
             finally
             {
-                if (_serviceHostProcess != null)
+                if (process != null)
                 {
-                    _serviceHostProcess.Dispose();
+                    process.Dispose();
                 }
+                _processDict.TryRemove(appName, out _);
             }
         }
 
-        private async Task RunProcessClientAsync(CancellationToken cancellationToken = default)
+        private async Task RunAppProcessPipeClientAsync(string appName, CancellationToken cancellationToken = default)
         {
             try
             {
-                if (_serviceHostProcess == null)
+                if (!_processDict.TryGetValue(appName, out var process) || process == null)
                 {
                     return;
                 }
-                var pipeName = $"NodeService.ServiceHost-{_serviceHostProcess.Id}";
+                var pipeName = $"{appName}-{process.Id}";
                 using var pipeClient = new NamedPipeClientStream(
                     ".",
                     pipeName,
@@ -545,17 +597,17 @@ namespace NodeService.WindowsService.Services
         }
 
 
-        private void WriteOutput(object sender, DataReceivedEventArgs e)
+        private void AppProcessWriteOutput(object sender, DataReceivedEventArgs e)
         {
             //_logger.LogInformation(e.Data);
         }
 
-        private void WriteError(object sender, DataReceivedEventArgs e)
+        private void AppProcessWriteError(object sender, DataReceivedEventArgs e)
         {
             //_logger.LogError(e.Data);
         }
 
-        private void ServiceHostProcess_Exited(object? sender, EventArgs e)
+        private void AppProcess_Exited(object? sender, EventArgs e)
         {
 
         }

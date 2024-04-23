@@ -19,6 +19,8 @@ namespace NodeService.ServiceProcess
             Message = message;
         }
 
+        public string? ClientUpdateId {  get; set; }
+
         public string Message { get; private set; }
 
         public string ServiceName { get; private set; }

@@ -8,6 +8,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
@@ -20,8 +21,8 @@ namespace NodeService.ServiceProcess
 
         private readonly ILogger<ServiceProcessRecovey> _logger;
         private readonly ApiService _apiService;
-        private ClientUpdateConfigModel? _clientUpdateConfig;
         private ActionBlock<ServiceProcessInstallerProgress> _uploadActionBlock;
+        private string _clientUpdateId;
 
         public ServiceProcessRecovey(ILogger<ServiceProcessRecovey> logger, ServiceProcessRecoveryContext recoveryContext)
         {
@@ -40,7 +41,7 @@ namespace NodeService.ServiceProcess
         {
             await _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
             {
-                ClientUpdateConfigId = _clientUpdateConfig.Id,
+                ClientUpdateConfigId = progress.ClientUpdateId,
                 NodeName = Dns.GetHostName(),
                 CategoryName = progress.Message
             });
@@ -91,14 +92,20 @@ namespace NodeService.ServiceProcess
                 switch (serviceController.Status)
                 {
                     case ServiceControllerStatus.Stopped:
-
-                        return await ReinstallAsync(true, cancellationToken);
+                        bool isInstalled = await ReinstallAsync(true, cancellationToken);
+                        if (!isInstalled)
+                        {
+                            serviceController.Start();
+                        }
+                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                        break;
                     case ServiceControllerStatus.Running:
                         return await ReinstallAsync(false, cancellationToken);
                     default:
                         break;
                 }
-                return false;
+                serviceController.Refresh();
+                return serviceController.Status == ServiceControllerStatus.Running;
             }
             catch (InvalidOperationException ex)
             {
@@ -134,102 +141,147 @@ namespace NodeService.ServiceProcess
 
         private async Task<bool> ReinstallAsync(bool force = false, CancellationToken cancellationToken = default)
         {
-            _logger.LogInformation($"安装\"{RecoveryContext.ServiceName}\"，强制：{force}");
-            bool quickMode = false;
-            if (Debugger.IsAttached && quickMode)
-            {
-                Environment.SetEnvironmentVariable("QuickMode", "1");
-            }
-            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置");
-            var rsp = await _apiService.QueryClientUpdateAsync(RecoveryContext.ServiceName);
-            if (rsp.ErrorCode != 0)
-            {
-                _logger.LogError($"查询客户端更新配置失败：{rsp.Message}");
-                return false;
-            }
-
-            _clientUpdateConfig = rsp.Result;
-            if (_clientUpdateConfig == null)
-            {
-                _logger.LogError($"查询更新失败:{RecoveryContext.ServiceName}");
-                return false;
-            }
-            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
-            _logger.LogInformation(_clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
-            var packageConfig = _clientUpdateConfig.PackageConfig;
-            if (packageConfig == null)
-            {
-                _logger.LogError($"包内容缺失:{RecoveryContext.ServiceName}");
-                return false;
-            }
-            _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
-            if (!force && TryComparePackageHash(packageConfig.Hash))
-            {
-                _logger.LogWarning($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
-                return true;
-            }
-            _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始安装");
-            var filePath = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
-            _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
-            using var installer = CommonServiceProcessInstaller.Create(
-                RecoveryContext.ServiceName,
-                RecoveryContext.DisplayName,
-                RecoveryContext.Description,
-                filePath,
-                RecoveryContext.Arguments);
-
-            installer.SetParameters(
-                new HttpPackageProvider(_apiService, packageConfig),
-                new ServiceProcessInstallContext(RecoveryContext.ServiceName,
-                    RecoveryContext.DisplayName,
-                    RecoveryContext.Description,
-                    RecoveryContext.InstallDirectory));
-
-            installer.ProgressChanged += Installer_ProgressChanged;
-            installer.Failed += Installer_Failed;
-            installer.Completed += Installer_Completed;
-
-            bool result = await installer.RunAsync(cancellationToken);
-            if (result && WritePackageHash(packageConfig.Hash))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        private bool TryComparePackageHash(string packageHash)
-        {
             try
             {
-                var hashFilePath = Path.Combine(RecoveryContext.InstallDirectory, ".package", "PackageHash");
-                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始对比Hash");
-                if (File.Exists(hashFilePath))
+                _logger.LogInformation($"安装\"{RecoveryContext.ServiceName}\"，强制：{force}");
+                bool quickMode = false;
+                if (Debugger.IsAttached && quickMode)
                 {
-                    var hash = File.ReadAllText(hashFilePath);
-                    _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"读取本地Hash值：{hash}, 包Hash值：{packageHash}");
-                    return hash == packageHash;
+                    Environment.SetEnvironmentVariable("QuickMode", "1");
                 }
+                PackageConfigModel? packageConfig = await FetchPackageUpdateAsync(force, cancellationToken);
+
+                if (packageConfig == null)
+                {
+                    return false;
+                }
+
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始安装");
+                var filePath = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"入口点为：{filePath}");
+                using var installer = CommonServiceProcessInstaller.Create(
+                    RecoveryContext.ServiceName,
+                    RecoveryContext.DisplayName,
+                    RecoveryContext.Description,
+                    filePath,
+                    RecoveryContext.Arguments);
+
+                installer.SetParameters(
+                    new HttpPackageProvider(_apiService, packageConfig),
+                    new ServiceProcessInstallContext(RecoveryContext.ServiceName,
+                        RecoveryContext.DisplayName,
+                        RecoveryContext.Description,
+                        RecoveryContext.InstallDirectory));
+
+                installer.ProgressChanged += Installer_ProgressChanged;
+                installer.Failed += Installer_Failed;
+                installer.Completed += Installer_Completed;
+
+                bool result = await installer.RunAsync(cancellationToken);
+                if (result && TryWritePackageInfo(packageConfig))
+                {
+                    return true;
+                }
+                return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                _logger.LogError(ex.Message);
             }
             return false;
         }
 
-        private bool WritePackageHash(string hash)
+        private async Task<PackageConfigModel?> FetchPackageUpdateAsync(bool force = false, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置");
+                var rsp = await _apiService.QueryClientUpdateAsync(RecoveryContext.ServiceName);
+                if (rsp.ErrorCode != 0)
+                {
+                    _logger.LogError($"查询客户端更新配置失败：{rsp.Message}");
+                    return null;
+                }
+
+                var clientUpdateConfig = rsp.Result;
+                if (clientUpdateConfig == null)
+                {
+                    _logger.LogError($"查询更新失败:{RecoveryContext.ServiceName}");
+                    return null;
+                }
+                _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
+                _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
+                var packageConfig = clientUpdateConfig.PackageConfig;
+                if (packageConfig == null)
+                {
+                    _logger.LogError($"包内容缺失:{RecoveryContext.ServiceName}");
+                    return null;
+                }
+                if (packageConfig.Hash == null)
+                {
+                    _logger.LogError($"包哈希值缺失");
+                    return null;
+                }
+                _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
+                if (TryValidatePackage(packageConfig))
+                {
+                    _logger.LogWarning($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
+                    return null;
+                }
+                _logger.LogWarning($"服务\"{RecoveryContext.ServiceName}\"获取到更新");
+                _clientUpdateId = clientUpdateConfig.Id;
+                return packageConfig;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            return null;
+        }
+
+        private bool TryValidatePackage(PackageConfigModel packageConfig)
         {
             try
             {
                 string packageDirectory = EnsurePackageDirectory();
-                var hashFilePath = Path.Combine(packageDirectory, "PackageHash");
-                File.WriteAllText(hashFilePath, hash);
-                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写入Hash值{hash}到文件{hashFilePath}成功");
+                var packageFilePath = Path.Combine(packageDirectory, RecoveryContext.ServiceName);
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"开始对比Hash");
+                if (File.Exists(packageFilePath))
+                {
+                    var jsonString = File.ReadAllText(packageFilePath);
+                    _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"读取本地包信息：{jsonString}");
+                    var localPackage = JsonSerializer.Deserialize<PackageConfigModel>(jsonString);
+                    if (localPackage == null)
+                    {
+                        return false;
+                    }
+                    bool isSameHash = packageConfig.Hash == localPackage.Hash;
+                    var entryPointFileName = Path.Combine(RecoveryContext.InstallDirectory, packageConfig.EntryPoint);
+                    bool isEntryPointExits = File.Exists(entryPointFileName);
+                    return isSameHash && isEntryPointExits;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            return false;
+        }
+
+        private bool TryWritePackageInfo(PackageConfigModel  packageConfig)
+        {
+            try
+            {
+                string packageDirectory = EnsurePackageDirectory();
+                var packageFilePath = Path.Combine(packageDirectory, RecoveryContext.ServiceName);
+                var jsonString = JsonSerializer.Serialize(packageConfig);
+                File.WriteAllText(packageFilePath, jsonString);
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写包信息：{jsonString}到文件{packageFilePath}成功");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写入Hash值{hash}失败");
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"写入包信息失败");
             }
             return false;
         }
@@ -249,18 +301,21 @@ namespace NodeService.ServiceProcess
         private void Installer_Completed(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogInformation(e.Progress.Message);
+            e.Progress.ClientUpdateId = _clientUpdateId;
             this._uploadActionBlock.Post(e.Progress);
         }
 
         private void Installer_Failed(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogError(e.Progress.Message);
+            e.Progress.ClientUpdateId = _clientUpdateId;
             this._uploadActionBlock.Post(e.Progress);
         }
 
         private void Installer_ProgressChanged(object? sender, InstallerProgressEventArgs e)
         {
             _logger.LogInformation(e.Progress.Message);
+            e.Progress.ClientUpdateId = _clientUpdateId;
             this._uploadActionBlock.Post(e.Progress);
         }
 
@@ -271,7 +326,7 @@ namespace NodeService.ServiceProcess
                 var timeSpan =
                     Debugger.IsAttached ?
                     TimeSpan.Zero :
-                    TimeSpan.FromSeconds(Random.Shared.Next(1, 60));
+                    TimeSpan.FromSeconds(Random.Shared.Next(10, 30));
                 _logger.LogInformation($"等待{timeSpan}");
                 await Task.Delay(timeSpan, stoppingToken);
             }

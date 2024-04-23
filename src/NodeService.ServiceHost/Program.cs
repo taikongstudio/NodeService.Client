@@ -106,6 +106,11 @@ namespace NodeService.ServiceHost
                         options.env = Environments.Production;
                     }
                 }
+                var env = Environment.GetEnvironmentVariable("NodeServiceEnvironments", EnvironmentVariableTarget.Machine);
+                if (!string.IsNullOrEmpty(env))
+                {
+                    options.env = env;
+                }
             }
         }
 
