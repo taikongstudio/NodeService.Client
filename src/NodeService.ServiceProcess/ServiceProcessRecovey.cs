@@ -96,6 +96,7 @@ namespace NodeService.ServiceProcess
                         if (!isInstalled)
                         {
                             serviceController.Start();
+                            _logger.LogInformation($"尝试启动服务\"{RecoveryContext.ServiceName}\"");
                         }
                         await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
                         break;
@@ -223,7 +224,7 @@ namespace NodeService.ServiceProcess
                     return null;
                 }
                 _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的包配置成功");
-                if (TryValidatePackage(packageConfig))
+                if (!force && TryValidatePackage(packageConfig))
                 {
                     _logger.LogWarning($"服务\"{RecoveryContext.ServiceName}\"跳过更新");
                     return null;
