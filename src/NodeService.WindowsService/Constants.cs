@@ -15,5 +15,8 @@ namespace NodeService.WindowsService
         public const string ServiceProcessUpdateService = "NodeService.UpdateService";
 
         public const string ServiceProcessWorkerService = "NodeService.WorkerService";
+
+
+        public const string ProcessChannelInfoDictionary = nameof(ProcessChannelInfoDictionary);
     }
 }

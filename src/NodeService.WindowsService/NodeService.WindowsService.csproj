@@ -11,7 +11,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Content Remove="Tasks\RegisterTaskStartupServiceMain.json" />
+	  <None Remove="Tasks\RegisterTaskStartupService.xml" />
 	</ItemGroup>
 
 
@@ -30,7 +30,7 @@
 	  <Folder Include="Properties\PublishProfiles\" />
 	</ItemGroup>
 	<ItemGroup>
-	  <None Include="Tasks\RegisterTaskStartupServiceMain.json" />
+	  <EmbeddedResource Include="Tasks\RegisterTaskStartupService.xml" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />

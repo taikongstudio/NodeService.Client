@@ -11,6 +11,9 @@ using NodeService.Infrastructure.NodeSessions;
 using NodeService.ServiceProcess;
 using NodeService.WindowsService.Models;
 using NodeService.WindowsService.Services;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 
 namespace NodeService.WindowsService
 {
@@ -142,6 +145,10 @@ namespace NodeService.WindowsService
                 });
 
                 builder.Services.AddSingleton(options);
+                builder.Services.AddKeyedSingleton(
+                    typeof(ConcurrentDictionary<string, ProcessChannelInfo>),
+                    Constants.ProcessChannelInfoDictionary,
+                   new ConcurrentDictionary<string, ProcessChannelInfo>());
                 builder.WebHost.ConfigureKestrel(serverOptions =>
                 {
                     serverOptions.ListenNamedPipe(serviceName, listenOptions =>
@@ -149,20 +156,17 @@ namespace NodeService.WindowsService
                         listenOptions.Protocols = HttpProtocols.Http2;
                     });
                 });
+                builder.Services.AddGrpc();
                 //builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
-
-                if (options.mode == "WindowsService")
-                {
-                    builder.Services.AddHostedService<RegisterTaskService>();
-                }
+                builder.Services.AddHostedService<RegisterTaskService>();
                 builder.Services.AddHostedService<AppHostService>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog($"{options.mode}.NLog.config");
 
                 using var app = builder.Build();
-
+                app.MapGrpcService<ProcessServiceImpl>();
                 await app.RunAsync();
             }
             catch (Exception ex)
