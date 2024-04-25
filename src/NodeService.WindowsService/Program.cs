@@ -157,7 +157,7 @@ namespace NodeService.WindowsService
                     });
                 });
                 builder.Services.AddGrpc();
-                //builder.Services.AddHostedService<DetectServiceStatusService>();
+                builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
                 builder.Services.AddHostedService<RegisterTaskService>();
                 builder.Services.AddHostedService<AppHostService>();

@@ -5,18 +5,18 @@
         "DisplayName": "NodeService.WindowsService",
         "Description": "NodeService.WindowsService",
         "HttpAddress": "http://localhost:5000/",
-        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WindowsService\\",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WindowsService.Development\\",
         "DurationMinutes": 10,
-        "ServiceName": "NodeService.WindowsService",
+        "ServiceName": "NodeService.WindowsService.Development",
         "Arguments": "--mode WindowsService  --env Development"
       },
       {
         "DisplayName": "NodeService.WorkerService",
         "Description": "NodeService.WorkerService",
         "HttpAddress": "http://localhost:5000/",
-        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WorkerService\\",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WorkerService.Development\\",
         "DurationMinutes": 10,
-        "ServiceName": "NodeService.WorkerService",
+        "ServiceName": "NodeService.WorkerService.Development",
         "Arguments": "--mode WorkerService  --env Development"
       }
     ]
