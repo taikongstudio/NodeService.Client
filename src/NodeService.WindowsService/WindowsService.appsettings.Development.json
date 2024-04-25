@@ -5,18 +5,18 @@
         "DisplayName": "NodeService.UpdateService",
         "Description": "NodeService.UpdateService",
         "HttpAddress": "http://localhost:5000/",
-        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.UpdateService.Development\\",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.UpdateService\\",
         "DurationMinutes": 10,
-        "ServiceName": "NodeService.UpdateService.Development",
+        "ServiceName": "NodeService.UpdateService",
         "Arguments": "--mode UpdateService  --env Development"
       },
       {
         "DisplayName": "NodeService.WorkerService",
         "Description": "NodeService.WorkerService",
         "HttpAddress": "http://localhost:5000/",
-        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WorkerService.Development\\",
+        "InstallDirectory": "C:\\Program Files\\NodeService\\NodeService.WorkerService\\",
         "DurationMinutes": 10,
-        "ServiceName": "NodeService.WorkerService.Development",
+        "ServiceName": "NodeService.WorkerService",
         "Arguments": "--mode WorkerService  --env Development"
       }
     ]
