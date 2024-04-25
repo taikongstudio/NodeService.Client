@@ -20,7 +20,7 @@ namespace NodeService.WindowsService.Services
             while (!stoppingToken.IsCancellationRequested)
             {
                 RegisterStartup();
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
 
         }
@@ -35,7 +35,12 @@ namespace NodeService.WindowsService.Services
                     folder = Microsoft.Win32.TaskScheduler.TaskService.Instance.RootFolder.CreateFolder("NodeService.Tasks");
                 }
                 var tasksDirectory = Path.Combine(AppContext.BaseDirectory, "Tasks");
-                foreach (var xmlPath in Directory.GetFiles(tasksDirectory, "RegisterTask*",
+                if (!Directory.Exists(tasksDirectory))
+                {
+                    Directory.CreateDirectory(tasksDirectory);
+                }
+                List<string> taskNames = new List<string>();
+                foreach (var xmlPath in Directory.GetFiles(tasksDirectory, "*",
                     new EnumerationOptions()
                     {
                         RecurseSubdirectories = true,
@@ -44,6 +49,7 @@ namespace NodeService.WindowsService.Services
                     ))
                 {
                     var taskName = Path.GetFileNameWithoutExtension(xmlPath);
+                    taskNames.Add(taskName);
                     using var taskDefinition = Microsoft.Win32.TaskScheduler.TaskService.Instance.NewTaskFromFile(xmlPath);
                     var task = folder.Tasks.FirstOrDefault(x => x.Name == taskName);
                     if (task == null)
@@ -51,6 +57,13 @@ namespace NodeService.WindowsService.Services
                         task = folder.RegisterTaskDefinition(taskName, taskDefinition);
                         _logger.LogInformation($"Register task {taskName}");
                         task.Dispose();
+                    }
+                }
+                foreach (var task in folder.Tasks.ToArray())
+                {
+                    if (!taskNames.Exists(x => x == task.Name))
+                    {
+                        folder.DeleteTask(task.Name, false);
                     }
                 }
                 folder.Dispose();

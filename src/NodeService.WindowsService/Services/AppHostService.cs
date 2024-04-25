@@ -19,6 +19,8 @@ using System.Threading;
 using System.Threading.Channels;
 using NodeService.Infrastructure.Messages;
 using System.Collections.Concurrent;
+using System.ServiceProcess;
+using System.ComponentModel;
 
 namespace NodeService.WindowsService.Services
 {
@@ -94,9 +96,11 @@ namespace NodeService.WindowsService.Services
             {
                 try
                 {
+                    await WaitForServiceNotAvailable();
                     foreach (var app in _appOptions.Apps)
                     {
                         await CheckAppPackageAsync(app.Name, stoppingToken);
+                        await WaitForServiceNotAvailable();
                     }
                 }
                 catch (Exception ex)
@@ -107,6 +111,57 @@ namespace NodeService.WindowsService.Services
 
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
+        }
+
+        private async Task WaitForServiceNotAvailable()
+        {
+            string currentServiceName = $"NodeService.{_serviceOptions.mode}";
+            string[] serviceNames = [Constants.ServiceProcessUpdateService, Constants.ServiceProcessWorkerService];
+            if (currentServiceName != Constants.ServiceProcessWindowsService)
+            {
+                await WaitForServiceStopppedAsync(Constants.ServiceProcessWindowsService);
+                foreach (var serviceName in serviceNames)
+                {
+                    if (serviceName == currentServiceName)
+                    {
+                        continue;
+                    }
+                    await WaitForServiceStopppedAsync(Constants.ServiceProcessWindowsService);
+                }
+            }
+        }
+
+        private async Task WaitForServiceStopppedAsync(string serviceName, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var serviceController = new ServiceController(serviceName);
+                while (serviceController.Status == ServiceControllerStatus.Running)
+                {
+                    foreach (var app in _appOptions.Apps)
+                    {
+                        await KillAppProcessAsync(app.Name, cancellationToken);
+                    }                    
+                    serviceController.Refresh();
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.InnerException is Win32Exception win32Exception && win32Exception.NativeErrorCode == 1060)
+                {
+                    _logger.LogInformation(ex.Message);
+                }
+                else
+                {
+                    _logger.LogError(ex.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+
         }
 
         private async Task StartAppProcessAsync(
@@ -142,7 +197,7 @@ namespace NodeService.WindowsService.Services
                     return;
                 }
                 _logger.LogInformation("杀死ServiceHost进程");
-                KillAppProcessesAsync(appName, stoppingToken);
+                await KillAppProcessAsync(appName, stoppingToken);
                 _ = Task.Factory.StartNew(() =>
                 {
                     RunAppProcess(appName, installDirectory, packageConfig, stoppingToken);
@@ -179,24 +234,21 @@ namespace NodeService.WindowsService.Services
             return true;
         }
 
-        private async Task KillAppProcessAsync(string appName,CancellationToken cancellationToken)
+        private async Task<bool> KillAppProcessAsync(string appName, CancellationToken cancellationToken = default)
         {
             try
             {
-                if (_processDict == null)
+                if (!await KillProcessByPipeClientAsync(appName, cancellationToken))
                 {
-                    return;
+                    return KillAppProcessByKillAsync(appName, cancellationToken);
                 }
-                if (!await KillProcessAsync(appName, cancellationToken))
-                {
-                    return;
-                }  
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
             }
-
+            return false;
         }
 
         private async Task CheckAppPackageAsync(string appName, CancellationToken stoppingToken = default)
@@ -206,18 +258,18 @@ namespace NodeService.WindowsService.Services
             try
             {
 
-                var rsp = await FetchAppPackageUpdateAsync(appName, stoppingToken);
-                if (rsp == default)
+                var packageInfo = await FetchAppPackageUpdateAsync(appName, stoppingToken);
+                if (packageInfo == default)
                 {
                     return;
                 }
                 _logger.LogInformation($"杀死\"{appName}\"进程");
-                if (!KillAppProcessesAsync(appName, stoppingToken))
+                if (!await KillAppProcessAsync(appName, stoppingToken))
                 {
                     _logger.LogInformation($"杀死\"{appName}\"进程失败");
                     return;
                 }
-                createNewProcess = InstallAppPackage(rsp);
+                createNewProcess = InstallAppPackage(packageInfo);
             }
             catch (Exception ex)
             {
@@ -229,7 +281,7 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private bool InstallAppPackage((PackageConfigModel? PackageConfig, Stream? Stream) packageInfo)
+        private bool InstallAppPackage((PackageConfigModel PackageConfig, Stream Stream) packageInfo)
         {
             if (packageInfo.PackageConfig == null || packageInfo.Stream == null)
             {
@@ -243,7 +295,7 @@ namespace NodeService.WindowsService.Services
             _logger.LogInformation($"解压安装包到:{installDirectory}");
             ZipFile.ExtractToDirectory(packageInfo.Stream, installDirectory, true);
             packageInfo.Stream.Dispose();
-            if (!WriteAppPackageInfo(packageInfo.PackageConfig))
+            if (!TryWriteAppPackageInfo(packageInfo.PackageConfig))
             {
                 _logger.LogInformation("写入包信息失败");
                 return false;
@@ -318,7 +370,7 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private bool WriteAppPackageInfo(PackageConfigModel packageConfig)
+        private bool TryWriteAppPackageInfo(PackageConfigModel packageConfig)
         {
             try
             {
@@ -358,32 +410,19 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private async Task<bool> KillProcessAsync(string appName, CancellationToken cancellationToken = default)
+        private async Task<bool> KillProcessByPipeClientAsync(string appName, CancellationToken cancellationToken = default)
         {
+            if (!_processDict.TryGetValue(appName, out var process) || process == null)
+            {
+                return true;
+            }
             try
             {
-                if (!_processDict.TryGetValue(appName, out var process) || process == null)
+                await _commandChannel.Writer.WriteAsync(new ProcessCommandRequest()
                 {
-                    return true;
-                }
-                string pipeName = $"{appName}-{process.Id}";
-                using var pipeClient = new NamedPipeClientStream(
-                    ".",
-                    pipeName,
-                    PipeDirection.InOut,
-                    PipeOptions.Asynchronous);
-                // Connect to the pipe or wait until the pipe is available.
-                Console.Write($"Attempting to connect to pipe {pipeName}...");
-                await pipeClient.ConnectAsync(TimeSpan.FromSeconds(30), cancellationToken);
-
-                Console.WriteLine($"Connected to pipe {pipeName}");
-                Console.WriteLine("There are currently {0} pipe server instances open.",
-                   pipeClient.NumberOfServerInstances);
-                var processCommandReq = new ProcessCommandRequest();
-                processCommandReq.CommadType = ProcessCommandType.KillProcess;
-                await WriteCommandRequest(pipeClient, processCommandReq, cancellationToken);
-                await ReadCommandResponse(pipeClient, cancellationToken);
-                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    CommadType = ProcessCommandType.KillProcess,
+                }, cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                 process.Refresh();
                 if (process.HasExited)
                 {
@@ -398,14 +437,15 @@ namespace NodeService.WindowsService.Services
             }
             finally
             {
-
+                process.Dispose();
             }
             return false;
+
         }
 
-        private async Task WriteCommandRequest(NamedPipeClientStream pipeClient,
-            ProcessCommandRequest req,
-            CancellationToken cancellationToken = default)
+        async Task WriteCommandRequest(NamedPipeClientStream pipeClient,
+ProcessCommandRequest req,
+CancellationToken cancellationToken = default)
         {
             using var streamWriter = new StreamWriter(pipeClient, leaveOpen: true);
             streamWriter.AutoFlush = true;
@@ -418,7 +458,7 @@ namespace NodeService.WindowsService.Services
             await streamWriter.WriteLineAsync();
         }
 
-        private async Task<ProcessCommandResponse> ReadCommandResponse(
+        async Task<ProcessCommandResponse> ReadCommandResponse(
             NamedPipeClientStream pipeClient,
             CancellationToken cancellationToken = default)
         {
@@ -432,49 +472,56 @@ namespace NodeService.WindowsService.Services
             return rsp;
         }
 
-        private bool KillAppProcessesAsync(string appName,CancellationToken cancellationToken = default)
+
+        private bool KillAppProcessByKillAsync(string appName, CancellationToken cancellationToken = default)
         {
             try
             {
-                var processes = Process.GetProcessesByName(appName);
-                _logger.LogInformation($"查询到{processes.Length}个ServiceHost进程");
-                foreach (var process in processes)
-                {
-                    try
-                    {
-                        _logger.LogInformation($"准备杀死ServiceHost进程:{process.Id}");
-                        process.Kill(true);
-                        _logger.LogInformation($"已杀死ServiceHost进程:{process.Id}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.ToString());
-                    }
 
-                    try
+                if (!this._processDict.TryGetValue(appName, out var process) || process == null)
+                {
+                    _logger.LogInformation($"没有启动的{appName}进程");
+                    return true;
+                }
+                try
+                {
+                    _logger.LogInformation($"准备杀死{appName}进程：{process.Id}");
+                    process.Kill(true);
+                    _logger.LogInformation($"已杀死{appName}进程：{process.Id}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+
+                try
+                {
+                    _logger.LogInformation($"刷新{appName}进程状态：{process.Id}");
+                    process.Refresh();
+                    if (!process.HasExited)
                     {
-                        _logger.LogInformation($"刷新ServiceHost进程状态:{process.Id}");
-                        process.Refresh();
-                        if (!process.HasExited)
-                        {
-                            _logger.LogInformation($"ServiceHost进程仍未退出，继续尝试杀死:{process.Id}");
-                            process.Kill();
-                        }
+                        _logger.LogInformation($"{appName}进程：{process.Id}仍未退出，继续尝试杀死。");
+                        process.Kill();
+                        _logger.LogInformation($"{appName}进程：{process.Id}已执行杀死操作");
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.ToString());
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+                finally
+                {
+                    process.Dispose();
                 }
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
+            }
+            finally
+            {
+                this._processDict.TryRemove(appName, out _);
             }
             return false;
         }
@@ -593,7 +640,7 @@ namespace NodeService.WindowsService.Services
                     }
                     await WriteCommandRequest(pipeClient, processCommandRequest, cancellationToken);
                     await ReadCommandResponse(pipeClient, cancellationToken);
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 }
 
             }

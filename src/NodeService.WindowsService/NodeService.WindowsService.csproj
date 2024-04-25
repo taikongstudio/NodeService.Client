@@ -10,6 +10,10 @@
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <Content Remove="Tasks\RegisterTaskStartupServiceMain.json" />
+	</ItemGroup>
+
 
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
@@ -24,6 +28,9 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <Folder Include="Properties\PublishProfiles\" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Include="Tasks\RegisterTaskStartupServiceMain.json" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />

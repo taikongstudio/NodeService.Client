@@ -149,14 +149,14 @@ namespace NodeService.WindowsService
                         listenOptions.Protocols = HttpProtocols.Http2;
                     });
                 });
-                builder.Services.AddHostedService<DetectServiceStatusService>();
+                //builder.Services.AddHostedService<DetectServiceStatusService>();
                 builder.Services.AddHostedService<ProcessExitService>();
 
                 if (options.mode == "WindowsService")
                 {
                     builder.Services.AddHostedService<RegisterTaskService>();
-                    builder.Services.AddHostedService<AppHostService>();
                 }
+                builder.Services.AddHostedService<AppHostService>();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog($"{options.mode}.NLog.config");

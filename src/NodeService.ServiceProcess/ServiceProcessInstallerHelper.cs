@@ -1,4 +1,6 @@
-﻿namespace NodeService.ServiceProcess
+﻿using System.Runtime.CompilerServices;
+
+namespace NodeService.ServiceProcess
 {
     public static class ServiceProcessInstallerHelper
     {
@@ -8,9 +10,9 @@
                                                       string filePath,
                                                       string arguments)
         {
-            var processInstaller = new ServiceProcessInstaller();
+            var serviceProcessInstaller = new ServiceProcessInstaller();
             var serviceInstaller = new ServiceInstaller();
-            processInstaller.Account = ServiceAccount.LocalSystem;
+            serviceProcessInstaller.Account = ServiceAccount.LocalSystem;
             InstallContext context = new InstallContext();
             if (filePath != null && filePath.Length > 0)
             {
@@ -20,13 +22,26 @@
                 context = new InstallContext("", cmdline);
             }
 
-            processInstaller.Context = context;
+            serviceProcessInstaller.Context = context;
             serviceInstaller.ServiceName = serviceName;
             serviceInstaller.DisplayName = displayName;
             serviceInstaller.Description = description;
             serviceInstaller.StartType = ServiceStartMode.Automatic;
-            serviceInstaller.Parent = processInstaller;
-            return processInstaller;
+            serviceInstaller.Parent = serviceProcessInstaller;
+            return serviceProcessInstaller;
+        }
+
+        public static TransactedInstaller CreateTransactedInstaller(string serviceName,
+                                              string displayName,
+                                              string description,
+                                              string filePath,
+                                              string arguments)
+        {
+            var serviceProcessInstaller = Create(serviceName, displayName, description, filePath, arguments);
+            var transactedInstaller = new TransactedInstaller();
+            serviceProcessInstaller.Parent = transactedInstaller;
+            transactedInstaller.Context = serviceProcessInstaller.Context;
+            return transactedInstaller;
         }
 
         public static async IAsyncEnumerable<ServiceProcessInstallerProgress> UninstallAllService(string[] serviceNames)

@@ -4,18 +4,20 @@ namespace NodeService.ServiceProcess
 {
     public class CommonServiceProcessInstaller : IDisposable
     {
-        private readonly ServiceProcessInstaller _serviceProcessInstaller;
+
+        private readonly Installer _installer;
         private PackageProvider _packageProvider;
         private ServiceProcessInstallContext _installContext;
-        private MemoryStream? _stream;
-        private IDictionary _installerState = new ListDictionary();
+        private Stream? _stream;
+        private IDictionary _installerState;
+        private int _deployErrorCount = 0;
 
         private enum InstallState
         {
-            Uninstall,
-            Install,
-            Commit,
-            Rollback,
+            Initial,
+            Uninstalled,
+            Installed,
+            Commited,
             Finished,
         }
 
@@ -30,53 +32,97 @@ namespace NodeService.ServiceProcess
         public event EventHandler<InstallerProgressEventArgs> Completed;
 
         private CommonServiceProcessInstaller(
-            ServiceProcessInstaller serviceProcessInstaller)
+            Installer installer)
         {
-            _serviceProcessInstaller = serviceProcessInstaller;
+            _installerState = new ListDictionary();
+            _installer = installer;
+            _state = InstallState.Initial;
             AttachEvents();
         }
 
         private void AttachEvents()
         {
-            _serviceProcessInstaller.BeforeInstall += _serviceProcessInstaller_BeforeInstall;
-            _serviceProcessInstaller.AfterInstall += _serviceProcessInstaller_AfterInstall;
-            _serviceProcessInstaller.BeforeUninstall += _serviceProcessInstaller_BeforeUninstall;
-            _serviceProcessInstaller.AfterUninstall += _serviceProcessInstaller_AfterUninstall; ;
-            _serviceProcessInstaller.Committing += _serviceProcessInstaller_Committing;
-            _serviceProcessInstaller.Committed += _serviceProcessInstaller_Committed;
-            _serviceProcessInstaller.BeforeRollback += _serviceProcessInstaller_BeforeRollback;
-            _serviceProcessInstaller.AfterRollback += _serviceProcessInstaller_AfterRollback;
+            _installer.BeforeInstall += _serviceProcessInstaller_BeforeInstall;
+            _installer.AfterInstall += _serviceProcessInstaller_AfterInstall;
+            _installer.BeforeUninstall += _serviceProcessInstaller_BeforeUninstall;
+            _installer.AfterUninstall += _serviceProcessInstaller_AfterUninstall; ;
+            _installer.Committing += _serviceProcessInstaller_Committing;
+            _installer.Committed += _serviceProcessInstaller_Committed;
+            _installer.BeforeRollback += _serviceProcessInstaller_BeforeRollback;
+            _installer.AfterRollback += _serviceProcessInstaller_AfterRollback;
         }
 
         private void DetachEvents()
         {
 
-            _serviceProcessInstaller.BeforeInstall -= _serviceProcessInstaller_BeforeInstall;
-            _serviceProcessInstaller.AfterInstall -= _serviceProcessInstaller_AfterInstall;
-            _serviceProcessInstaller.BeforeUninstall -= _serviceProcessInstaller_BeforeUninstall;
-            _serviceProcessInstaller.AfterUninstall -= _serviceProcessInstaller_AfterUninstall; ;
-            _serviceProcessInstaller.Committing -= _serviceProcessInstaller_Committing;
-            _serviceProcessInstaller.Committed -= _serviceProcessInstaller_Committed;
-            _serviceProcessInstaller.BeforeRollback -= _serviceProcessInstaller_BeforeRollback;
-            _serviceProcessInstaller.AfterRollback -= _serviceProcessInstaller_AfterRollback;
+            _installer.BeforeInstall -= _serviceProcessInstaller_BeforeInstall;
+            _installer.AfterInstall -= _serviceProcessInstaller_AfterInstall;
+            _installer.BeforeUninstall -= _serviceProcessInstaller_BeforeUninstall;
+            _installer.AfterUninstall -= _serviceProcessInstaller_AfterUninstall; ;
+            _installer.Committing -= _serviceProcessInstaller_Committing;
+            _installer.Committed -= _serviceProcessInstaller_Committed;
+            _installer.BeforeRollback -= _serviceProcessInstaller_BeforeRollback;
+            _installer.AfterRollback -= _serviceProcessInstaller_AfterRollback;
         }
 
         private void _serviceProcessInstaller_AfterUninstall(object sender, InstallEventArgs e)
         {
-            RaiseProgressChangedEvent("卸载成功");
-            RaiseProgressChangedEvent($"正在清理目录\"{this._installContext.InstallDirectory}\"");
-            if (!CleanupInstallDirectory())
-            {
-                return;
-            }
-            RaiseProgressChangedEvent("清理成功");
+            RaiseProgressChangedEvent($"卸载服务\"{_installContext.ServiceName}\"成功");
         }
 
-        private bool IsQuickMode()
+        private bool BackupInstallDirectory()
         {
-            if (Debugger.IsAttached)
+            try
             {
-                return Environment.GetEnvironmentVariable("QuickMode") == "1";
+                var installDirectory = new DirectoryInfo(this._installContext.InstallDirectory);
+                if (!installDirectory.Exists)
+                {
+                    return true;
+                }
+                var backupDirectory = Path.TrimEndingDirectorySeparator(installDirectory.FullName) + "_backup";
+
+                if (Directory.Exists(backupDirectory))
+                {
+                    Directory.Delete(backupDirectory, true);
+                }
+                CopyDirectory(installDirectory, Directory.CreateDirectory(backupDirectory));
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                string errorMessage = $"备份目录\"{this._installContext.InstallDirectory}\"时发生了错误:{ex}";
+                RaiseProgressChangedEvent(errorMessage);
+            }
+            return false;
+        }
+
+        private bool RestoreInstallDirectory()
+        {
+            try
+            {
+                var installDirectory = new DirectoryInfo(this._installContext.InstallDirectory);
+                if (!installDirectory.Exists)
+                {
+                    return true;
+                }
+                var backupDirectory = Path.TrimEndingDirectorySeparator(installDirectory.FullName) + "_backup";
+
+                if (!Directory.Exists(backupDirectory))
+                {
+                    return false;
+                }
+                CopyDirectory(new DirectoryInfo(backupDirectory), installDirectory);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                string errorMessage = $"恢复目录\"{this._installContext.InstallDirectory}\"时发生了错误:{ex}";
+                RaiseProgressChangedEvent(errorMessage);
+            }
+            finally
+            {
+
             }
             return false;
         }
@@ -85,40 +131,50 @@ namespace NodeService.ServiceProcess
         {
             try
             {
-                if (IsQuickMode())
-                {
-                    return true;
-                }
                 var installDirectory = new DirectoryInfo(this._installContext.InstallDirectory);
                 if (!installDirectory.Exists)
                 {
                     return true;
                 }
-                foreach (var directoryInfo in installDirectory.GetDirectories())
-                {
-                    if (directoryInfo.Name == ".package")
-                    {
-                        continue;
-                    }
-                    if (Directory.Exists(directoryInfo.FullName))
-                    {
-                        Directory.Delete(directoryInfo.FullName, true);
-                    }
-                    else
-                    {
-                        directoryInfo.Delete();
-                    }
-                }
+                var backupDirectory = Path.TrimEndingDirectorySeparator(installDirectory.FullName) + "_backup";
 
+                if (!Directory.Exists(backupDirectory))
+                {
+                    return false;
+                }
+                Directory.Delete(backupDirectory, true);
                 return true;
             }
             catch (Exception ex)
             {
-                string errorMessage = $"清理目录\"{this._installContext.InstallDirectory}\"时发生了错误:{ex.ToString()}";
-                RaiseFailedEvent(errorMessage);
-                Cancel();
+                string errorMessage = $"清理\"{this._installContext.InstallDirectory}\"的备份目录时发生了错误:{ex}";
+                RaiseProgressChangedEvent(errorMessage);
+            }
+            finally
+            {
+
             }
             return false;
+        }
+
+        private static void CopyDirectory(DirectoryInfo installDirectory, DirectoryInfo backupDirectory)
+        {
+            foreach (var file in installDirectory.GetFiles("*", new EnumerationOptions() { RecurseSubdirectories = true }))
+            {
+                if (file.Directory.Name == ".package")
+                {
+                    continue;
+                }
+                var relativePath = Path.GetRelativePath(installDirectory.FullName, file.FullName);
+                var destFilePath = Path.Combine(backupDirectory.FullName, relativePath);
+                var directory = Path.GetDirectoryName(destFilePath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                File.Copy(file.FullName, destFilePath, true);
+
+            }
         }
 
         public void SetParameters(PackageProvider packageProvider, ServiceProcessInstallContext context)
@@ -129,22 +185,27 @@ namespace NodeService.ServiceProcess
 
         private void _serviceProcessInstaller_AfterRollback(object sender, InstallEventArgs e)
         {
-            CheckServiceStatusAsync().Wait();
+            var message = $"服务\"{_installContext.ServiceName}\"回滚完成";
+            RaiseProgressChangedEvent(message);
         }
 
         private void _serviceProcessInstaller_BeforeRollback(object sender, InstallEventArgs e)
         {
+            var message = $"服务\"{_installContext.ServiceName}\"开始回滚";
+            RaiseProgressChangedEvent(message);
 
         }
 
         private void _serviceProcessInstaller_Committed(object sender, InstallEventArgs e)
         {
-
+            var message = $"服务\"{_installContext.ServiceName}\"已提交";
+            RaiseProgressChangedEvent(message);
         }
 
         private void _serviceProcessInstaller_Committing(object sender, InstallEventArgs e)
         {
-
+            var message = $"服务\"{_installContext.ServiceName}\"提交中";
+            RaiseProgressChangedEvent(message);
         }
 
         private void _serviceProcessInstaller_BeforeUninstall(object sender, InstallEventArgs e)
@@ -155,14 +216,52 @@ namespace NodeService.ServiceProcess
 
         private void _serviceProcessInstaller_AfterInstall(object sender, InstallEventArgs e)
         {
-            if (!DeployPackageImpl().Result)
+            bool hasBackgup = BackupInstallDirectory();
+            bool deployPackageResult = false;
+            try
             {
-                throw new InvalidOperationException();
+                if (this._deployErrorCount > 10)
+                {
+                    this.Cancel();
+                    return;
+                }
+                deployPackageResult = DeployPackageAsync(_cancellationTokenSource.Token).Result;
+                if (!deployPackageResult && hasBackgup)
+                {
+                    if (RestoreInstallDirectory())
+                    {
+                        RaiseProgressChangedEvent($"恢复服务\"{_installContext.ServiceName}\"目录成功");
+                    }
+                    else
+                    {
+                        RaiseProgressChangedEvent($"恢复服务\"{_installContext.ServiceName}\"目录失败");
+                    }
+                }
             }
-            CheckServiceStatusAsync().Wait();
+            catch (Exception ex)
+            {
+                RaiseFailedEvent(ex.ToString());
+            }
+            finally
+            {
+                if (CleanupInstallDirectory())
+                {
+                    RaiseProgressChangedEvent($"清理服务\"{_installContext.ServiceName}\"备份目录成功");
+                }
+                else
+                {
+                    RaiseProgressChangedEvent($"清理服务\"{_installContext.ServiceName}\"备份目录失败");
+                }
+            }
+            if (!deployPackageResult)
+            {
+                _deployErrorCount++;
+                RaiseProgressChangedEvent($"服务\"{_installContext.ServiceName}\"第{_deployErrorCount}次部署错误。");
+                throw new InstallException();
+            }
         }
 
-        private async Task CheckServiceStatusAsync()
+        private bool CheckServiceStatus()
         {
             try
             {
@@ -180,19 +279,19 @@ namespace NodeService.ServiceProcess
                     serviceController.Refresh();
                     if (serviceController.Status != ServiceControllerStatus.Running)
                     {
-                        await ExtractPackageToInstallDirectoryAsync(false);
                         RaiseProgressChangedEvent($"\"{_installContext.ServiceName}\"状态：{serviceController.Status}，尝试启动服务");
                         serviceController.Start();
                         RaiseProgressChangedEvent($"已执行启动操作");
                     }
-                    serviceController.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                    serviceController.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMinutes(5));
                     stopwatch.Stop();
                     RaiseProgressChangedEvent($"持续观察服务\"{_installContext.ServiceName}\"状态，第{waitCount}次，等待：{stopwatch.Elapsed}");
                     stopwatch.Reset();
-                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    Thread.Sleep(5000);
                     waitCount++;
-                } while (waitCount < 12);
+                } while (waitCount < 6);
                 RaiseCompletedEvent("安装成功");
+                return true;
             }
             catch (Exception ex)
             {
@@ -200,33 +299,37 @@ namespace NodeService.ServiceProcess
                 RaiseFailedEvent(errorMessage);
                 Cancel();
             }
+            return false;
         }
 
         private void _serviceProcessInstaller_BeforeInstall(object sender, InstallEventArgs e)
         {
-
+            RaiseProgressChangedEvent($"开始安装服务\"{_installContext.ServiceName}\"");
         }
 
-        private async Task<bool> DeployPackageImpl()
+        private async Task<bool> DeployPackageAsync(CancellationToken cancellationToken=default)
         {
             try
             {
-                if (IsQuickMode())
-                {
-                    return true;
-                }
+                await Task.Delay(TimeSpan.FromSeconds(10) * this._deployErrorCount);
                 ResetStream();
-                RaiseProgressChangedEvent($"开始安装");
-
                 RaiseProgressChangedEvent($"开始下载服务\"{_installContext.ServiceName}\"的安装包");
-                if (await _packageProvider.DownloadAsync(_stream) == false)
+                if (!await _packageProvider.DownloadAsync(_stream))
                 {
-                    RaiseFailedEvent("下载文件失败");
+                    RaiseFailedEvent($"下载服务\"{_installContext.ServiceName}\"的安装包失败");
                     Cancel();
                     return false;
                 }
-                RaiseProgressChangedEvent($"下载成功，大小:{_stream.Length}");
-                return await ExtractPackageToInstallDirectoryAsync();
+                RaiseProgressChangedEvent($"下载服务\"{_installContext.ServiceName}\"的安装包成功，大小:{_stream.Length}");
+                for (int i = 0; i < 10 && !cancellationToken.IsCancellationRequested; i++)
+                {
+                    if (ExtractPackageToInstallDirectory())
+                    {
+                        return true;
+                    }
+                    RaiseProgressChangedEvent($"解压服务\"{_installContext.ServiceName}\"的安装包，第{i + 1}次重试，隔30秒再次重试。");
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -236,8 +339,6 @@ namespace NodeService.ServiceProcess
             finally
             {
                 DisposeStream();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
             }
             return false;
         }
@@ -248,6 +349,8 @@ namespace NodeService.ServiceProcess
             {
                 this._stream.Dispose();
                 this._stream = null;
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
             }
         }
 
@@ -262,7 +365,7 @@ namespace NodeService.ServiceProcess
         private void ResetStream()
         {
             DisposeStream();
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
             GC.WaitForPendingFinalizers();
             _stream = new MemoryStream();
         }
@@ -305,131 +408,39 @@ namespace NodeService.ServiceProcess
             string cmdLine
             )
         {
-            var serviceInstaller = ServiceProcessInstallerHelper.Create(serviceName, displayName, description, filePath, cmdLine);
+            var serviceInstaller = ServiceProcessInstallerHelper.CreateTransactedInstaller(serviceName, displayName, description, filePath, cmdLine);
             return new CommonServiceProcessInstaller(serviceInstaller);
         }
 
-        private Task<bool> ExtractPackageToInstallDirectoryAsync(bool autoCancel = true)
-        {
-            return Task.Run<bool>(async () =>
-            {
-                int retryCount = 0;
-            LRetry:
-                try
-                {
-                    switch (retryCount)
-                    {
-                        case 1:
-                            RaiseProgressChangedEvent("文件被占用，尝试杀死目录内可执行文件启动的进程。");
-                            var executableFile = Directory.GetFiles(_installContext.InstallDirectory, "*.exe",
-                            new EnumerationOptions()
-                            {
-                                RecurseSubdirectories = true,
-                                MatchCasing = MatchCasing.PlatformDefault
-                            }
-                            );
-                            foreach (var file in executableFile)
-                            {
-                                var moduleName = Path.GetFileName(file);
-                                var processName = Path.GetFileNameWithoutExtension(file);
-                                RaiseProgressChangedEvent($"尝试关闭相关进程:{processName}");
-                                var processes = Process.GetProcessesByName(processName);
-                                RaiseProgressChangedEvent($"可执行文件\"{processName}\"有{processes.Length}个相关进程");
-                                foreach (var process in processes)
-                                {
-                                    try
-                                    {
-                                        var installerPath = Path.GetFullPath(_installContext.InstallDirectory);
-                                        var directory = Path.GetFullPath(Path.GetDirectoryName(process.MainModule.FileName));
-                                        if (process.MainModule.ModuleName.Equals(moduleName, StringComparison.OrdinalIgnoreCase) &&
-                                        directory.Equals(installerPath, StringComparison.OrdinalIgnoreCase)
-                                        )
-                                        {
-                                            process.Kill(true);
-                                            RaiseProgressChangedEvent($"杀死服务进程\"{process.ProcessName}\"");
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        RaiseFailedEvent($"杀死服务进程{process.Id}时发生错误:{ex}");
-                                    }
-                                    finally
-                                    {
-                                        process.Dispose();
-                                    }
- 
-
-                                }
-                            }
-                            break;
-                        case 10:
-                            if (TryWriteExitFile())
-                            {
-                                await Task.Delay(TimeSpan.FromSeconds(10));
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-
-                    if (IsQuickMode())
-                    {
-                        return true;
-                    }
-                    RaiseProgressChangedEvent($"开始解压包到目录:\"{_installContext.InstallDirectory}\"");
-                    _stream.Position = 0;
-                    
-                    ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, true);
-                    RaiseProgressChangedEvent($"解压成功");
-                    return true;
-                }
-                catch (IOException ex)
-                {
-                    if (retryCount < 10)
-                    {
-                        RaiseProgressChangedEvent(ex.Message);
-                        retryCount++;
-                        goto LRetry;
-                    }
-                    else
-                    {
-                        RaiseFailedEvent(ex.Message);
-                        Cancel();
-                    }
-
-                }
-                catch (Exception ex)
-                {
-                    string errorMessage = $"解压文件到{_installContext.InstallDirectory}时发生了错误:{ex}";
-                    if (autoCancel)
-                    {
-                        RaiseFailedEvent(errorMessage);
-                        Cancel();
-                    }
-                }
-                return false;
-            });
-
-        }
-
-        private bool TryWriteExitFile()
+        private bool ExtractPackageToInstallDirectory(bool autoCancel = true)
         {
             try
             {
-                var exitTxtFile = Path.Combine(_installContext.InstallDirectory, "exit.txt");
-                File.WriteAllText(exitTxtFile, string.Empty);
+                RaiseProgressChangedEvent($"开始解压包到目录:\"{_installContext.InstallDirectory}\"");
+                if (_stream != null)
+                {
+                    _stream.Position = 0;
+                    ZipFile.ExtractToDirectory(_stream, _installContext.InstallDirectory, Encoding.UTF8, true);
+                    RaiseProgressChangedEvent($"解压成功");
+                }
+
                 return true;
             }
             catch (Exception ex)
             {
-                RaiseProgressChangedEvent(ex.Message);
+                string errorMessage = $"解压文件到{_installContext.InstallDirectory}时发生了错误:{ex}";
+                RaiseFailedEvent(errorMessage);
+            }
+            finally
+            {
+
             }
             return false;
         }
 
         public Task<bool> RunAsync(CancellationToken cancellationToken = default)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
             GC.WaitForPendingFinalizers();
             cancellationToken.Register(Cancel);
             return Task.Run<bool>(RunInstallLoopImpl);
@@ -440,70 +451,53 @@ namespace NodeService.ServiceProcess
             _cancellationTokenSource = new CancellationTokenSource();
             try
             {
-                while (!_cancellationTokenSource.IsCancellationRequested || this._state == InstallState.Rollback)
+                while (!_cancellationTokenSource.IsCancellationRequested)
                 {
-                    switch (this._state)
+                    if (this._state == InstallState.Initial)
                     {
-                        case InstallState.Uninstall:
-                            if (!UninstallImpl(null))
-                            {
-                                this._state = InstallState.Rollback;
-                                continue;
-                            }
-                            this._state = InstallState.Install;
+                        if (!TryUninstall(null))
+                        {
                             break;
-                        case InstallState.Install:
-                            if (!InstallImpl(_installerState))
-                            {
-                                this._state = InstallState.Rollback;
-                                continue;
-                            }
-                            this._state = InstallState.Commit;
+                        }
+                        this._state = InstallState.Uninstalled;
+                    }
+                    else if (this._state == InstallState.Uninstalled)
+                    {
+                        if (!TryInstall(_installerState))
+                        {
                             break;
-                        case InstallState.Commit:
-                            CommitImpl(_installerState);
-                            goto LExit;
-                        case InstallState.Rollback:
-                            if (RollBackImpl(_installerState))
-                            {
-                                _installerState.Remove("_reserved_lastInstallerAttempted");
-                                _installerState.Remove("_reserved_nestedSavedStates");
-                                if (!_cancellationTokenSource.IsCancellationRequested)
-                                {
-                                    Task.Delay(TimeSpan.FromSeconds(30), cancellationToken: _cancellationTokenSource.Token).Wait();
-                                }
-                                else
-                                {
-                                    Task.Delay(TimeSpan.FromSeconds(10)).Wait();
-                                }
-                                RaiseProgressChangedEvent("重试安装");
-                                goto case InstallState.Install;
-                            }
+                        }
+                        this._state = InstallState.Commited;
+                    }
+                    else if (this._state == InstallState.Commited)
+                    {
+                        if (!CheckServiceStatus())
+                        {
                             break;
-                        default:
-                            break;
+                        }
+                        this._state = InstallState.Finished;
+                        break;
                     }
                 }
-               LExit:
-                return this._state >= InstallState.Commit;
+                return this._state == InstallState.Finished;
             }
             catch (Exception ex)
             {
-                RollBackImpl(_installerState);
+                RaiseFailedEvent(ex.ToString());
             }
             finally
             {
-                GC.Collect();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
                 GC.WaitForPendingFinalizers();
             }
             return false;
         }
 
-        private bool RollBackImpl(IDictionary state)
+        private bool TryInstall(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Rollback(state);
+                _installer.Install(state);
                 return true;
             }
             catch (Exception ex)
@@ -514,42 +508,11 @@ namespace NodeService.ServiceProcess
             return false;
         }
 
-        private bool CommitImpl(IDictionary state)
+        private bool TryUninstall(IDictionary state)
         {
             try
             {
-                _serviceProcessInstaller.Commit(state);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                RaiseFailedEvent(ex.ToString());
-                Cancel();
-            }
-            return false;
-        }
-
-        private bool InstallImpl(IDictionary state)
-        {
-            try
-            {
-                _serviceProcessInstaller.Install(state);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                RaiseFailedEvent(ex.ToString());
-                Cancel();
-            }
-            return false;
-        }
-
-        private bool UninstallImpl(IDictionary state)
-        {
-            try
-            {
-                _serviceProcessInstaller.Uninstall(state);
-                RaiseProgressChangedEvent("卸载成功");
+                _installer.Uninstall(state);
                 return true;
             }
             catch (InstallException ex)
@@ -568,13 +531,13 @@ namespace NodeService.ServiceProcess
 
         public void Dispose()
         {
-            if (this._stream != null)
+            DisposeStream();
+            if (this._cancellationTokenSource != null && !this._cancellationTokenSource.IsCancellationRequested)
             {
-                this._stream.Dispose();
-                this._stream = null;
+                this._cancellationTokenSource.Cancel();
             }
             DetachEvents();
-            this._serviceProcessInstaller.Dispose();
+            this._installer.Dispose();
         }
     }
 }

@@ -10,10 +10,10 @@ namespace NodeService.WindowsService
     {
         public const string Version = "D1775543-7824-4828-B051-C47C93681A73";
 
-        public const string ServiceTypeWindowsService = "WindowsService";
+        public const string ServiceProcessWindowsService = "NodeService.WindowsService";
 
-        public const string ServiceTypeUpdateService = "UpdateService";
+        public const string ServiceProcessUpdateService = "NodeService.UpdateService";
 
-        public const string ServiceTypeWorkerService = "WorkerService";
+        public const string ServiceProcessWorkerService = "NodeService.WorkerService";
     }
 }

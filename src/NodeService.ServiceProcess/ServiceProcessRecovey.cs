@@ -80,7 +80,7 @@ namespace NodeService.ServiceProcess
                     _logger.LogInformation($"打开数据库失败:{targetServiceDatabasePath}");
                     return false;
                 }
-                _logger.LogInformation($"打开数据库成功:{targetServiceDatabasePath}");
+                _logger.LogInformation($"打开目标服务\"{RecoveryContext.ServiceName}\"数据库成功:{targetServiceDatabasePath}");
                 using ServiceController serviceController = new ServiceController(RecoveryContext.ServiceName);
                 if (serviceController.Status == ServiceControllerStatus.Stopped)
                 {
@@ -88,7 +88,7 @@ namespace NodeService.ServiceProcess
                     await Delay(cancellationToken);
                 }
                 serviceController.Refresh();
-                _logger.LogInformation($"{RecoveryContext.ServiceName}:{serviceController.Status}");
+                _logger.LogInformation($"服务\"{RecoveryContext.ServiceName}\"状态:{serviceController.Status}");
                 switch (serviceController.Status)
                 {
                     case ServiceControllerStatus.Stopped:
