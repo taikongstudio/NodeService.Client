@@ -550,7 +550,7 @@ namespace NodeService.WindowsService.Services
                 {
                     CommadType = ProcessCommandType.KillProcess,
                 }, cancellationToken);
-                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
                 processChannelInfo.Process.Refresh();
                 if (processChannelInfo.Process.HasExited)
                 {
@@ -681,7 +681,11 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private void RunAppProcess(string appName,string installDirectory, PackageConfigModel packageConfig, CancellationToken stoppingToken = default)
+        private void RunAppProcess(
+            string appName,
+            string installDirectory,
+            PackageConfigModel packageConfig,
+            CancellationToken stoppingToken = default)
         {
             if (this._processDictionary.TryGetValue(appName, out var processChannelInfo) && processChannelInfo != null)
             {
@@ -735,7 +739,9 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private async Task RunAppProcessPipeClientAsync(string appName, CancellationToken cancellationToken = default)
+        private async Task RunAppProcessPipeClientAsync(
+            string appName,
+            CancellationToken cancellationToken = default)
         {
             try
             {
