@@ -11,8 +11,10 @@ namespace NodeService.WindowsService.Services
 
         private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
-            HeartBeatResponse heartBeatRsp = new HeartBeatResponse();
-            heartBeatRsp.RequestId = subscribeEvent.HeartBeatRequest.RequestId;
+            HeartBeatResponse heartBeatRsp = new HeartBeatResponse
+            {
+                RequestId = subscribeEvent.HeartBeatRequest.RequestId
+            };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -64,6 +66,7 @@ namespace NodeService.WindowsService.Services
 
             heartBeatRsp.Properties.Add("CollectTimeSpan", stopwatch.Elapsed.ToString());
             await client.SendHeartBeatResponseAsync(heartBeatRsp, _headers, null, cancellationToken);
+            IncreaseHeartBeatCounter();
 
             void CollectNetworkInterfaces(HeartBeatResponse heartBeatRsp)
             {
@@ -263,6 +266,16 @@ namespace NodeService.WindowsService.Services
                     _logger.LogError(ex.ToString());
                 }
             }
+        }
+
+        private void IncreaseHeartBeatCounter()
+        {
+            Interlocked.Increment(ref _heartBeatCounter);
+        }
+
+        private long GetHeartBeatCounter()
+        {
+            return Interlocked.Read(ref _heartBeatCounter);
         }
     }
 }

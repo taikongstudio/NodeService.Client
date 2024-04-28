@@ -1,12 +1,5 @@
-﻿using Grpc.Core;
-using Grpc.Net.Client;
-using Microsoft.Extensions.Hosting;
-using NodeService.Infrastructure.NodeSessions;
-using NodeService.ServiceHost.Models;
+﻿using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Services;
-using System.Net;
-using System.Threading.Tasks.Dataflow;
-using static NodeService.Infrastructure.Services.NodeService;
 
 namespace NodeService.WindowsService.Services
 {
@@ -30,32 +23,34 @@ namespace NodeService.WindowsService.Services
         private readonly INodeIdentityProvider _nodeIdentityProvider;
         private readonly Metadata _headers;
         private readonly IServiceProvider _serviceProvider;
-        private NodeServiceClient _nodeServiceClient;
         private ServerOptions _serverOptions;
         private readonly IDisposable? _serverOptionsMonitorToken;
         private readonly ServiceOptions _serviceHostOptions;
+        private long _heartBeatCounter;
+        private long _cancellationCounter;
 
         public ILogger<NodeClientService> _logger { get; private set; }
 
 
         public NodeClientService(
-            IServiceProvider serviceProvider,
             ILogger<NodeClientService> logger,
+            IServiceProvider serviceProvider,
             IAsyncQueue<TaskExecutionContext> taskExecutionContextQueue,
-            IAsyncQueue<JobExecutionReport> reportQueue,
+            IAsyncQueue<JobExecutionReport> taskReportQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
             ServiceOptions serviceHostOptions
             )
         {
-            _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _serviceProvider = serviceProvider;
+            _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _taskExecutionContextQueue = taskExecutionContextQueue;
-            _reportQueue = reportQueue;
+            _taskReportQueue = taskReportQueue;
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _logger = logger;
-            _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, new ExecutionDataflowBlockOptions()
+            _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, 
+            new ExecutionDataflowBlockOptions()
             {
                 MaxDegreeOfParallelism = Environment.ProcessorCount,
                 EnsureOrdered = true,
@@ -119,7 +114,49 @@ namespace NodeService.WindowsService.Services
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    await RunGrpcLoopAsync(stoppingToken);
+                    CancellationTokenRegistration cancellationTokenRegistration = default;
+                    try
+                    {
+                        using var cancellationTokenSource = new CancellationTokenSource();
+                        cancellationTokenRegistration = stoppingToken.Register(cancellationTokenSource.Cancel);
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                while (!cancellationTokenSource.IsCancellationRequested)
+                                {
+                                    var heartBeatCounter1 = GetHeartBeatCounter();
+                                    _logger.LogInformation($"HeartBeatCouner1:{heartBeatCounter1}");
+                                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                                    var heartBeatCounter2 = GetHeartBeatCounter();
+                                    _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter1}");
+                                    _logger.LogInformation("");
+                                    if (heartBeatCounter2 == heartBeatCounter1)
+                                    {
+                                        _cancellationCounter++;
+                                        cancellationTokenSource.Cancel();
+                                        _logger.LogInformation($"Cancel:CancellationCounter{_cancellationCounter},HeartBeatCounter{heartBeatCounter1}");
+                                        cancellationTokenRegistration.Unregister();
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogInformation(ex.ToString());
+                            }
+
+                        }, stoppingToken);
+                        await RunGrpcLoopAsync(cancellationTokenSource.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogInformation(ex.ToString());
+                    }
+                    finally
+                    {
+                        cancellationTokenRegistration.Unregister();
+                    }
+
                 }
             }
             catch (Exception ex)
@@ -135,18 +172,19 @@ namespace NodeService.WindowsService.Services
                 using var httpClientHandler = new HttpClientHandler();
                 httpClientHandler.ServerCertificateCustomValidationCallback =
                     HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-                var dnsName = Dns.GetHostName();
                 _logger.LogInformation($"Grpc Address:{_serverOptions.GrpcAddress}");
 
-                using var channel = GrpcChannel.ForAddress(_serverOptions.GrpcAddress, new GrpcChannelOptions()
+                var grpcChannelOptions = new GrpcChannelOptions()
                 {
                     HttpHandler = httpClientHandler,
                     Credentials = ChannelCredentials.SecureSsl,
                     ServiceProvider = _serviceProvider,
-                });
+                };
 
-                _nodeServiceClient = new NodeServiceClient(channel);
-                using var subscribeCall = _nodeServiceClient.Subscribe(new SubscribeRequest()
+                using var grpcChannel = GrpcChannel.ForAddress(_serverOptions.GrpcAddress, grpcChannelOptions);
+
+                var nodeServiceClient = new NodeServiceClient(grpcChannel);
+                using var subscribeCall = nodeServiceClient.Subscribe(new SubscribeRequest()
                 {
                     RequestId = Guid.NewGuid().ToString(),
                 }, _headers, cancellationToken: cancellationToken);
@@ -156,20 +194,24 @@ namespace NodeService.WindowsService.Services
                     try
                     {
 
-                        using var reportStreamingCall = _nodeServiceClient.SendJobExecutionReport(_headers, cancellationToken: cancellationToken);
+                        using var taskReportStreamingCall = nodeServiceClient.SendJobExecutionReport(
+                            _headers,
+                            cancellationToken: cancellationToken);
                         Stopwatch stopwatch = new Stopwatch();
                         while (!cancellationToken.IsCancellationRequested)
                         {
                             int messageCount = 0;
                             stopwatch.Start();
-                            while (!cancellationToken.IsCancellationRequested && await _reportQueue.WaitToReadAsync(cancellationToken))
+                            while (!cancellationToken.IsCancellationRequested && await _taskReportQueue.WaitToReadAsync(cancellationToken))
                             {
-                                if (!_reportQueue.TryPeek(out var reportMessage))
+                                if (!_taskReportQueue.TryPeek(out var reportMessage))
                                 {
                                     continue;
                                 }
-                                await reportStreamingCall.RequestStream.WriteAsync(reportMessage, cancellationToken);
-                                await _reportQueue.DeuqueAsync(cancellationToken);
+                                await taskReportStreamingCall.RequestStream.WriteAsync(
+                                    reportMessage,
+                                    cancellationToken);
+                                await _taskReportQueue.DeuqueAsync(cancellationToken);
                                 messageCount++;
                             }
                             stopwatch.Stop();
@@ -198,7 +240,7 @@ namespace NodeService.WindowsService.Services
                     _logger.LogInformation(subscribeEvent.ToString());
                     _subscribeEventActionBlock.Post(new SubscribeEventInfo()
                     {
-                        Client = _nodeServiceClient,
+                        Client = nodeServiceClient,
                         SubscribeEvent = subscribeEvent,
                         CancellationToken = cancellationToken,
                     });
@@ -212,12 +254,16 @@ namespace NodeService.WindowsService.Services
                 {
 
                 }
-                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
+                await Task.Delay(
+                    TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
-                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
+                await Task.Delay(
+                    TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30),
+                    cancellationToken);
             }
             finally
             {
@@ -236,22 +282,37 @@ namespace NodeService.WindowsService.Services
                 case SubscribeEvent.EventOneofCase.None:
                     break;
                 case SubscribeEvent.EventOneofCase.HeartBeatRequest:
-                    await ProcessHeartBeatRequest(client, subscribeEvent, cancellationToken);
+                    await ProcessHeartBeatRequest(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.FileSystemListDirectoryRequest:
-                    await ProcessFileSystemListDirectoryRequest(client, subscribeEvent, cancellationToken);
+                    await ProcessFileSystemListDirectoryRequest(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.FileSystemListDriveRequest:
-                    await ProcessFileSystemListDriveRequest(client, subscribeEvent, cancellationToken);
+                    await ProcessFileSystemListDriveRequest(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.FileSystemBulkOperationRequest:
-                    await ProcessFileSystemBulkOperationRequest(client, subscribeEvent, cancellationToken);
+                    await ProcessFileSystemBulkOperationRequest(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.ConfigurationChangedReport:
                     //await ProcessConfigurationChangedReport(client, subscribeEvent, cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.JobExecutionEventRequest:
-                    await ProcessJobExecutionEventRequest(client, subscribeEvent, cancellationToken);
+                    await ProcessTaskExecutionEventRequest(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 default:
                     break;

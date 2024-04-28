@@ -31,7 +31,7 @@ namespace NodeService.ServiceHost.Services
                     Environment.Exit(0);
                     return;
                 }
-                var parentProcess = Process.GetProcessById(pid);
+                using var parentProcess = Process.GetProcessById(pid);
                 await parentProcess.WaitForExitAsync(stoppingToken);
             }
             catch (Exception ex)

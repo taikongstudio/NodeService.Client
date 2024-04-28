@@ -6,19 +6,45 @@ namespace NodeService.WindowsService.Services
     public partial class NodeClientService
     {
 
-        private IAsyncQueue<JobExecutionReport>  _reportQueue;
+        private IAsyncQueue<JobExecutionReport>  _taskReportQueue;
         private IAsyncQueue<TaskExecutionContext> _taskExecutionContextQueue;
         private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
 
-        private async Task ProcessJobExecutionEventRequest(
-            NodeServiceClient client,
+        private async Task ProcessTaskExecutionEventRequest(
+            NodeServiceClient nodeServiceClient,
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken = default)
         {
             var req = subscribeEvent.JobExecutionEventRequest;
             try
             {
-                await ProcessTaskExecutionRequestEventAsync(req);
+                switch (req.Parameters["RequestType"])
+                {
+                    case "Trigger":
+                        await ProcessTaskTriggerEventAsync(
+                            nodeServiceClient,
+                            req,
+                            cancellationToken);
+                        break;
+                    case "Reinvoke":
+                        await ProcessTaskCancelRequestEventAsync(
+                            nodeServiceClient,
+                            req,
+                            cancellationToken);
+                        await ProcessTaskTriggerEventAsync(
+                            nodeServiceClient,
+                            req,
+                            cancellationToken);
+                        break;
+                    case "Cancel":
+                        await ProcessTaskCancelRequestEventAsync(
+                            nodeServiceClient,
+                            req,
+                            cancellationToken);
+                        break;
+                    default:
+                        break;
+                }
             }
             catch (Exception ex)
             {
@@ -26,27 +52,11 @@ namespace NodeService.WindowsService.Services
             }
         }
 
-        private async Task ProcessTaskExecutionRequestEventAsync(JobExecutionEventRequest request)
-        {
-            switch (request.Parameters["RequestType"])
-            {
-                case "Trigger":
-                    await ProcessTaskTriggerEventAsync(request);
-                    break;
-                case "Reinvoke":
-                    await ProcessTaskCancelRequestEventAsync(request);
-                    await ProcessTaskTriggerEventAsync(request);
-                    break;
-                case "Cancel":
-                    await ProcessTaskCancelRequestEventAsync(request);
-                    break;
-                default:
-                    break;
-            }
 
-        }
-
-        private async Task ProcessTaskCancelRequestEventAsync(JobExecutionEventRequest request)
+        private async Task ProcessTaskCancelRequestEventAsync(
+            NodeServiceClient nodeServiceClient,
+            JobExecutionEventRequest request,
+            CancellationToken cancellationToken = default)
         {
             var rsp = new JobExecutionEventResponse()
             {
@@ -64,17 +74,25 @@ namespace NodeService.WindowsService.Services
             {
                 rsp.ErrorCode = -1;
                 rsp.Message = $"invalid task instance id:{taskId}";
-                var report = new JobExecutionReport();
-                report.Status = JobExecutionStatus.Cancelled;
-                report.Id = taskId;
-                report.Message = "Cancelled";
-                await this._reportQueue.EnqueueAsync(report);
+                var report = new JobExecutionReport
+                {
+                    Status = JobExecutionStatus.Cancelled,
+                    Id = taskId,
+                    Message = "Cancelled"
+                };
+                await this._taskReportQueue.EnqueueAsync(report);
             }
 
-            await this._nodeServiceClient.SendJobExecutionEventResponseAsync(rsp, _headers);
+            await nodeServiceClient.SendJobExecutionEventResponseAsync(
+                rsp,
+                _headers,
+                cancellationToken: cancellationToken);
         }
 
-        private async Task ProcessTaskTriggerEventAsync(JobExecutionEventRequest request)
+        private async Task ProcessTaskTriggerEventAsync(
+            NodeServiceClient nodeServiceClient,
+            JobExecutionEventRequest request,
+            CancellationToken cancellationToken = default)
         {
             var rsp = new JobExecutionEventResponse()
             {
@@ -91,14 +109,17 @@ namespace NodeService.WindowsService.Services
                 BuildTaskExecutionContext(request.Parameters));
             await this._taskExecutionContextQueue.EnqueueAsync(taskExecutionContext);
             rsp.Message = $"{Dns.GetHostName()} recieved task";
-            await this._nodeServiceClient.SendJobExecutionEventResponseAsync(rsp, _headers);
+            await nodeServiceClient.SendJobExecutionEventResponseAsync(
+                rsp,
+                _headers,
+                cancellationToken: cancellationToken);
         }
 
         private TaskExecutionContext BuildTaskExecutionContext(IDictionary<string,string> parameters)
         {
             return new TaskExecutionContext(_serviceProvider.GetService<ILogger<TaskExecutionContext>>(),
                                         TaskCreationParameters.Build(parameters),
-                                        _reportQueue,
+                                        _taskReportQueue,
                                         _taskExecutionContextDictionary);
         }
     }
