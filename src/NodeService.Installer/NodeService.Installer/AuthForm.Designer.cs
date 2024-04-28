@@ -89,6 +89,7 @@
             // 
             // AuthForm
             // 
+            AcceptButton = BtnVerify;
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);

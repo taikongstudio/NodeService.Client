@@ -61,15 +61,20 @@ namespace NodeService.WindowsService.Services
         {
             try
             {
+                _logger.LogInformation($"查询任务配置");
                 var rsp = await _apiService.QueryWindowsTaskConfigListAsync(QueryParameters.All, cancellationToken);
                 if (rsp.ErrorCode == 0)
                 {
                     return rsp.Result ?? [];
                 }
+                else
+                {
+                    _logger.LogInformation($"查询任务配置失败:{rsp.Message}");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message);
+                _logger.LogInformation($"查询任务配置失败:{ex.Message}");
             }
             return [];
         }
@@ -86,6 +91,7 @@ namespace NodeService.WindowsService.Services
                 var taskConfigList = await QueryTasksConfigAsync(cancellationToken);
                 if (!taskConfigList.Any())
                 {
+                    _logger.LogInformation($"使用默认任务配置");
                     using var stream = typeof(RegisterTaskService).Assembly.GetManifestResourceStream("NodeService.WindowsService.Tasks.RegisterTaskStartupService.xml");
                     using var streamReader = new StreamReader(stream, leaveOpen: true);
                     var defaultTaskConfig = new WindowsTaskConfigModel()
@@ -107,7 +113,7 @@ namespace NodeService.WindowsService.Services
                     taskNames.Add(taskName);
                     var taskFilePath = Path.Combine(tasksDirectory, taskName);
                     await File.WriteAllTextAsync(taskFilePath, taskConfig.XmlText, cancellationToken);
-
+                    _logger.LogInformation($"写入XmlText到路径 {taskFilePath}");
                     using var taskDefinition = Microsoft.Win32.TaskScheduler.TaskService.Instance.NewTaskFromFile(taskFilePath);
                     var task = folder.Tasks.FirstOrDefault(x => x.Name == taskName);
                     if (task == null)
@@ -119,6 +125,7 @@ namespace NodeService.WindowsService.Services
                     else if (task.Definition.RegistrationInfo.Date < taskDefinition.RegistrationInfo.Date)
                     {
                         folder.RegisterTask(taskName, taskDefinition.XmlText);
+                        _logger.LogInformation($"Update task {taskName} Xml:{taskDefinition.XmlText}");
                     }
                 }
                 foreach (var task in folder.Tasks.ToArray())
@@ -126,6 +133,7 @@ namespace NodeService.WindowsService.Services
                     if (!taskNames.Exists(x => x == task.Name))
                     {
                         folder.DeleteTask(task.Name, false);
+                        _logger.LogInformation($"Delete task {task.Name}");
                     }
                 }
                 folder.Dispose();

@@ -1,23 +1,6 @@
-﻿using CommandLine;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using NLog;
-using NodeService.Infrastructure.Messages;
-using NodeService.Infrastructure.NodeSessions;
+﻿using Microsoft.AspNetCore.Hosting;
 using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Windows.Forms.Design.AxImporter;
-using Debugger = System.Diagnostics.Debugger;
 
 namespace NodeService.ServiceHost
 {
