@@ -571,7 +571,7 @@ namespace NodeService.WindowsService.Services
 
         }
 
-        async Task WriteCommandRequest(NamedPipeClientStream pipeClient,
+        async Task WriteCommandRequestAsync(NamedPipeClientStream pipeClient,
             ProcessCommandRequest req,
             CancellationToken cancellationToken = default)
         {
@@ -586,7 +586,7 @@ namespace NodeService.WindowsService.Services
             await streamWriter.WriteLineAsync();
         }
 
-        async Task<ProcessCommandResponse> ReadCommandResponse(
+        async Task<ProcessCommandResponse> ReadCommandResponseAsync(
             NamedPipeClientStream pipeClient,
             CancellationToken cancellationToken = default)
         {
@@ -715,9 +715,10 @@ namespace NodeService.WindowsService.Services
 
                 int taskIndex = Task.WaitAny(
                     process.WaitForExitAsync(),
-                    Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken), Task.Run(() => {
+                    Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken), Task.Factory.StartNew(() =>
+                    {
                         RunAppProcessPipeClientAsync(appName, stoppingToken).Wait(stoppingToken);
-                    }, stoppingToken));
+                    }, stoppingToken, TaskCreationOptions.LongRunning, TaskScheduler.Default));
 
                 process.Exited -= AppProcess_Exited;
                 process.OutputDataReceived -= AppProcessWriteOutput;
@@ -763,14 +764,15 @@ namespace NodeService.WindowsService.Services
 
                 while (pipeClient.IsConnected && !cancellationToken.IsCancellationRequested)
                 {
-                    if (!processChannelInfo.ProcessCommandChannel.Reader.TryPeek(out var processCommandRequest))
+                    if (!processChannelInfo.ProcessCommandChannel.Reader.TryRead(out var processCommandRequest))
                     {
-
-                        processCommandRequest = new ProcessCommandRequest();
-                        processCommandRequest.CommadType = ProcessCommandType.HeartBeat;
+                        processCommandRequest = new ProcessCommandRequest
+                        {
+                            CommadType = ProcessCommandType.HeartBeat
+                        };
                     }
-                    await WriteCommandRequest(pipeClient, processCommandRequest, cancellationToken);
-                    await ReadCommandResponse(pipeClient, cancellationToken);
+                    await WriteCommandRequestAsync(pipeClient, processCommandRequest, cancellationToken);
+                    await ReadCommandResponseAsync(pipeClient, cancellationToken);
                     await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 }
 
