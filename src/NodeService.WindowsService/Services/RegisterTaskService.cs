@@ -52,7 +52,7 @@ namespace NodeService.WindowsService.Services
             while (!stoppingToken.IsCancellationRequested)
             {
                 await RegisterTaskAsync(stoppingToken);
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
 
         }
@@ -62,7 +62,9 @@ namespace NodeService.WindowsService.Services
             try
             {
                 _logger.LogInformation($"查询任务配置");
-                var rsp = await _apiService.QueryWindowsTaskConfigListAsync(QueryParameters.All, cancellationToken);
+                var rsp = await _apiService.QueryWindowsTaskConfigListAsync(
+                    new PaginationQueryParameters() { PageIndex = -1, PageSize = -1 },
+                    cancellationToken);
                 if (rsp.ErrorCode == 0)
                 {
                     return rsp.Result ?? [];
