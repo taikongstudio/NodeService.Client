@@ -22,6 +22,11 @@ namespace NodeService.ServiceHost.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            if (Debugger.IsAttached)
+            {
+                return;
+
+            }
             try
             {
                 if (_serviceOptions == null || !int.TryParse(_serviceOptions.pid, out var pid))

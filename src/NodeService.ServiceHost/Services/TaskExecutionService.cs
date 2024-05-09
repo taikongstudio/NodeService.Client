@@ -75,9 +75,9 @@ namespace NodeService.ServiceHost.Services
             }
             catch (OperationCanceledException ex)
             {
+                message = ex.ToString();
                 if (ex.CancellationToken == _taskExecutionContext.CancellationToken)
                 {
-                    message = ex.ToString();
                     return;
                 }
                 result = false;
@@ -96,7 +96,6 @@ namespace NodeService.ServiceHost.Services
                 }
                 else if (!result)
                 {
-                    message = "Failed";
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Failed, message);
                 }
                 else

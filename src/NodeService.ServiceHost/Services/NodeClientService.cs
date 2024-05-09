@@ -129,7 +129,7 @@ namespace NodeService.WindowsService.Services
                                     _logger.LogInformation($"HeartBeatCouner1:{heartBeatCounter1}");
                                     await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
                                     var heartBeatCounter2 = GetHeartBeatCounter();
-                                    _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter1}");
+                                    _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter2}");
                                     _logger.LogInformation("");
                                     if (heartBeatCounter2 == heartBeatCounter1)
                                     {
