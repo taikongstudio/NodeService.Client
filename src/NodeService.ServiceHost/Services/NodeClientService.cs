@@ -1,4 +1,5 @@
-﻿using NodeService.ServiceHost.Models;
+﻿using NodeService.Infrastructure.Concurrent;
+using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Services;
 
 namespace NodeService.WindowsService.Services
@@ -127,7 +128,7 @@ namespace NodeService.WindowsService.Services
                                 {
                                     var heartBeatCounter1 = GetHeartBeatCounter();
                                     _logger.LogInformation($"HeartBeatCouner1:{heartBeatCounter1}");
-                                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
                                     var heartBeatCounter2 = GetHeartBeatCounter();
                                     _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter2}");
                                     _logger.LogInformation("");
@@ -135,7 +136,7 @@ namespace NodeService.WindowsService.Services
                                     {
                                         _cancellationCounter++;
                                         cancellationTokenSource.Cancel();
-                                        _logger.LogInformation($"Cancel:CancellationCounter{_cancellationCounter},HeartBeatCounter{heartBeatCounter1}");
+                                        _logger.LogInformation($"Cancel:CancellationCounter{_cancellationCounter},HeartBeatCounter:{heartBeatCounter1}");
                                         cancellationTokenRegistration.Unregister();
                                     }
                                 }

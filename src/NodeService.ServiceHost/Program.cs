@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Hosting;
+using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Services;
 

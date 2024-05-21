@@ -1,4 +1,5 @@
-﻿using NodeService.ServiceHost.Services;
+﻿using NodeService.Infrastructure.Concurrent;
+using NodeService.ServiceHost.Services;
 using System.Reflection.Metadata;
 
 namespace NodeService.WindowsService.Services

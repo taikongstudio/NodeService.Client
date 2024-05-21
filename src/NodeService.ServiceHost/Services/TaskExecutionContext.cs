@@ -1,4 +1,5 @@
 ﻿using Google.Protobuf.WellKnownTypes;
+using NodeService.Infrastructure.Concurrent;
 
 namespace NodeService.ServiceHost.Services
 {

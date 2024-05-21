@@ -211,7 +211,7 @@ namespace NodeService.ServiceProcess
                     return null;
                 }
                 _logger.LogInformation($"查询服务\"{RecoveryContext.ServiceName}\"的更新配置成功");
-                _logger.LogInformation(clientUpdateConfig.ToJsonString<ClientUpdateConfigModel>());
+                _logger.LogInformation(clientUpdateConfig.ToJson<ClientUpdateConfigModel>());
                 var packageConfig = clientUpdateConfig.PackageConfig;
                 if (packageConfig == null)
                 {
