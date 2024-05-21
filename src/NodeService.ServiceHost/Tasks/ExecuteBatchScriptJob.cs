@@ -43,14 +43,23 @@ namespace NodeService.ServiceHost.Tasks
             using var process = new Process();
             try
             {
+                string nodeId = this._nodeIdentityProvider.GetIdentity();
                 batchScriptTempFile = Path.Combine(EnsureScriptsHomeDirectory(), $"{Guid.NewGuid()}.bat");
                 ExecuteBatchScriptJobOptions options = new ExecuteBatchScriptJobOptions();
                 await options.InitAsync(JobScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");
-                scripts = scripts.Replace("$(NodeId)", _nodeIdentityProvider.GetIdentity());
+                scripts = scripts.Replace("$(NodeId)", nodeId);
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
                 scripts = scripts.Replace("$(ParentProcessId)", Process.GetCurrentProcess().Id.ToString());
+                var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
+                if (rsp.ErrorCode == 0 && rsp.Result != null)
+                {
+                    foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
+                    {
+                        scripts = scripts.Replace($"$({envVar.Name})", envVar.Value);
+                    }
+                }
                 string workingDirectory = options.WorkingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 bool createNoWindow = options.CreateNoWindow;
 
