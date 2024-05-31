@@ -299,7 +299,7 @@ namespace NodeService.WindowsService.Services
                         subscribeEvent,
                         cancellationToken);
                     break;
-                case SubscribeEvent.EventOneofCase.FileSystemOperationRequest:
+                case SubscribeEvent.EventOneofCase.FileSystemBulkOperationRequest:
                     await ProcessFileSystemBulkOperationRequest(
                         client,
                         subscribeEvent,

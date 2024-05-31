@@ -274,23 +274,23 @@ namespace NodeService.ServiceHost.Tasks
             return ftpStatus;
         }
 
-        private FtpRemoteExists ConvertFtpFileExistsToFtpRemoteExists(FtpFileExists ftpFileExists)
+        private FtpRemoteExists ConvertFtpFileExistsToFtpRemoteExists(FileExists ftpFileExists)
         {
             switch (ftpFileExists)
             {
-                case FtpFileExists.NoCheck:
+                case FileExists.NoCheck:
                     return FtpRemoteExists.NoCheck;
-                case FtpFileExists.ResumeNoCheck:
+                case FileExists.ResumeNoCheck:
                     return FtpRemoteExists.ResumeNoCheck;
-                case FtpFileExists.AddToEndNoCheck:
+                case FileExists.AddToEndNoCheck:
                     return FtpRemoteExists.AddToEndNoCheck;
-                case FtpFileExists.Skip:
+                case FileExists.Skip:
                     return FtpRemoteExists.Skip;
-                case FtpFileExists.Overwrite:
+                case FileExists.Overwrite:
                     return FtpRemoteExists.Overwrite;
-                case FtpFileExists.Resume:
+                case FileExists.Resume:
                     return FtpRemoteExists.Resume;
-                case FtpFileExists.AddToEnd:
+                case FileExists.AddToEnd:
                     return FtpRemoteExists.AddToEnd;
                 default:
                     break;

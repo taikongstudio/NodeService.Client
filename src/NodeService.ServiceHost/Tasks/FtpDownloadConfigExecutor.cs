@@ -211,15 +211,15 @@ namespace NodeService.ServiceHost.Tasks
             return ftpStatus;
         }
 
-        private FtpLocalExists ConvertFtpFileExistsToFtpLocalExists(FtpFileExists ftpFileExists)
+        private FtpLocalExists ConvertFtpFileExistsToFtpLocalExists(FileExists ftpFileExists)
         {
             switch (ftpFileExists)
             {
-                case FtpFileExists.Skip:
+                case FileExists.Skip:
                     return FtpLocalExists.Skip;
-                case FtpFileExists.Overwrite:
+                case FileExists.Overwrite:
                     return FtpLocalExists.Overwrite;
-                case FtpFileExists.Resume:
+                case FileExists.Resume:
                     return FtpLocalExists.Resume;
                 default:
                     break;
