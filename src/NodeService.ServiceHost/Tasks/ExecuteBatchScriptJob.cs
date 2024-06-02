@@ -1,9 +1,4 @@
-﻿using NodeService.Infrastructure;
-using NodeService.Infrastructure.DataModels;
-using NodeService.Infrastructure.NodeSessions;
-using System.Net;
-
-namespace NodeService.ServiceHost.Tasks
+﻿namespace NodeService.ServiceHost.Tasks
 {
     public class ExecuteBatchScriptJob : TaskBase
     {
@@ -19,11 +14,19 @@ namespace NodeService.ServiceHost.Tasks
 
         private void WriteOutput(object sender, DataReceivedEventArgs e)
         {
+            if (e.Data == null)
+            {
+                return;
+            }
             Logger.LogInformation(e.Data);
         }
 
         private void WriteError(object sender, DataReceivedEventArgs e)
         {
+            if (e.Data == null)
+            {
+                return;
+            }
             Logger.LogError(e.Data);
         }
 
@@ -46,12 +49,12 @@ namespace NodeService.ServiceHost.Tasks
                 string nodeId = this._nodeIdentityProvider.GetIdentity();
                 batchScriptTempFile = Path.Combine(EnsureScriptsHomeDirectory(), $"{Guid.NewGuid()}.bat");
                 ExecuteBatchScriptJobOptions options = new ExecuteBatchScriptJobOptions();
-                await options.InitAsync(JobScheduleConfig, ApiService);
+                await options.InitAsync(TaskScheduleConfig, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");
                 scripts = scripts.Replace("$(NodeId)", nodeId);
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
-                scripts = scripts.Replace("$(ParentProcessId)", Process.GetCurrentProcess().Id.ToString());
+                scripts = scripts.Replace("$(ParentProcessId)", Environment.ProcessId.ToString());
                 var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
                 if (rsp.ErrorCode == 0 && rsp.Result != null)
                 {
@@ -95,6 +98,7 @@ namespace NodeService.ServiceHost.Tasks
                 if (taskIndex == 1)
                 {
                     process.Kill(true);
+                    Logger.LogInformation($"Kill process:{process.Id}");
                 }
             }
             catch (Exception ex)
@@ -115,12 +119,20 @@ namespace NodeService.ServiceHost.Tasks
 
         private static string ResolveCmdExecutablePath()
         {
-            var cmdFilePath = $"{Environment.GetEnvironmentVariable("SystemRoot")}\\system32\\cmd.exe";
-            if (!File.Exists(cmdFilePath))
+            var cmdPath = $"{Environment.GetEnvironmentVariable("SystemRoot")}\\system32\\cmd.exe";
+            if (!File.Exists(cmdPath))
             {
-                cmdFilePath = "C:\\windows\\system32\\cmd.exe";
+                foreach (var drive in DriveInfo.GetDrives())
+                {
+                    cmdPath = Path.Combine(drive.RootDirectory.FullName, "\\windows\\system32\\cmd.exe");
+                    if (File.Exists(cmdPath))
+                    {
+                        break;
+                    }
+                }
+
             }
-            return cmdFilePath;
+            return cmdPath;
         }
 
         private void TryDeleteFile(string batchScriptTempFile)

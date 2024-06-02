@@ -1,9 +1,7 @@
-﻿using NodeService.ServiceHost;
-using NodeService.ServiceHost.Helpers;
+﻿using NodeService.ServiceHost.Helpers;
 using System.Management;
-using static NodeService.Infrastructure.Services.NodeService;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService
     {

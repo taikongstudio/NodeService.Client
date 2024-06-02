@@ -22,7 +22,7 @@ namespace NodeService.ServiceHost.Services
             _taskExecutionContext = jobExecutionContext;
         }
 
-        private Type ResolveTaskType(string taskTypeFullName)
+        private Type? ResolveTaskType(string taskTypeFullName)
         {
             if (taskTypeFullName.StartsWith("NodeService.WindowsService.Services"))
             {
@@ -38,7 +38,7 @@ namespace NodeService.ServiceHost.Services
             string message = string.Empty;
             if (_taskExecutionContext == null)
             {
-                message = $"parameters is null";
+                message = $"Task execution context is null";
                 return;
             }
             try
@@ -46,19 +46,25 @@ namespace NodeService.ServiceHost.Services
                 await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Started, "Started");
                 if (_taskExecutionContext.Parameters == null)
                 {
-                    message = $"parameters is null";
+                    message = $"Parameters is null";
                     result = false;
                     return;
                 }
-                var jobTypeDescConfig = _taskExecutionContext.Parameters.TaskScheduleConfig.JobTypeDesc;
-                if (jobTypeDescConfig == null)
+                var taskTypeDescConfig = _taskExecutionContext.Parameters.TaskScheduleConfig.JobTypeDesc;
+                if (taskTypeDescConfig == null)
                 {
                     message = $"Could not found task type description config";
                     result = false;
                     return;
                 }
 
-                var serviceType = ResolveTaskType(jobTypeDescConfig.FullName);
+                var serviceType = ResolveTaskType(taskTypeDescConfig.FullName);
+                if (serviceType == null)
+                {
+                    message = $"Could not found task type {taskTypeDescConfig.FullName}";
+                    result = false;
+                    return;
+                }
                 using var scope = this._serviceProvider.CreateAsyncScope();
                 var task = scope.ServiceProvider.GetService(serviceType) as TaskBase;
                 if (task == null)
@@ -68,7 +74,7 @@ namespace NodeService.ServiceHost.Services
                 else
                 {
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Running, "Running");
-                    task.SetJobScheduleConfig(_taskExecutionContext.Parameters.TaskScheduleConfig);
+                    task.SetTaskScheduleConfig(_taskExecutionContext.Parameters.TaskScheduleConfig);
                     await task.ExecuteAsync(_taskExecutionContext.CancellationToken);
                     result = true;
                 }

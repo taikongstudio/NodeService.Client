@@ -1,19 +1,8 @@
-﻿using Grpc.Core;
-using Grpc.Net.Client;
-using NodeService.Infrastructure.Services;
-using NodeService.WindowsService.Grpc;
-using System;
-using System.Collections.Generic;
-using System.IO.Pipes;
-using System.Linq;
-using System.Security.Principal;
-using System.ServiceProcess;
-using System.Text;
-using System.Threading.Channels;
-using System.Threading.Tasks;
+﻿using Grpc.Net.Client;
+using NodeService.ServiceHost.Grpc;
 using static NodeService.Infrastructure.Services.ProcessService;
 
-namespace NodeService.WindowsService.Models
+namespace NodeService.ServiceHost.Models
 {
     public class ProcessServiceClientCache : IDisposable
     {

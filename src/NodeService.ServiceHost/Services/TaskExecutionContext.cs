@@ -41,7 +41,19 @@ namespace NodeService.ServiceHost.Services
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
-                        await EnqueueLogsAsync((JobExecutionStatus)status, logStatusGroup.Select(LogEntryToTaskExecutionLogEntry));
+                        int logEntryCount = logStatusGroup.Count();
+                        int pageSize = 512;
+                        int pageCount = Math.DivRem(logEntryCount, pageSize, out int result);
+                        if (result > 0)
+                        {
+                            pageCount = pageCount + 1;
+                        }
+                        for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
+                        {
+                            var entries = logStatusGroup.Skip(pageIndex * pageSize).Take(pageSize).Select(LogEntryToTaskExecutionLogEntry);
+                            await EnqueueLogsAsync((JobExecutionStatus)status, entries);
+                        }
+
                     }
                     arrayPoolCollection.Dispose();
                 }
@@ -93,23 +105,23 @@ namespace NodeService.ServiceHost.Services
         public async Task UpdateStatusAsync(JobExecutionStatus status, string message)
         {
             Status = status;
-            var report = new JobExecutionReport()
+            var report = new JobExecutionReport
             {
-                Status = Status
+                Status = Status,
+                Id = Parameters.Id,
+                Message = message
             };
-            report.Id = Parameters.Id;
-            report.Message = message;
             report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
             await _reportChannel.EnqueueAsync(report);
         }
 
         public async Task EnqueueLogsAsync(JobExecutionStatus status, IEnumerable<JobExecutionLogEntry> logEntries)
         {
-            var report = new JobExecutionReport()
+            var report = new JobExecutionReport
             {
-                Status = status
+                Status = status,
+                Id = Parameters.Id
             };
-            report.Id = Parameters.Id;
             report.LogEntries.AddRange(logEntries);
             report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
             await _reportChannel.EnqueueAsync(report);

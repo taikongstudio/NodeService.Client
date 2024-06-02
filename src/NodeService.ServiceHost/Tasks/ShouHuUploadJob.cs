@@ -1,7 +1,4 @@
-﻿using NodeService.Infrastructure;
-using NodeService.Infrastructure.DataModels;
-using NodeService.ServiceHost.Helpers;
-using System.Net;
+﻿using NodeService.ServiceHost.Helpers;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -19,7 +16,7 @@ namespace NodeService.ServiceHost.Tasks
             try
             {
                 ShouHuUploadJobOptions options = new ShouHuUploadJobOptions();
-                await options.InitAsync(JobScheduleConfig, ApiService);
+                await options.InitAsync(TaskScheduleConfig, ApiService);
                 Logger.LogInformation("开始上报");
 
                 _producerUtil = new ProducerUtil(Logger);

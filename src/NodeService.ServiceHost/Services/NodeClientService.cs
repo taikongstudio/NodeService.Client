@@ -1,8 +1,7 @@
 ﻿using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
-using NodeService.ServiceHost.Services;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService : BackgroundService
     {
@@ -38,6 +37,7 @@ namespace NodeService.WindowsService.Services
             IServiceProvider serviceProvider,
             IAsyncQueue<TaskExecutionContext> taskExecutionContextQueue,
             IAsyncQueue<JobExecutionReport> taskReportQueue,
+            IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
@@ -47,10 +47,11 @@ namespace NodeService.WindowsService.Services
             _serviceProvider = serviceProvider;
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _taskExecutionContextQueue = taskExecutionContextQueue;
+            _fileSystemWatchEventQueue = fileSystemWatchEventQueue;
             _taskReportQueue = taskReportQueue;
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _logger = logger;
-            _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync, 
+            _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync,
             new ExecutionDataflowBlockOptions()
             {
                 MaxDegreeOfParallelism = Environment.ProcessorCount,
@@ -67,6 +68,7 @@ namespace NodeService.WindowsService.Services
             _serverOptions = serverOptionsMonitor.CurrentValue;
             _serverOptionsMonitorToken = serverOptionsMonitor.OnChange(OnServerOptionsChanged);
             _serviceHostOptions = serviceHostOptions;
+            InitializeFileSystemWatch();
         }
 
         private void OnServerOptionsChanged(ServerOptions serverOptions)
@@ -189,6 +191,8 @@ namespace NodeService.WindowsService.Services
                     RequestId = Guid.NewGuid().ToString(),
                 }, _headers, cancellationToken: cancellationToken);
 
+
+
                 _ = Task.Run(async () =>
                 {
                     try
@@ -217,7 +221,53 @@ namespace NodeService.WindowsService.Services
                             stopwatch.Stop();
                             if (messageCount > 0)
                             {
-                                _logger.LogInformation($"Sent {messageCount} messages,spent:{stopwatch.Elapsed}");
+                                _logger.LogInformation($"Sent {messageCount} {nameof(JobExecutionReport)} messages,spent:{stopwatch.Elapsed}");
+                            }
+                            stopwatch.Reset();
+                        }
+
+                    }
+                    catch (RpcException ex)
+                    {
+                        _logger.LogError(ex.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex.ToString());
+                    }
+
+
+                }, cancellationToken: cancellationToken);
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+
+                        using var fileSystemWatchEventReportStreamingCall = nodeServiceClient.SendFileSystemWatchEventReport(
+                            _headers,
+                            cancellationToken: cancellationToken);
+                        Stopwatch stopwatch = new Stopwatch();
+                        while (!cancellationToken.IsCancellationRequested)
+                        {
+                            int messageCount = 0;
+                            stopwatch.Start();
+                            while (!cancellationToken.IsCancellationRequested && await _fileSystemWatchEventQueue.WaitToReadAsync(cancellationToken))
+                            {
+                                if (!_fileSystemWatchEventQueue.TryPeek(out var reportMessage))
+                                {
+                                    continue;
+                                }
+                                await fileSystemWatchEventReportStreamingCall.RequestStream.WriteAsync(
+                                    reportMessage,
+                                    cancellationToken);
+                                await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
+                                messageCount++;
+                            }
+                            stopwatch.Stop();
+                            if (messageCount > 0)
+                            {
+                                _logger.LogInformation($"Sent {messageCount} {nameof(FileSystemWatchEventReport)} messages,spent:{stopwatch.Elapsed}");
                             }
                             stopwatch.Reset();
                         }
@@ -306,7 +356,7 @@ namespace NodeService.WindowsService.Services
                         cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.ConfigurationChangedReport:
-                    //await ProcessConfigurationChangedReport(client, subscribeEvent, cancellationToken);
+                    await ProcessConfigurationChangedReportAsync(client, subscribeEvent, cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.JobExecutionEventRequest:
                     await ProcessTaskExecutionEventRequest(
@@ -318,7 +368,6 @@ namespace NodeService.WindowsService.Services
                     break;
             }
         }
-
 
     }
 }

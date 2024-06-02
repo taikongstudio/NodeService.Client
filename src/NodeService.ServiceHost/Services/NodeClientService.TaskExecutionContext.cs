@@ -1,13 +1,11 @@
 ﻿using NodeService.Infrastructure.Concurrent;
-using NodeService.ServiceHost.Services;
-using System.Reflection.Metadata;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService
     {
 
-        private IAsyncQueue<JobExecutionReport>  _taskReportQueue;
+        private IAsyncQueue<JobExecutionReport> _taskReportQueue;
         private IAsyncQueue<TaskExecutionContext> _taskExecutionContextQueue;
         private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
 
@@ -116,7 +114,7 @@ namespace NodeService.WindowsService.Services
                 cancellationToken: cancellationToken);
         }
 
-        private TaskExecutionContext BuildTaskExecutionContext(IDictionary<string,string> parameters)
+        private TaskExecutionContext BuildTaskExecutionContext(IDictionary<string, string> parameters)
         {
             return new TaskExecutionContext(_serviceProvider.GetService<ILogger<TaskExecutionContext>>(),
                                         TaskCreationParameters.Build(parameters),

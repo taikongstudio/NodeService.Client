@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace NodeService.ServiceProcess
+﻿namespace NodeService.ServiceProcess
 {
     public static class ServiceProcessInstallerHelper
     {

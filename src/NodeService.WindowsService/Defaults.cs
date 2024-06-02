@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace NodeService.WindowsService
+﻿namespace NodeService.ServiceHost
 {
     public static class Defaults
     {

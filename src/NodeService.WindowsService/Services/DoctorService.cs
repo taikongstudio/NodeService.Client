@@ -1,13 +1,7 @@
-﻿using NodeService.WindowsService.Models;
-using System;
-using System.Collections.Generic;
-using System.Configuration.Install;
-using System.Linq;
+﻿using NodeService.ServiceHost.Models;
 using System.ServiceProcess;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public class DoctorService : BackgroundService
     {

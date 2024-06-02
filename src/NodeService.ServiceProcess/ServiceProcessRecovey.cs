@@ -1,15 +1,6 @@
-﻿using NodeService.Infrastructure;
-using NodeService.Infrastructure.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using NodeService.Infrastructure.Models;
 using System.Net;
-using System.Numerics;
-using System.Runtime.InteropServices;
-using System.ServiceProcess;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
 namespace NodeService.ServiceProcess
@@ -269,7 +260,7 @@ namespace NodeService.ServiceProcess
             return false;
         }
 
-        private bool TryWritePackageInfo(PackageConfigModel  packageConfig)
+        private bool TryWritePackageInfo(PackageConfigModel packageConfig)
         {
             try
             {

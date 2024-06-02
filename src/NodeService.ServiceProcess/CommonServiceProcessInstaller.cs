@@ -307,7 +307,7 @@ namespace NodeService.ServiceProcess
             RaiseProgressChangedEvent($"开始安装服务\"{_installContext.ServiceName}\"");
         }
 
-        private async Task<bool> DeployPackageAsync(CancellationToken cancellationToken=default)
+        private async Task<bool> DeployPackageAsync(CancellationToken cancellationToken = default)
         {
             try
             {

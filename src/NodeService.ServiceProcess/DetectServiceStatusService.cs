@@ -1,7 +1,6 @@
 ﻿
 
 using Microsoft.Extensions.DependencyInjection;
-using System.Collections.Concurrent;
 
 namespace NodeService.ServiceProcess
 {
@@ -37,7 +36,7 @@ namespace NodeService.ServiceProcess
                 _appConfig = configuration;
                 var context = new DetectServiceStatusServiceContext();
 
-                if (_context!=null)
+                if (_context != null)
                 {
                     foreach (var item in _context.RecoveryContexts)
                     {
@@ -53,7 +52,7 @@ namespace NodeService.ServiceProcess
                         var path = Path.Combine(AppContext.BaseDirectory, recoveryContext.InstallDirectory);
                         recoveryContext.InstallDirectory = Path.GetFullPath(path);
                     }
-                    
+
                     context.RecoveryContexts.Add(
                         recoveryContext.ServiceName,
                         new ServiceProcessRecovey(

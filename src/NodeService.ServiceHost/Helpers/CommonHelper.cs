@@ -1,12 +1,4 @@
-﻿
-using Microsoft.Extensions.Logging;
-using NodeService.Infrastructure.Models;
-using System.Diagnostics;
-using System.Net;
-using System.Text.Json;
-
-
-namespace NodeService.ServiceHost.Helpers
+﻿namespace NodeService.ServiceHost.Helpers
 {
     public static class CommonHelper
     {

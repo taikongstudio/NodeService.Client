@@ -1,5 +1,4 @@
 ﻿using Confluent.Kafka;
-using NodeService.Infrastructure.DataModels;
 
 namespace NodeService.ServiceHost.Helpers
 {

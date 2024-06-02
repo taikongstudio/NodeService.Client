@@ -1,8 +1,7 @@
 ﻿
 using Google.Protobuf.WellKnownTypes;
-using NodeService.ServiceHost.Services;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService
     {

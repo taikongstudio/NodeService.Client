@@ -1,12 +1,4 @@
 ﻿using FluentFTP;
-using Microsoft.Extensions.Logging;
-using NodeService.Infrastructure.DataModels;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -254,16 +246,16 @@ namespace NodeService.ServiceHost.Tasks
 
             switch (FtpDownloadConfig.FileExistsTimeUnit)
             {
-                case FileExistsTimeUnit.Seconds:
+                case FileTimeUnit.Seconds:
                     timeSpan = TimeSpan.FromSeconds(FtpDownloadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Minutes:
+                case FileTimeUnit.Minutes:
                     timeSpan = TimeSpan.FromMinutes(FtpDownloadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Hours:
+                case FileTimeUnit.Hours:
                     timeSpan = TimeSpan.FromHours(FtpDownloadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Days:
+                case FileTimeUnit.Days:
                     timeSpan = TimeSpan.FromDays(FtpDownloadConfig.FileExistsTime);
                     break;
                 default:
@@ -271,11 +263,20 @@ namespace NodeService.ServiceHost.Tasks
             }
             switch (FtpDownloadConfig.FileExistsTimeRange)
             {
-                case FileExistsTimeRange.WithinRange:
-                    compareDateTime = Math.Abs((remoteFileInfo.Modified - lastWriteTime).TotalSeconds) <= timeSpan.TotalSeconds;
+                case CompareOperators.LessThan:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) < (int)timeSpan.TotalSeconds;
                     break;
-                case FileExistsTimeRange.OutOfRange:
-                    compareDateTime = Math.Abs((remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > timeSpan.TotalSeconds;
+                case CompareOperators.GreatThan:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.LessThanEqual:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) <= (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.GreatThanEqual:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) >= (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.Equals:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) == (int)timeSpan.TotalSeconds;
                     break;
                 default:
                     break;

@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Pipes;
-using System.Linq;
+﻿using System.IO.Pipes;
 using System.Security.Principal;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace NodeService.WindowsService.Grpc
+namespace NodeService.ServiceHost.Grpc
 {
     public class NamedPipesConnectionFactory
     {

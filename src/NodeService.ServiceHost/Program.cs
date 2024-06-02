@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
-using NodeService.ServiceHost.Services;
 
 namespace NodeService.ServiceHost
 {
@@ -35,7 +34,7 @@ namespace NodeService.ServiceHost
                 Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", options.env);
                 var builder = Host.CreateApplicationBuilder(args);
                 builder.Configuration.AddJsonFile(
-                    $"appsettings.{(builder.Environment.IsDevelopment() 
+                    $"appsettings.{(builder.Environment.IsDevelopment()
                     ? "Development." : string.Empty)}json",
                     false, true);
 
@@ -45,6 +44,7 @@ namespace NodeService.ServiceHost
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
                 builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
+                builder.Services.AddSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>();
 
                 builder.Services.AddHostedService<TaskHostService>();
                 builder.Services.AddHostedService<NodeClientService>();

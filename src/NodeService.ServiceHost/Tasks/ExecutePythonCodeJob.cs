@@ -1,12 +1,4 @@
-﻿using NodeService.Infrastructure;
-using NodeService.Infrastructure.DataModels;
-using Python.Deployment;
-using Python.Runtime;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Python.Runtime;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -24,7 +16,7 @@ namespace NodeService.ServiceHost.Tasks
         public override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             ExecutePythonCodeJobOptions options = new();
-            await options.InitAsync(JobScheduleConfig, ApiService, stoppingToken);
+            await options.InitAsync(TaskScheduleConfig, ApiService, stoppingToken);
             if (options.Code == null)
             {
                 Logger.LogError("no code");

@@ -343,7 +343,7 @@ namespace NodeService.Installer
                             var serviceController = controllers.GetOrAdd(serviceName, new ServiceController(serviceName));
                             serviceController.Refresh();
                             UpdateServiceStatus(serviceName, serviceController.Status.ToString());
-                            if (serviceController.Status== ServiceControllerStatus.Running)
+                            if (serviceController.Status == ServiceControllerStatus.Running)
                             {
                                 count++;
                             }
@@ -362,7 +362,7 @@ namespace NodeService.Installer
                                 Environment.Exit(0);
                             }
                         });
- 
+
                     }
                 }
                 catch (Exception ex)
@@ -446,7 +446,7 @@ namespace NodeService.Installer
                     AppendMessage("服务器不存在包配置文件");
                 }
                 using var stream = new MemoryStream();
-                if (!await ftpClient.DownloadStream(stream, PackagesFileName,progress:this))
+                if (!await ftpClient.DownloadStream(stream, PackagesFileName, progress: this))
                 {
                     AppendMessage("下载包配置失败");
                 }

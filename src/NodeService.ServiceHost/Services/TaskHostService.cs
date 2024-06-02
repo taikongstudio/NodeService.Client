@@ -1,7 +1,6 @@
 ﻿using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Tasks;
-using System.Linq;
 using Type = System.Type;
 
 namespace NodeService.ServiceHost.Services

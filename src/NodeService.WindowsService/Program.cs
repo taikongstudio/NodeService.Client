@@ -1,21 +1,14 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.Options;
 using NLog;
 using NLog.Extensions.Logging;
-using NodeService.Infrastructure;
-using NodeService.Infrastructure.Messages;
-using NodeService.Infrastructure.Models;
-using NodeService.Infrastructure.NodeSessions;
+using NodeService.ServiceHost.Models;
+using NodeService.ServiceHost.Services;
 using NodeService.ServiceProcess;
-using NodeService.WindowsService.Models;
-using NodeService.WindowsService.Services;
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
-using System.Threading.Channels;
 
-namespace NodeService.WindowsService
+namespace NodeService.ServiceHost
 {
     public static class Program
     {

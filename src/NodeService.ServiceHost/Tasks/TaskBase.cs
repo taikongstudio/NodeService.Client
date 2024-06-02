@@ -1,20 +1,10 @@
-﻿using Microsoft.Extensions.Hosting;
-using NodeService.Infrastructure;
-using NodeService.Infrastructure.DataModels;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
-
-namespace NodeService.ServiceHost.Tasks
+﻿namespace NodeService.ServiceHost.Tasks
 {
     public abstract class TaskBase
     {
         public ILogger Logger { get; private set; }
 
-        public JobScheduleConfigModel JobScheduleConfig { get; private set; }
+        public JobScheduleConfigModel TaskScheduleConfig { get; private set; }
 
         public ApiService ApiService { get; private set; }
 
@@ -26,9 +16,9 @@ namespace NodeService.ServiceHost.Tasks
 
         public abstract Task ExecuteAsync(CancellationToken cancellationToken = default);
 
-        public void SetJobScheduleConfig(JobScheduleConfigModel jobScheduleConfig)
+        public void SetTaskScheduleConfig(JobScheduleConfigModel jobScheduleConfig)
         {
-            JobScheduleConfig = jobScheduleConfig;
+            TaskScheduleConfig = jobScheduleConfig;
         }
 
     }

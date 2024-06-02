@@ -1,15 +1,9 @@
 ﻿using Grpc.Core;
 using NodeService.Infrastructure.Models;
-using NodeService.WindowsService.Models;
-using System;
+using NodeService.ServiceHost.Models;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public class ProcessServiceImpl : NodeService.Infrastructure.Services.ProcessService.ProcessServiceBase
     {

@@ -1,35 +1,16 @@
-﻿using NodeService.Infrastructure;
-using NodeService.Infrastructure.NodeSessions;
-using System;
-using System.Collections.Generic;
-using System.Configuration.Install;
-using System.IO.Compression;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.Options;
+using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
-using Microsoft.Extensions.Options;
-using NodeService.WindowsService.Models;
-using System.Security.Cryptography;
-using System.IO.Pipes;
 using NodeService.Infrastructure.Models;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Channels;
-using NodeService.Infrastructure.Messages;
+using NodeService.ServiceHost.Models;
 using System.Collections.Concurrent;
-using System.ServiceProcess;
 using System.ComponentModel;
-using NodeService.Infrastructure.Services;
-using Grpc.Core;
-using Grpc.Net.Client;
-using Microsoft.Extensions.DependencyInjection;
-using static NodeService.Infrastructure.Services.NodeService;
-using System.Net;
+using System.IO.Compression;
+using System.IO.Pipes;
+using System.ServiceProcess;
 using static NodeService.Infrastructure.Services.ProcessService;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public class AppHostService : BackgroundService
     {
@@ -309,7 +290,7 @@ namespace NodeService.WindowsService.Services
 
                     await KillAppProcessAsync(appName, stoppingToken);
                 }
-                if (!TryReadAppPackageInfo(appName,out var packageConfig))
+                if (!TryReadAppPackageInfo(appName, out var packageConfig))
                 {
                     _logger.LogInformation("获取应用包信息失败");
                     return;
@@ -432,7 +413,7 @@ namespace NodeService.WindowsService.Services
             return true;
         }
 
-        private async Task<(PackageConfigModel? PackageConfig, Stream? Stream)> FetchAppPackageUpdateAsync(string appName,CancellationToken stoppingToken = default)
+        private async Task<(PackageConfigModel? PackageConfig, Stream? Stream)> FetchAppPackageUpdateAsync(string appName, CancellationToken stoppingToken = default)
         {
             _logger.LogInformation($"查询应用\"{appName}\"更新");
             var rsp = await _apiService.QueryClientUpdateAsync(appName, stoppingToken);
@@ -518,7 +499,7 @@ namespace NodeService.WindowsService.Services
             return false;
         }
 
-        private bool TryReadAppPackageInfo(string serviceAppName,out PackageConfigModel? packageConfig)
+        private bool TryReadAppPackageInfo(string serviceAppName, out PackageConfigModel? packageConfig)
         {
             packageConfig = null;
             try
@@ -694,9 +675,9 @@ namespace NodeService.WindowsService.Services
             using var process = new Process();
             try
             {
-                var fileName= Path.Combine(installDirectory, packageConfig.EntryPoint);
+                var fileName = Path.Combine(installDirectory, packageConfig.EntryPoint);
                 _logger.LogInformation($"启动进程:{fileName}");
-             
+
                 process.StartInfo.FileName = Path.Combine(installDirectory, packageConfig.EntryPoint);
                 process.StartInfo.Arguments = $"--env {_serviceOptions.env} --pid {Environment.ProcessId}";
                 process.StartInfo.WorkingDirectory = installDirectory;

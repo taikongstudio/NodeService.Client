@@ -2,9 +2,9 @@
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
-using NodeService.WindowsService.Models;
+using NodeService.ServiceHost.Models;
 
-namespace NodeService.WindowsService.Services
+namespace NodeService.ServiceHost.Services
 {
     public class RegisterTaskService : BackgroundService
     {
@@ -16,7 +16,7 @@ namespace NodeService.WindowsService.Services
         private ApiService _apiService;
 
         public RegisterTaskService(
-            ServiceOptions  serviceOptions,
+            ServiceOptions serviceOptions,
             ILogger<RegisterTaskService> logger,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor)
         {

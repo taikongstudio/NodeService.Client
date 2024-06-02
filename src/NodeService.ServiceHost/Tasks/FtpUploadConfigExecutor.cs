@@ -1,26 +1,23 @@
 ﻿using FluentFTP;
-using NodeService.Infrastructure.DataModels;
-using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace NodeService.ServiceHost.Tasks
 {
     public class FtpUploadConfigExecutor
     {
-        int uploadedCount = 0;
-        int skippedCount = 0;
-        int overidedCount = 0;
+        int _uploadedCount = 0;
+        int _skippedCount = 0;
+        int _overidedCount = 0;
 
-        private Dictionary<string, FtpListItem> _remoteFileListDict;
+        ConcurrentDictionary<string, FtpListItem> _remoteFileListDict;
+
+        readonly IProgress<FtpProgress> _progress;
 
         public FtpUploadConfigModel FtpUploadConfig { get; private set; }
-
-        private readonly IProgress<FtpProgress> _progress;
 
         public ILogger _logger { get; set; }
 
@@ -32,6 +29,7 @@ namespace NodeService.ServiceHost.Tasks
             _progress = progress;
             FtpUploadConfig = ftpTaskConfig;
             _logger = logger;
+            _remoteFileListDict = new ConcurrentDictionary<string, FtpListItem>();
         }
 
         public async Task ExecuteAsync(CancellationToken cancellationToken = default)
@@ -61,24 +59,28 @@ namespace NodeService.ServiceHost.Tasks
                 return;
             }
 
-            var localFiles = Directory.GetFiles(rootPath, FtpUploadConfig.SearchPattern, new EnumerationOptions()
+            if (FtpUploadConfig.Filters == null)
             {
-                MatchCasing = FtpUploadConfig.MatchCasing,
-                RecurseSubdirectories = FtpUploadConfig.IncludeSubDirectories,
-            });
-            if (localFiles.Length == 0)
+                FtpUploadConfig.Filters = [];
+            }
+            if (!FtpUploadConfig.Filters.Any(IsSearchPatternFilter))
             {
-                Console.WriteLine($"Cound not found any files in {rootPath}");
+                FtpUploadConfig.Filters.Add(new StringEntry()
+                {
+                    Name = nameof(FilePathFilter.SearchPattern),
+                    Value = FtpUploadConfig.SearchPattern,
+                });
+            }
+
+            IEnumerable<string> localFilePathList = EnumerateLocalFiles();
+
+            if (!localFilePathList.Any())
+            {
+                Console.WriteLine($"Cound not found any mached file in {rootPath}");
                 return;
             }
 
-            PrintLocalFiles(localFiles);
-
-            if (FtpUploadConfig.Filters != null && FtpUploadConfig.Filters.Any())
-            {
-                localFiles = localFiles.Where(FilterPath).ToArray();
-            }
-
+            PrintLocalFiles(localFilePathList);
 
             FtpUploadConfig.RemoteDirectory = FtpUploadConfig.RemoteDirectory.Replace("$(HostName)", hostName).Replace("\\", "/");
 
@@ -87,42 +89,242 @@ namespace NodeService.ServiceHost.Tasks
                 FtpUploadConfig.RemoteDirectory = '/' + FtpUploadConfig.RemoteDirectory;
             }
 
-            _remoteFileListDict = (await ftpClient.GetListing(FtpUploadConfig.RemoteDirectory,
-                FtpUploadConfig.IncludeSubDirectories ? FtpListOption.Recursive : FtpListOption.Auto
-                , cancellationToken)).ToDictionary(static x => x.FullName);
+            var remoteFilePathList = localFilePathList.GroupBy(Path.GetDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
+            foreach (var kv in remoteFilePathList)
+            {
+                var ftpListItem = await ftpClient.GetObjectInfo(
+                    kv.Value,
+                    true,
+                    cancellationToken);
+                this._remoteFileListDict.TryAdd(kv.Value, ftpListItem);
+            }
 
             PrintRemoteFiles();
 
-            foreach (var directoryFileGroup in localFiles.GroupBy<string, string>(Path.GetDirectoryName))
+            foreach (var kv in remoteFilePathList)
             {
-                foreach (var localFilePath in directoryFileGroup)
-                {
-                    string remoteFilePath = CaculateRemoteFilePath(FtpUploadConfig.RemoteDirectory, rootPath, localFilePath);
-
-                    await UploadFileAsync(ftpClient, localFilePath, remoteFilePath, cancellationToken);
-                }
+                await UploadFileAsync(
+                    ftpClient,
+                    kv.Key,
+                    kv.Value,
+                    cancellationToken);
             }
-            _logger.LogInformation($"uploadedCount:{uploadedCount} skippedCount:{skippedCount} overidedCount:{overidedCount}");
+
+            _logger.LogInformation($"uploadedCount:{_uploadedCount} skippedCount:{_skippedCount} overidedCount:{_overidedCount}");
 
         }
 
-        private bool FilterPath(string path)
+        private IEnumerable<string> EnumerateLocalFiles()
         {
+            IEnumerable<string> localFiles = EnumerateFiles(FtpUploadConfig.LocalDirectory, "*");
             foreach (var filter in FtpUploadConfig.Filters)
             {
-                if (filter.Value == null)
+                if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
                 {
                     continue;
                 }
-                if (path.Contains(filter.Value))
+
+                if (!Enum.TryParse(filter.Name, true, out FilePathFilter pathFilter))
                 {
-                    return true;
+                    continue;
+                }
+                switch (pathFilter)
+                {
+                    case FilePathFilter.Contains:
+                        localFiles = from item in localFiles
+                                     where item.Contains(filter.Value)
+                                     select item;
+                        break;
+                    case FilePathFilter.NotContains:
+                        localFiles = from item in localFiles
+                                     where !item.Contains(filter.Value)
+                                     select item;
+                        break;
+                    case FilePathFilter.StartWith:
+                        localFiles = from item in localFiles
+                                     where item.StartsWith(filter.Value)
+                                     select item;
+                        break;
+                    case FilePathFilter.EndsWith:
+                        localFiles = from item in localFiles
+                                     where item.EndsWith(filter.Value)
+                                     select item;
+                        break;
+                    case FilePathFilter.RegExp:
+                        var regex = new Regex(filter.Value);
+                        localFiles = from item in localFiles
+                                     where regex.IsMatch(item)
+                                     select item;
+                        break;
+                    case FilePathFilter.SearchPattern:
+                        localFiles = localFiles.GroupBy(Path.GetDirectoryName)
+                                               .SelectMany(x => EnumerateFiles(x.Key, filter.Value));
+                        break;
+                    default:
+                        break;
                 }
             }
-            return false;
+
+            if (FtpUploadConfig.DateTimeFilters != null && FtpUploadConfig.DateTimeFilters.Count != 0)
+            {
+                localFiles = localFiles.Where(DateTimeFilter);
+            }
+
+            if (FtpUploadConfig.LengthFilters != null && FtpUploadConfig.LengthFilters.Count != 0)
+            {
+                localFiles = localFiles.Where(FileLengthFilter);
+            }
+
+            return localFiles.ToImmutableArray();
         }
 
-        private async Task UploadFileAsync(AsyncFtpClient ftpClient, string localFilePath, string remoteFilePath, CancellationToken cancellationToken)
+        private string[] EnumerateFiles(
+            string path,
+            string? searchPattern)
+        {
+            if (string.IsNullOrEmpty(searchPattern))
+            {
+                return [];
+            }
+            return Directory.GetFiles(path,
+                searchPattern,
+                new EnumerationOptions()
+                {
+                    MatchCasing = FtpUploadConfig.MatchCasing,
+                    RecurseSubdirectories = FtpUploadConfig.IncludeSubDirectories,
+                    MaxRecursionDepth = FtpUploadConfig.MaxRecursionDepth,
+                    MatchType = FtpUploadConfig.MatchType,
+                }
+                );
+        }
+
+        private bool FileLengthFilter(string path)
+        {
+            var fileInfo = new FileInfo(path);
+            var matchedCount = 0;
+            foreach (var fileLengthFilter in FtpUploadConfig.LengthFilters)
+            {
+                var value0 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[0]);
+                var value1 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[1]);
+                switch (fileLengthFilter.Operator)
+                {
+                    case CompareOperators.LessThan:
+                        if (fileInfo.Length < value0)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.GreatThan:
+                        if (fileInfo.Length > value0)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.LessThanEqual:
+                        if (fileInfo.Length <= value0)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.GreatThanEqual:
+                        if (fileInfo.Length >= value0)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.Equals:
+                        if (fileInfo.Length == value0)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.WithinRange:
+                        if (fileInfo.Length >= value0 && fileInfo.Length <= value1)
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    case CompareOperators.OutOfRange:
+                        if (!(fileInfo.Length >= value0 && fileInfo.Length <= value1))
+                        {
+                            matchedCount++;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return matchedCount > 0;
+
+            static long CalcuateLength(FileLengthUnit fileLengthUnit, double value)
+            {
+                var length = fileLengthUnit switch
+                {
+                    FileLengthUnit.Byte => value,
+                    FileLengthUnit.KB => value * 1024,
+                    FileLengthUnit.MB => value * 1024 * 1024,
+                    FileLengthUnit.GB => value * 1024 * 1024 * 1024,
+                    FileLengthUnit.PB => value * 1024 * 1024 * 1024 * 1024,
+                    _ => throw new NotImplementedException(),
+                };
+                return (long)length;
+            }
+        }
+
+        private bool DateTimeFilter(string path)
+        {
+            bool isMatched = false;
+            var lastWriteTime = File.GetLastWriteTime(path);
+            var creationTime = File.GetCreationTime(path);
+            foreach (var dateTimeFilter in FtpUploadConfig.DateTimeFilters)
+            {
+                switch (dateTimeFilter.Operator)
+                {
+                    case CompareOperators.LessThan:
+                        isMatched = lastWriteTime < dateTimeFilter.Values[0];
+                        break;
+                    case CompareOperators.LessThanEqual:
+                        isMatched = lastWriteTime <= dateTimeFilter.Values[0];
+                        break;
+                    case CompareOperators.GreatThan:
+                        isMatched = lastWriteTime > dateTimeFilter.Values[0];
+                        break;
+                    case CompareOperators.GreatThanEqual:
+                        isMatched = lastWriteTime >= dateTimeFilter.Values[0];
+                        break;
+                    case CompareOperators.Equals:
+                        isMatched = lastWriteTime == dateTimeFilter.Values[0];
+                        break;
+                    case CompareOperators.WithinRange:
+                        isMatched = lastWriteTime >= dateTimeFilter.Values[0] && lastWriteTime <= dateTimeFilter.Values[1];
+                        break;
+                    case CompareOperators.OutOfRange:
+                        isMatched = lastWriteTime <= dateTimeFilter.Values[0] && lastWriteTime >= dateTimeFilter.Values[1];
+                        break;
+                    default:
+                        break;
+                }
+                if (isMatched)
+                {
+                    break;
+                }
+            }
+            return isMatched;
+        }
+
+        private bool IsSearchPatternFilter(StringEntry entry)
+        {
+            return Enum.TryParse(
+                entry.Name,
+                true,
+                out FilePathFilter pathFilter) && pathFilter == Infrastructure.DataModels.FilePathFilter.SearchPattern;
+        }
+
+        private async Task UploadFileAsync(
+            AsyncFtpClient ftpClient,
+            string localFilePath,
+            string remoteFilePath,
+            CancellationToken cancellationToken)
         {
             FtpStatus ftpStatus = FtpStatus.Failed;
             int retryTimes = 0;
@@ -132,7 +334,7 @@ namespace NodeService.ServiceHost.Tasks
                 retryTimes++;
                 if (ftpStatus == FtpStatus.Failed)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
 
             } while (!cancellationToken.IsCancellationRequested
@@ -148,7 +350,7 @@ namespace NodeService.ServiceHost.Tasks
 
             if (ftpStatus == FtpStatus.Success)
             {
-                uploadedCount++;
+                _uploadedCount++;
                 _logger.LogInformation($"Upload:LocalPath:{localFilePath} RemotePath:{remoteFilePath}");
                 var lastWriteTime = File.GetLastWriteTime(localFilePath);
                 await ftpClient.SetModifiedTime(remoteFilePath, lastWriteTime, cancellationToken);
@@ -156,7 +358,7 @@ namespace NodeService.ServiceHost.Tasks
             }
             else if (ftpStatus == FtpStatus.Skipped)
             {
-                skippedCount++;
+                _skippedCount++;
                 _logger.LogInformation($"Skip:LocalPath:{localFilePath},RemotePath:{remoteFilePath}");
             }
         }
@@ -175,7 +377,7 @@ namespace NodeService.ServiceHost.Tasks
             _logger.LogInformation("Enumerate Ftp objects End");
         }
 
-        private void PrintLocalFiles(string[] localFiles)
+        private void PrintLocalFiles(IEnumerable<string> localFiles)
         {
             if (!FtpUploadConfig.PrintLocalFiles)
             {
@@ -216,16 +418,16 @@ namespace NodeService.ServiceHost.Tasks
                         cancellationToken);
                     return ftpStatus;
                 }
+
                 if (FtpUploadConfig.CleanupRemoteDirectory
                     || FtpUploadConfig.FileExistsTime <= 0
-                    || !_remoteFileListDict.TryGetValue(remoteFilePath, out var ftpListItem)
-                    || !DiffFileInfo(localFilePath, ftpListItem))
+                    || (_remoteFileListDict.TryGetValue(remoteFilePath, out var ftpListItem) && !DiffFileInfo(localFilePath, ftpListItem)))
                 {
                     ftpRemoteExists = FtpRemoteExists.Skip;
                 }
                 ftpStatus = await ftpClient.UploadFile(localFilePath,
                      remoteFilePath,
-                    ftpRemoteExists,
+                     ftpRemoteExists,
                      true,
                      FtpVerify.None,
                      _progress, token: cancellationToken);
@@ -233,7 +435,7 @@ namespace NodeService.ServiceHost.Tasks
                 {
                     if (ftpRemoteExists == FtpRemoteExists.Overwrite)
                     {
-                        overidedCount++;
+                        _overidedCount++;
                     }
                 }
 
@@ -300,6 +502,10 @@ namespace NodeService.ServiceHost.Tasks
 
         private bool DiffFileInfo(string localFilePath, FtpListItem remoteFileInfo)
         {
+            if (remoteFileInfo == null)
+            {
+                return true;
+            }
             var localFileInfo = new FileInfo(localFilePath);
             if (!localFileInfo.Exists)
             {
@@ -325,16 +531,16 @@ namespace NodeService.ServiceHost.Tasks
 
             switch (FtpUploadConfig.FileExistsTimeUnit)
             {
-                case FileExistsTimeUnit.Seconds:
+                case FileTimeUnit.Seconds:
                     timeSpan = TimeSpan.FromSeconds(FtpUploadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Minutes:
+                case FileTimeUnit.Minutes:
                     timeSpan = TimeSpan.FromMinutes(FtpUploadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Hours:
+                case FileTimeUnit.Hours:
                     timeSpan = TimeSpan.FromHours(FtpUploadConfig.FileExistsTime);
                     break;
-                case FileExistsTimeUnit.Days:
+                case FileTimeUnit.Days:
                     timeSpan = TimeSpan.FromDays(FtpUploadConfig.FileExistsTime);
                     break;
                 default:
@@ -342,11 +548,20 @@ namespace NodeService.ServiceHost.Tasks
             }
             switch (FtpUploadConfig.FileExistsTimeRange)
             {
-                case FileExistsTimeRange.WithinRange:
+                case CompareOperators.LessThan:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) < (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.GreatThan:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.LessThanEqual:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) <= (int)timeSpan.TotalSeconds;
                     break;
-                case FileExistsTimeRange.OutOfRange:
-                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > (int)timeSpan.TotalSeconds;
+                case CompareOperators.GreatThanEqual:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) >= (int)timeSpan.TotalSeconds;
+                    break;
+                case CompareOperators.Equals:
+                    compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) == (int)timeSpan.TotalSeconds;
                     break;
                 default:
                     break;
@@ -354,15 +569,22 @@ namespace NodeService.ServiceHost.Tasks
             return compareDateTime;
         }
 
-        private static string CaculateRemoteFilePath(string remoteRootDir, string rootPath, string? localFilePath)
+        IEnumerable<KeyValuePair<string, string>> CalculateDirectoryRemoteFilePath(IGrouping<string?, string> filePathDirectoryGroup)
         {
-            var parentDirectory = Path.GetDirectoryName(localFilePath);
-            var relativePath = Path.GetRelativePath(rootPath, parentDirectory);
-            var fileName = Path.GetFileName(localFilePath);
-            var remoteFilePath = Path.Combine(remoteRootDir, relativePath, fileName);
-            remoteFilePath = remoteFilePath.Replace("\\", "/");
-            remoteFilePath = remoteFilePath.Replace("/./", "/");
-            return remoteFilePath;
+            if (filePathDirectoryGroup == null || filePathDirectoryGroup.Key == null)
+            {
+                yield break;
+            }
+            var relativePath = Path.GetRelativePath(FtpUploadConfig.LocalDirectory, filePathDirectoryGroup.Key);
+            foreach (var localFilePath in filePathDirectoryGroup)
+            {
+                var fileName = Path.GetFileName(localFilePath);
+                var remoteFilePath = Path.Combine(FtpUploadConfig.RemoteDirectory, relativePath, fileName);
+                remoteFilePath = remoteFilePath.Replace("\\", "/");
+                remoteFilePath = remoteFilePath.Replace("/./", "/");
+                yield return KeyValuePair.Create(localFilePath, remoteFilePath);
+            }
+            yield break;
         }
 
     }

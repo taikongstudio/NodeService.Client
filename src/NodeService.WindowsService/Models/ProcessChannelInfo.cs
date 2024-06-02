@@ -1,12 +1,7 @@
 ﻿using NodeService.Infrastructure.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
-namespace NodeService.WindowsService.Models
+namespace NodeService.ServiceHost.Models
 {
     public class ProcessChannelInfo
     {

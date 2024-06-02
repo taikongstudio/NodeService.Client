@@ -22,11 +22,12 @@ namespace NodeService.ServiceHost.Tasks
         public override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             FtpUploadJobOptions ftpUploadJobOptions = new FtpUploadJobOptions();
-            await ftpUploadJobOptions.InitAsync(JobScheduleConfig, ApiService);
+            await ftpUploadJobOptions.InitAsync(TaskScheduleConfig, ApiService);
+            var nodeId = _nodeIdentityProvider.GetIdentity();
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {
+                Logger.LogInformation($"Start executing {ftpUploadConfig.Name}");
                 FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
-                var nodeId = _nodeIdentityProvider.GetIdentity();
                 var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
                 if (rsp.ErrorCode == 0 && rsp.Result != null)
                 {
@@ -38,6 +39,7 @@ namespace NodeService.ServiceHost.Tasks
                     }
                 }
                 await ftpTaskExecutor.ExecuteAsync(stoppingToken);
+                Logger.LogInformation($"Finish executing {ftpUploadConfig.Name} Completed");
             }
         }
 

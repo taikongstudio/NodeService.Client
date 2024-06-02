@@ -12,7 +12,7 @@
 
         public string Description { get; set; }
 
-        public string Arguments {  get; set; }
+        public string Arguments { get; set; }
 
         public int DurationMinutes { get; set; }
     }

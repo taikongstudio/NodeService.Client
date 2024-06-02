@@ -1,9 +1,4 @@
-﻿
-
-
-using Microsoft.Win32.TaskScheduler;
-
-namespace NodeService.ServiceProcess
+﻿namespace NodeService.ServiceProcess
 {
     public class ServiceProcessProtectService : BackgroundService
     {

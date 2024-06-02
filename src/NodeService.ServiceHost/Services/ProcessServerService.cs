@@ -1,10 +1,5 @@
 ﻿using NodeService.ServiceHost.Models;
-using System;
-using System.Collections.Generic;
 using System.IO.Pipes;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NodeService.ServiceHost.Services
 {
@@ -94,7 +89,7 @@ namespace NodeService.ServiceHost.Services
 
         }
 
-        private async Task WriteCommandResponse(Stream  stream,
+        private async Task WriteCommandResponse(Stream stream,
     ProcessCommandResponse rsp,
     CancellationToken cancellationToken = default)
         {
@@ -110,7 +105,7 @@ namespace NodeService.ServiceHost.Services
         }
 
         private async Task<ProcessCommandRequest> ReadCommandRequest(
-            Stream  stream,
+            Stream stream,
             CancellationToken cancellationToken = default)
         {
             using var streamReader = new StreamReader(stream, leaveOpen: true);
