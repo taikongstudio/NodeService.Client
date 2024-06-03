@@ -3,19 +3,17 @@
     public partial class NodeClientService
     {
 
-        private Task ProcessConfigurationChangedReportAsync(
+        private async Task ProcessConfigurationChangedReportAsync(
             NodeServiceClient client,
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken)
         {
-
-            var changedReport = subscribeEvent.ConfigurationChangedReport;
-            foreach (var item in changedReport.Configurations)
+            foreach (var kv in subscribeEvent.ConfigurationChangedReport.Configurations)
             {
                 try
                 {
-                    var id = item.Key;
-                    ProcessConfigurationChangedEvent(item.Value);
+                    var id = kv.Key;
+                    ProcessConfigurationChangedEvent(kv.Value);
                 }
                 catch (Exception ex)
                 {
@@ -23,7 +21,6 @@
                 }
 
             }
-            return Task.CompletedTask;
         }
 
         private void ProcessConfigurationChangedEvent(string value)

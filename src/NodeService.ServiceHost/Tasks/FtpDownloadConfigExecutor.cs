@@ -263,19 +263,19 @@ namespace NodeService.ServiceHost.Tasks
             }
             switch (FtpDownloadConfig.FileExistsTimeRange)
             {
-                case CompareOperators.LessThan:
+                case CompareOperator.LessThan:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) < (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.GreatThan:
+                case CompareOperator.GreatThan:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.LessThanEqual:
+                case CompareOperator.LessThanEqual:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) <= (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.GreatThanEqual:
+                case CompareOperator.GreatThanEqual:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) >= (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.Equals:
+                case CompareOperator.Equals:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) == (int)timeSpan.TotalSeconds;
                     break;
                 default:

@@ -10,7 +10,7 @@
             SourceStream = stream;
         }
 
-        public bool IsClosed { get; private set; }
+        public bool IsDisposed { get; private set; }
 
         public override bool CanRead => SourceStream.CanRead;
 
@@ -25,7 +25,6 @@
         private void SetPosition(long position)
         {
             SourceStream.Position = position;
-
         }
 
         public override void Flush()
@@ -55,7 +54,7 @@
 
         public override void Close()
         {
-            IsClosed = true;
+            IsDisposed = true;
             SourceStream.Close();
             base.Close();
         }

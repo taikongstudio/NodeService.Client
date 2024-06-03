@@ -17,38 +17,11 @@ namespace NodeService.ServiceHost.Services
 
             public required FileSystemBulkOperationReport Report { get; set; }
 
-            public ApiResponse<UploadFileResult>? Result { get; set; }
-
             public required NodeServiceClient Client { get; set; }
 
             public required List<FileUploadInfo> FileUploadList { get; set; }
 
             public Exception? Exception { get; set; }
-
-            public async Task SendResultReportAsync()
-            {
-                if (Result != null)
-                {
-                    if (Result.ErrorCode == 0)
-                    {
-                        if (Result.Result != null
-                        &&
-                        Result.Result.UploadedFiles != null)
-                        {
-                            foreach (var item in FileUploadList)
-                            {
-                                var uploadedFile = Result.Result.UploadedFiles.FirstOrDefault(x => x.FileId == item.FileId);
-                                if (uploadedFile != null)
-                                {
-                                    item.Progress.Properties.Add("DownloadUrl", uploadedFile.DownloadUrl);
-                                }
-                            }
-                            await Client.SendFileSystemBulkOperationReportAsync(Report);
-                            Status = FileSystemOperationState.Finished;
-                        }
-                    }
-                }
-            }
 
             public async Task SendExceptionReportAsync()
             {
@@ -115,14 +88,11 @@ namespace NodeService.ServiceHost.Services
                         HResult = result.ErrorCode,
                     };
                 }
-                op.Result = result;
-                await op.SendResultReportAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
                 op.Exception = ex;
-                await op.SendExceptionReportAsync();
             }
             finally
             {
@@ -152,9 +122,9 @@ namespace NodeService.ServiceHost.Services
                 case FileSystemOperation.Open:
                     await client.SendFileSystemBulkOperationResponseAsync(new FileSystemBulkOperationResponse()
                     {
+                        RequestId = subscribeEvent.FileSystemBulkOperationRequest.RequestId,
                         ErrorCode = 0,
                         Message = string.Empty,
-                        RequestId = subscribeEvent.FileSystemBulkOperationRequest.RequestId,
                     }, _headers, null, cancellationToken);
                     await ProcessFileSystemOpenRequestAsync(client, subscribeEvent);
                     break;
@@ -169,6 +139,7 @@ namespace NodeService.ServiceHost.Services
             CancellationToken cancellationToken = default)
         {
             var requestUri = subscribeEvent.FileSystemBulkOperationRequest.Headers["RequestUri"];
+            var ftpConfigId = subscribeEvent.FileSystemBulkOperationRequest.Headers["FtpConfigId"];
 
             var bulkUploadFileOperation = new BulkUploadFileOperation()
             {
@@ -200,12 +171,23 @@ namespace NodeService.ServiceHost.Services
                         State = FileSystemOperationState.NotStarted,
                     }
                 };
+                bulkUploadFileOperation.FileUploadList.Add(fileUploadInfo);
+                bulkUploadFileOperation.Report.Progresses.Add(fileUploadInfo.Progress);
+                if (!File.Exists(path))
+                {
+                    fileUploadInfo.Progress.State = FileSystemOperationState.Failed;
+                    fileUploadInfo.Progress.Message = "File not found";
+                    continue;
+                }
+
                 try
                 {
-                    ObservableStream observableStream = new(File.OpenRead(path));
+                    ObservableStream observableStream = new(File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
                     var fileContent = new StreamContent(observableStream);
                     fileContent.Headers.Add("FileId", fileUploadInfo.FileId);
-                    bulkUploadFileOperation.MultipartFormDataContent.Add(fileContent, "files", path);
+                    fileContent.Headers.Add("SourcePath", path);
+                    fileContent.Headers.Add("FtpConfigId", ftpConfigId);
+                    bulkUploadFileOperation.MultipartFormDataContent.Add(fileContent, "Files", path);
                     fileUploadInfo.Stream = observableStream;
                 }
                 catch (Exception ex)
@@ -214,8 +196,7 @@ namespace NodeService.ServiceHost.Services
                 }
 
 
-                bulkUploadFileOperation.FileUploadList.Add(fileUploadInfo);
-                bulkUploadFileOperation.Report.Progresses.Add(fileUploadInfo.Progress);
+
             }
 
 
@@ -232,7 +213,7 @@ namespace NodeService.ServiceHost.Services
                 int completedCount = 0;
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(1000, cancellationToken);
                     if (completedCount == bulkUploadFileOperation.FileUploadList.Count)
                     {
                         break;
@@ -247,25 +228,12 @@ namespace NodeService.ServiceHost.Services
                         }
                         if (fileUploadInfo.Exception == null)
                         {
-                            if (bulkUploadFileOperation.Status == FileSystemOperationState.Finished)
-                            {
-                                continue;
-                            }
-                            if (fileUploadInfo.Stream == null)
-                            {
-                                continue;
-                            }
-                            if (fileUploadInfo.Stream.IsClosed)
-                            {
-                                continue;
-                            }
                             fileUploadInfo.Progress.State =
                                 fileUploadInfo.Stream.Position == fileUploadInfo.Stream.Length ? FileSystemOperationState.Finished : FileSystemOperationState.Running;
                             fileUploadInfo.Progress.Progress = fileUploadInfo.Stream.Position / (fileUploadInfo.Stream.Length + 0d);
                             if (fileUploadInfo.Progress.State == FileSystemOperationState.Finished)
                             {
-                                fileUploadInfo.Progress.IsCompleted = true;
-                                fileUploadInfo.Progress.Message = "完成";
+                                fileUploadInfo.Progress.Message = "Completed";
                             }
                         }
                         else
@@ -274,11 +242,14 @@ namespace NodeService.ServiceHost.Services
                             fileUploadInfo.Progress.State = FileSystemOperationState.Failed;
                             fileUploadInfo.Progress.ErrorCode = fileUploadInfo.Exception.HResult;
                             fileUploadInfo.Progress.Message = fileUploadInfo.Exception.Message;
-                            fileUploadInfo.Progress.IsCompleted = true;
                         }
                     }
                     _logger.LogInformation(bulkUploadFileOperation.Report.ToString());
-                    await client.SendFileSystemBulkOperationReportAsync(bulkUploadFileOperation.Report, null, null, cancellationToken);
+                    await client.SendFileSystemBulkOperationReportAsync(
+                        bulkUploadFileOperation.Report,
+                        _headers,
+                        null,
+                        cancellationToken);
                 }
             }
             catch (Exception ex)
@@ -329,7 +300,7 @@ namespace NodeService.ServiceHost.Services
                 RootDirectory = x.RootDirectory.FullName,
                 VolumeLabel = x.VolumeLabel
             }));
-            await client.SendFileSystemListDriveResponseAsync(fileSystemListDriveRsp, null, null, cancellationToken);
+            await client.SendFileSystemListDriveResponseAsync(fileSystemListDriveRsp, _headers, null, cancellationToken);
         }
 
         private async Task ProcessFileSystemListDirectoryRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
@@ -358,7 +329,7 @@ namespace NodeService.ServiceHost.Services
                 fileSystemListDirectoryRsp.Message = ex.Message;
             }
 
-            await client.SendFileSystemListDirectoryResponseAsync(fileSystemListDirectoryRsp, null, null, cancellationToken);
+            await client.SendFileSystemListDirectoryResponseAsync(fileSystemListDirectoryRsp, _headers, null, cancellationToken);
         }
 
     }

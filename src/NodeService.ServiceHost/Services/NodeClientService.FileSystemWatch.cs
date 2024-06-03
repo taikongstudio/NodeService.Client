@@ -110,17 +110,36 @@ namespace NodeService.ServiceHost.Services
             };
             try
             {
-                var fileInfo = new FileInfo(fullPath);
-                var objectInfo = new VirtualFileSystemObjectInfo()
+
+                if (Directory.Exists(fullPath))
                 {
-                    CreationTime = fileInfo.CreationTime,
-                    FullName = fileInfo.FullName,
-                    LastWriteTime = fileInfo.LastWriteTime,
-                    Length = fileInfo.Length,
-                    Name = fileInfo.Name,
-                    Type = VirtualFileSystemObjectType.File,
-                };
-                eventInfo.Properties.Add("FileInfo", JsonSerializer.Serialize(objectInfo));
+                    var directoryInfo = new DirectoryInfo(fullPath);
+                    var objectInfo = new VirtualFileSystemObjectInfo()
+                    {
+                        CreationTime = directoryInfo.CreationTime,
+                        FullName = directoryInfo.FullName,
+                        LastWriteTime = directoryInfo.LastWriteTime,
+                        Length = 0,
+                        Name = directoryInfo.Name,
+                        Type = VirtualFileSystemObjectType.File,
+                    };
+                    eventInfo.Properties.Add("DirectoryInfo", JsonSerializer.Serialize(objectInfo));
+                }
+                else if (File.Exists(fullPath))
+                {
+                    var fileInfo = new FileInfo(fullPath);
+                    var objectInfo = new VirtualFileSystemObjectInfo()
+                    {
+                        CreationTime = fileInfo.CreationTime,
+                        FullName = fileInfo.FullName,
+                        LastWriteTime = fileInfo.LastWriteTime,
+                        Length = fileInfo.Length,
+                        Name = fileInfo.Name,
+                        Type = VirtualFileSystemObjectType.File,
+                    };
+                    eventInfo.Properties.Add("FileInfo", JsonSerializer.Serialize(objectInfo));
+                }
+
             }
             catch (Exception ex)
             {
@@ -173,10 +192,6 @@ namespace NodeService.ServiceHost.Services
             {
                 return;
             }
-            if (Directory.Exists(e.FullPath))
-            {
-                return;
-            }
             _fileSystemWatchEventQueue.TryWrite(new FileSystemWatchEventReport()
             {
                 ConfigurationId = configId,
@@ -194,10 +209,6 @@ namespace NodeService.ServiceHost.Services
         private void FileSystemWatcher_Deleted(object sender, FileSystemEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
-            {
-                return;
-            }
-            if (Directory.Exists(e.FullPath))
             {
                 return;
             }

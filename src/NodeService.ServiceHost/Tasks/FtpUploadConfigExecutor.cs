@@ -145,20 +145,41 @@ namespace NodeService.ServiceHost.Tasks
                                      where item.StartsWith(filter.Value)
                                      select item;
                         break;
+                    case FilePathFilter.NotStartWith:
+                        localFiles = from item in localFiles
+                                     where !item.StartsWith(filter.Value)
+                                     select item;
+                        break;
                     case FilePathFilter.EndsWith:
                         localFiles = from item in localFiles
                                      where item.EndsWith(filter.Value)
                                      select item;
                         break;
-                    case FilePathFilter.RegExp:
-                        var regex = new Regex(filter.Value);
+                    case FilePathFilter.NotEndsWith:
                         localFiles = from item in localFiles
-                                     where regex.IsMatch(item)
+                                     where !item.EndsWith(filter.Value)
                                      select item;
+                        break;
+                    case FilePathFilter.RegExp:
+                        {
+                            var regex = new Regex(filter.Value);
+                            localFiles = from item in localFiles
+                                         where regex.IsMatch(item)
+                                         select item;
+                        }
+
+                        break;
+                    case FilePathFilter.RegExpNotMatch:
+                        {
+                            var regex = new Regex(filter.Value);
+                            localFiles = from item in localFiles
+                                         where !regex.IsMatch(item)
+                                         select item;
+                        }
                         break;
                     case FilePathFilter.SearchPattern:
                         localFiles = localFiles.GroupBy(Path.GetDirectoryName)
-                                               .SelectMany(x => EnumerateFiles(x.Key, filter.Value));
+                                               .SelectMany(x => EnumerateFiles(x.Key, filter.Value)).Distinct();
                         break;
                     default:
                         break;
@@ -208,43 +229,43 @@ namespace NodeService.ServiceHost.Tasks
                 var value1 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[1]);
                 switch (fileLengthFilter.Operator)
                 {
-                    case CompareOperators.LessThan:
+                    case CompareOperator.LessThan:
                         if (fileInfo.Length < value0)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.GreatThan:
+                    case CompareOperator.GreatThan:
                         if (fileInfo.Length > value0)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.LessThanEqual:
+                    case CompareOperator.LessThanEqual:
                         if (fileInfo.Length <= value0)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.GreatThanEqual:
+                    case CompareOperator.GreatThanEqual:
                         if (fileInfo.Length >= value0)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.Equals:
+                    case CompareOperator.Equals:
                         if (fileInfo.Length == value0)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.WithinRange:
+                    case CompareOperator.WithinRange:
                         if (fileInfo.Length >= value0 && fileInfo.Length <= value1)
                         {
                             matchedCount++;
                         }
                         break;
-                    case CompareOperators.OutOfRange:
+                    case CompareOperator.OutOfRange:
                         if (!(fileInfo.Length >= value0 && fileInfo.Length <= value1))
                         {
                             matchedCount++;
@@ -256,15 +277,15 @@ namespace NodeService.ServiceHost.Tasks
             }
             return matchedCount > 0;
 
-            static long CalcuateLength(FileLengthUnit fileLengthUnit, double value)
+            static long CalcuateLength(BinaryLengthUnit binaryLengthUnit, double value)
             {
-                var length = fileLengthUnit switch
+                var length = binaryLengthUnit switch
                 {
-                    FileLengthUnit.Byte => value,
-                    FileLengthUnit.KB => value * 1024,
-                    FileLengthUnit.MB => value * 1024 * 1024,
-                    FileLengthUnit.GB => value * 1024 * 1024 * 1024,
-                    FileLengthUnit.PB => value * 1024 * 1024 * 1024 * 1024,
+                    BinaryLengthUnit.Byte => value,
+                    BinaryLengthUnit.KB => value * 1024,
+                    BinaryLengthUnit.MB => value * 1024 * 1024,
+                    BinaryLengthUnit.GB => value * 1024 * 1024 * 1024,
+                    BinaryLengthUnit.PB => value * 1024 * 1024 * 1024 * 1024,
                     _ => throw new NotImplementedException(),
                 };
                 return (long)length;
@@ -278,32 +299,24 @@ namespace NodeService.ServiceHost.Tasks
             var creationTime = File.GetCreationTime(path);
             foreach (var dateTimeFilter in FtpUploadConfig.DateTimeFilters)
             {
-                switch (dateTimeFilter.Operator)
+                switch (dateTimeFilter.Kind)
                 {
-                    case CompareOperators.LessThan:
-                        isMatched = lastWriteTime < dateTimeFilter.Values[0];
+                    case DateTimeFilterKind.DateTime:
+                        isMatched = dateTimeFilter.IsMatched(lastWriteTime);
                         break;
-                    case CompareOperators.LessThanEqual:
-                        isMatched = lastWriteTime <= dateTimeFilter.Values[0];
+                    case DateTimeFilterKind.TimeOnly:
+                        isMatched = dateTimeFilter.IsMatched(TimeOnly.FromDateTime(lastWriteTime));
                         break;
-                    case CompareOperators.GreatThan:
-                        isMatched = lastWriteTime > dateTimeFilter.Values[0];
-                        break;
-                    case CompareOperators.GreatThanEqual:
-                        isMatched = lastWriteTime >= dateTimeFilter.Values[0];
-                        break;
-                    case CompareOperators.Equals:
-                        isMatched = lastWriteTime == dateTimeFilter.Values[0];
-                        break;
-                    case CompareOperators.WithinRange:
-                        isMatched = lastWriteTime >= dateTimeFilter.Values[0] && lastWriteTime <= dateTimeFilter.Values[1];
-                        break;
-                    case CompareOperators.OutOfRange:
-                        isMatched = lastWriteTime <= dateTimeFilter.Values[0] && lastWriteTime >= dateTimeFilter.Values[1];
+                    case DateTimeFilterKind.Days:
+                    case DateTimeFilterKind.Hours:
+                    case DateTimeFilterKind.Minutes:
+                    case DateTimeFilterKind.Seconds:
+                        isMatched = dateTimeFilter.IsMatched(DateTime.Now - lastWriteTime);
                         break;
                     default:
                         break;
                 }
+
                 if (isMatched)
                 {
                     break;
@@ -330,7 +343,11 @@ namespace NodeService.ServiceHost.Tasks
             int retryTimes = 0;
             do
             {
-                ftpStatus = await UploadFileCoreAsync(ftpClient, localFilePath, remoteFilePath, cancellationToken);
+                ftpStatus = await UploadFileCoreAsync(
+                    ftpClient,
+                    localFilePath,
+                    remoteFilePath,
+                    cancellationToken);
                 retryTimes++;
                 if (ftpStatus == FtpStatus.Failed)
                 {
@@ -421,7 +438,13 @@ namespace NodeService.ServiceHost.Tasks
 
                 if (FtpUploadConfig.CleanupRemoteDirectory
                     || FtpUploadConfig.FileExistsTime <= 0
-                    || (_remoteFileListDict.TryGetValue(remoteFilePath, out var ftpListItem) && !DiffFileInfo(localFilePath, ftpListItem)))
+                    || (_remoteFileListDict.TryGetValue(
+                    remoteFilePath,
+                    out var ftpListItem) 
+                    &&
+                    !DiffFileInfo(
+                    localFilePath,
+                    ftpListItem)))
                 {
                     ftpRemoteExists = FtpRemoteExists.Skip;
                 }
@@ -548,19 +571,19 @@ namespace NodeService.ServiceHost.Tasks
             }
             switch (FtpUploadConfig.FileExistsTimeRange)
             {
-                case CompareOperators.LessThan:
+                case CompareOperator.LessThan:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) < (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.GreatThan:
+                case CompareOperator.GreatThan:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) > (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.LessThanEqual:
+                case CompareOperator.LessThanEqual:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) <= (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.GreatThanEqual:
+                case CompareOperator.GreatThanEqual:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) >= (int)timeSpan.TotalSeconds;
                     break;
-                case CompareOperators.Equals:
+                case CompareOperator.Equals:
                     compareDateTime = Math.Abs((int)(remoteFileInfo.Modified - lastWriteTime).TotalSeconds) == (int)timeSpan.TotalSeconds;
                     break;
                 default:

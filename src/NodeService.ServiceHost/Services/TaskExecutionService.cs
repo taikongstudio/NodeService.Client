@@ -75,6 +75,7 @@ namespace NodeService.ServiceHost.Services
                 {
                     await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Running, "Running");
                     task.SetTaskScheduleConfig(_taskExecutionContext.Parameters.TaskScheduleConfig);
+                    task.SetEnvironmentVariables(_taskExecutionContext.Parameters.EnvironmentVariables);
                     await task.ExecuteAsync(_taskExecutionContext.CancellationToken);
                     result = true;
                 }

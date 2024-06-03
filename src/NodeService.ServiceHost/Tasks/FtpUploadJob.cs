@@ -14,12 +14,7 @@ namespace NodeService.ServiceHost.Tasks
             _nodeIdentityProvider = nodeIdentityProvider;
         }
 
-        private void ProcessFtpProgress(FtpProgress progress)
-        {
-
-        }
-
-        public override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public override async Task ExecuteAsync(CancellationToken stoppingToken = default)
         {
             FtpUploadJobOptions ftpUploadJobOptions = new FtpUploadJobOptions();
             await ftpUploadJobOptions.InitAsync(TaskScheduleConfig, ApiService);
@@ -28,18 +23,45 @@ namespace NodeService.ServiceHost.Tasks
             {
                 Logger.LogInformation($"Start executing {ftpUploadConfig.Name}");
                 FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
-                var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
-                if (rsp.ErrorCode == 0 && rsp.Result != null)
-                {
-                    foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
-                    {
-                        ftpUploadConfig.LocalDirectory = ftpUploadConfig.LocalDirectory.Replace($"$({envVar.Name})", envVar.Value);
-                        ftpUploadConfig.RemoteDirectory = ftpUploadConfig.RemoteDirectory.Replace($"$({envVar.Name})", envVar.Value);
-                        ftpUploadConfig.SearchPattern = ftpUploadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
-                    }
-                }
+                await ApplyNodeEnvVarsAsync(nodeId, ftpUploadConfig, stoppingToken);
+                ApplyTaskEnvVars(ftpUploadConfig);
                 await ftpTaskExecutor.ExecuteAsync(stoppingToken);
                 Logger.LogInformation($"Finish executing {ftpUploadConfig.Name} Completed");
+            }
+        }
+
+        private void ApplyTaskEnvVars(FtpUploadConfigModel ftpUploadConfig)
+        {
+            foreach (var envVar in EnvironmentVariables)
+            {
+                switch (envVar.Key)
+                {
+                    case nameof(FtpUploadConfigModel.LocalDirectory):
+                        ftpUploadConfig.LocalDirectory = envVar.Value;
+                        break;
+                    case nameof(FtpUploadConfigModel.RemoteDirectory):
+                        ftpUploadConfig.RemoteDirectory = envVar.Value;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        private async Task ApplyNodeEnvVarsAsync(
+            string nodeId,
+            FtpUploadConfigModel ftpUploadConfig,
+            CancellationToken stoppingToken = default)
+        {
+            var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
+            if (rsp.ErrorCode == 0 && rsp.Result != null)
+            {
+                foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
+                {
+                    ftpUploadConfig.LocalDirectory = ftpUploadConfig.LocalDirectory.Replace($"$({envVar.Name})", envVar.Value);
+                    ftpUploadConfig.RemoteDirectory = ftpUploadConfig.RemoteDirectory.Replace($"$({envVar.Name})", envVar.Value);
+                    ftpUploadConfig.SearchPattern = ftpUploadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
+                }
             }
         }
 
