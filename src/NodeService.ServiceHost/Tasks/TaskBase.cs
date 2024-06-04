@@ -10,12 +10,13 @@ namespace NodeService.ServiceHost.Tasks
 
         public ApiService ApiService { get; private set; }
 
-        public ImmutableArray<KeyValuePair<string, string?>> EnvironmentVariables { get; private set; } = [];
+        public ImmutableDictionary<string, string?> EnvironmentVariables { get; private set; }
 
         protected TaskBase(ApiService apiService, ILogger<TaskBase> logger)
         {
             ApiService = apiService;
             Logger = logger;
+            EnvironmentVariables = ImmutableDictionary<string, string?>.Empty;
         }
 
         public abstract Task ExecuteAsync(CancellationToken cancellationToken = default);
@@ -29,11 +30,11 @@ namespace NodeService.ServiceHost.Tasks
         {
             if (envVars == null)
             {
-                this.EnvironmentVariables = ImmutableArray<KeyValuePair<string, string?>>.Empty;
+                this.EnvironmentVariables = ImmutableDictionary<string, string?>.Empty;
             }
             else
             {
-                var builder = ImmutableArray.CreateBuilder<KeyValuePair<string, string?>>();
+                var builder = ImmutableDictionary.CreateBuilder<string, string?>();
                 foreach (var item in envVars)
                 {
                     if (string.IsNullOrEmpty(item.Name))
@@ -42,7 +43,7 @@ namespace NodeService.ServiceHost.Tasks
                     }
                     builder.Add(KeyValuePair.Create(item.Name, item.Value));
                 }
-                this.EnvironmentVariables = builder.ToImmutableArray();
+                this.EnvironmentVariables = builder.ToImmutable();
             }
 
         }

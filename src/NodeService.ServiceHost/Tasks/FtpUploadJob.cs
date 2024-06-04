@@ -22,29 +22,11 @@ namespace NodeService.ServiceHost.Tasks
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {
                 Logger.LogInformation($"Start executing {ftpUploadConfig.Name}");
-                FtpUploadConfigExecutor ftpTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
+                FtpUploadConfigExecutor ftpUploadTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
                 await ApplyNodeEnvVarsAsync(nodeId, ftpUploadConfig, stoppingToken);
-                ApplyTaskEnvVars(ftpUploadConfig);
-                await ftpTaskExecutor.ExecuteAsync(stoppingToken);
+                ftpUploadTaskExecutor.SetEnvironmentVariables(EnvironmentVariables);
+                await ftpUploadTaskExecutor.ExecuteAsync(stoppingToken);
                 Logger.LogInformation($"Finish executing {ftpUploadConfig.Name} Completed");
-            }
-        }
-
-        private void ApplyTaskEnvVars(FtpUploadConfigModel ftpUploadConfig)
-        {
-            foreach (var envVar in EnvironmentVariables)
-            {
-                switch (envVar.Key)
-                {
-                    case nameof(FtpUploadConfigModel.LocalDirectory):
-                        ftpUploadConfig.LocalDirectory = envVar.Value;
-                        break;
-                    case nameof(FtpUploadConfigModel.RemoteDirectory):
-                        ftpUploadConfig.RemoteDirectory = envVar.Value;
-                        break;
-                    default:
-                        break;
-                }
             }
         }
 

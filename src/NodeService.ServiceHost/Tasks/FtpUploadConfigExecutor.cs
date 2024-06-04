@@ -21,6 +21,13 @@ namespace NodeService.ServiceHost.Tasks
 
         public ILogger _logger { get; set; }
 
+
+        ImmutableDictionary<string, string?> _envVars;
+
+        string? _fileSystemWatchPath;
+        string? _fileSystemWatchRelativePath;
+        string? _fileSystemWatchEventLocalDirectory;
+
         public FtpUploadConfigExecutor(
             IProgress<FtpProgress> progress,
             FtpUploadConfigModel ftpTaskConfig,
@@ -30,6 +37,36 @@ namespace NodeService.ServiceHost.Tasks
             FtpUploadConfig = ftpTaskConfig;
             _logger = logger;
             _remoteFileListDict = new ConcurrentDictionary<string, FtpListItem>();
+        }
+
+        public void SetEnvironmentVariables(ImmutableDictionary<string, string?> envVars)
+        {
+            _envVars = envVars;
+            foreach (var envVar in envVars)
+            {
+                _logger.LogInformation($"\"{envVar.Key}\" => \"{envVar.Value}\"");
+            }
+            if (envVars.TryGetValue(nameof(FileSystemWatchConfiguration.Path), out var path))
+            {
+                _fileSystemWatchPath = path;
+            }
+            if (envVars.TryGetValue(nameof(FileSystemWatchConfiguration.RelativePath), out var relativePath))
+            {
+                _fileSystemWatchRelativePath = relativePath;
+            }
+            if (envVars.TryGetValue(nameof(FtpUploadConfiguration.LocalDirectory), out var localDirectory))
+            {
+                _fileSystemWatchEventLocalDirectory = localDirectory;
+            }
+        }
+
+        private string GetLocalDirectory()
+        {
+            if (_fileSystemWatchEventLocalDirectory != null)
+            {
+                return _fileSystemWatchEventLocalDirectory;
+            }
+            return FtpUploadConfig.LocalDirectory;
         }
 
         public async Task ExecuteAsync(CancellationToken cancellationToken = default)
@@ -51,7 +88,7 @@ namespace NodeService.ServiceHost.Tasks
             var hostName = Dns.GetHostName();
 
 
-            string rootPath = FtpUploadConfig.LocalDirectory;
+            string rootPath = GetLocalDirectory();
 
             if (!Directory.Exists(rootPath))
             {
@@ -89,7 +126,7 @@ namespace NodeService.ServiceHost.Tasks
                 FtpUploadConfig.RemoteDirectory = '/' + FtpUploadConfig.RemoteDirectory;
             }
 
-            var remoteFilePathList = localFilePathList.GroupBy(Path.GetDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
+            var remoteFilePathList = localFilePathList.GroupBy(GetPathDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
             foreach (var kv in remoteFilePathList)
             {
                 var ftpListItem = await ftpClient.GetObjectInfo(
@@ -116,7 +153,7 @@ namespace NodeService.ServiceHost.Tasks
 
         private IEnumerable<string> EnumerateLocalFiles()
         {
-            IEnumerable<string> localFiles = EnumerateFiles(FtpUploadConfig.LocalDirectory, "*");
+            IEnumerable<string> localFiles = EnumerateFiles(GetLocalDirectory(), "*");
             foreach (var filter in FtpUploadConfig.Filters)
             {
                 if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
@@ -178,7 +215,7 @@ namespace NodeService.ServiceHost.Tasks
                         }
                         break;
                     case FilePathFilter.SearchPattern:
-                        localFiles = localFiles.GroupBy(Path.GetDirectoryName)
+                        localFiles = localFiles.GroupBy(GetPathDirectoryName)
                                                .SelectMany(x => EnumerateFiles(x.Key, filter.Value)).Distinct();
                         break;
                     default:
@@ -608,6 +645,11 @@ namespace NodeService.ServiceHost.Tasks
                 yield return KeyValuePair.Create(localFilePath, remoteFilePath);
             }
             yield break;
+        }
+
+        string GetPathDirectoryName(string path)
+        {
+            return Path.GetDirectoryName(path) ?? path;
         }
 
     }

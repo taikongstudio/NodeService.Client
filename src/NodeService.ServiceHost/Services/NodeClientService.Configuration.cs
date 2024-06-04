@@ -1,4 +1,8 @@
-﻿namespace NodeService.ServiceHost.Services
+﻿using Confluent.Kafka;
+using NodeService.Infrastructure.Models;
+using System.Configuration;
+
+namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService
     {
@@ -10,22 +14,32 @@
         {
             foreach (var kv in subscribeEvent.ConfigurationChangedReport.Configurations)
             {
+                var eventReport = new FileSystemWatchEventReport()
+                {
+                    RequestId = subscribeEvent.RequestId,
+                };
                 try
                 {
-                    var id = kv.Key;
+                    var key = kv.Key;
+                    var segments = key.Split("_", StringSplitOptions.RemoveEmptyEntries);
+                    eventReport.ConfigurationId = segments[1];
                     ProcessConfigurationChangedEvent(kv.Value);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
+                    eventReport.Error = new ExceptionInfo();
+                    eventReport.Error.ErrorCode = ex.HResult;
+                    eventReport.Error.Message = ex.Message;
+                    eventReport.Error.StackTrace = ex.StackTrace;
                 }
-
+                await _fileSystemWatchEventQueue.EnqueueAsync(eventReport);
             }
         }
 
-        private void ProcessConfigurationChangedEvent(string value)
+        private void ProcessConfigurationChangedEvent(string json)
         {
-            var changedEvent = JsonSerializer.Deserialize<ConfigurationChangedEvent>(value);
+            var changedEvent = JsonSerializer.Deserialize<ConfigurationChangedEvent>(json);
             if (changedEvent == null)
             {
                 return;

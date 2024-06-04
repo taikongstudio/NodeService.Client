@@ -26,6 +26,7 @@ namespace NodeService.ServiceHost.Services
             {
                 return;
             }
+            _logger.LogInformation($"Delete {nameof(FileSystemWatcher)} {config.Id}");
             info.Watcher.EnableRaisingEvents = false;
             DetachFileSystemWatcherEvents(info.Watcher);
             info.Watcher.Dispose();
@@ -41,6 +42,7 @@ namespace NodeService.ServiceHost.Services
 
         private FileSystemWatcherInfo AddFileSystemWatcherInfo(FileSystemWatchConfigModel config)
         {
+            _logger.LogInformation($"Add {nameof(FileSystemWatcher)} {config.Id}");
             FileSystemWatcherInfo fileSystemWatcherInfo = new FileSystemWatcherInfo();
             fileSystemWatcherInfo.Watcher = new FileSystemWatcher();
             fileSystemWatcherInfo.Configuration = config;
@@ -54,9 +56,10 @@ namespace NodeService.ServiceHost.Services
             FileSystemWatcherInfo info,
             FileSystemWatchConfigModel config)
         {
+            _logger.LogInformation($"Update {nameof(FileSystemWatcher)} {config.Id}");
             var watcher = info.Watcher;
             watcher.EnableRaisingEvents = false;
-            watcher.Path = config.Path;
+            watcher.Path = Path.Combine(config.Path, config.RelativePath ?? string.Empty);
             watcher.IncludeSubdirectories = config.IncludeSubdirectories;
             watcher.NotifyFilter = config.NotifyFilter;
             if (config.UseDefaultFilter)
@@ -123,7 +126,7 @@ namespace NodeService.ServiceHost.Services
                         Name = directoryInfo.Name,
                         Type = VirtualFileSystemObjectType.File,
                     };
-                    eventInfo.Properties.Add("DirectoryInfo", JsonSerializer.Serialize(objectInfo));
+                    eventInfo.Properties.Add(nameof(DirectoryInfo), JsonSerializer.Serialize(objectInfo));
                 }
                 else if (File.Exists(fullPath))
                 {
@@ -137,7 +140,64 @@ namespace NodeService.ServiceHost.Services
                         Name = fileInfo.Name,
                         Type = VirtualFileSystemObjectType.File,
                     };
-                    eventInfo.Properties.Add("FileInfo", JsonSerializer.Serialize(objectInfo));
+                    eventInfo.Properties.Add(nameof(FileInfo), JsonSerializer.Serialize(objectInfo));
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+
+            return eventInfo;
+        }
+
+        private FileSystemWatchRenameInfo CreateRenamedEventInfo(
+            WatcherChangeTypes watcherChangeTypes,
+            string fullPath,
+            string name,
+            string oldFullPath,
+            string oldName
+            )
+        {
+            var eventInfo = new FileSystemWatchRenameInfo()
+            {
+                ChangeTypes = (FileSystemWatchChangeTypes)watcherChangeTypes,
+                FullPath = fullPath,
+                Name = name,
+                OldFullPath = oldFullPath,
+                OldName = oldName,
+            };
+            try
+            {
+
+                if (Directory.Exists(fullPath))
+                {
+                    var directoryInfo = new DirectoryInfo(fullPath);
+                    var objectInfo = new VirtualFileSystemObjectInfo()
+                    {
+                        CreationTime = directoryInfo.CreationTime,
+                        FullName = directoryInfo.FullName,
+                        LastWriteTime = directoryInfo.LastWriteTime,
+                        Length = 0,
+                        Name = directoryInfo.Name,
+                        Type = VirtualFileSystemObjectType.File,
+                    };
+                    eventInfo.Properties.Add(nameof(DirectoryInfo), JsonSerializer.Serialize(objectInfo));
+                }
+                else if (File.Exists(fullPath))
+                {
+                    var fileInfo = new FileInfo(fullPath);
+                    var objectInfo = new VirtualFileSystemObjectInfo()
+                    {
+                        CreationTime = fileInfo.CreationTime,
+                        FullName = fileInfo.FullName,
+                        LastWriteTime = fileInfo.LastWriteTime,
+                        Length = fileInfo.Length,
+                        Name = fileInfo.Name,
+                        Type = VirtualFileSystemObjectType.File,
+                    };
+                    eventInfo.Properties.Add(nameof(FileInfo), JsonSerializer.Serialize(objectInfo));
                 }
 
             }
@@ -181,7 +241,7 @@ namespace NodeService.ServiceHost.Services
                 Error = new ExceptionInfo()
                 {
                     Message = ex.Message,
-                    StackTrace = ex.StackTrace
+                    StackTrace = ex.StackTrace ?? string.Empty
                 }
             });
         }
@@ -192,17 +252,11 @@ namespace NodeService.ServiceHost.Services
             {
                 return;
             }
+            var eventInfo = CreateRenamedEventInfo(e.ChangeType, e.FullPath, e.Name, e.OldFullPath, e.OldName);
             _fileSystemWatchEventQueue.TryWrite(new FileSystemWatchEventReport()
             {
                 ConfigurationId = configId,
-                Renamed = new FileSystemWatchRenameInfo()
-                {
-                    ChangeTypes = (FileSystemWatchChangeTypes)e.ChangeType,
-                    FullPath = e.FullPath,
-                    Name = e.Name,
-                    OldFullPath = e.OldFullPath,
-                    OldName = e.OldName,
-                }
+                Renamed = eventInfo
             });
         }
 

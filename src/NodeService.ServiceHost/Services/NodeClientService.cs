@@ -262,6 +262,7 @@ namespace NodeService.ServiceHost.Services
                                     reportMessage,
                                     cancellationToken);
                                 await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
+                                _logger.LogInformation(reportMessage.ToString());
                                 messageCount++;
                             }
                             stopwatch.Stop();
@@ -356,7 +357,10 @@ namespace NodeService.ServiceHost.Services
                         cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.ConfigurationChangedReport:
-                    await ProcessConfigurationChangedReportAsync(client, subscribeEvent, cancellationToken);
+                    await ProcessConfigurationChangedReportAsync(
+                        client,
+                        subscribeEvent,
+                        cancellationToken);
                     break;
                 case SubscribeEvent.EventOneofCase.JobExecutionEventRequest:
                     await ProcessTaskExecutionEventRequest(
