@@ -262,7 +262,10 @@ namespace NodeService.ServiceHost.Services
                                     reportMessage,
                                     cancellationToken);
                                 await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
-                                _logger.LogInformation(reportMessage.ToString());
+                                if (Debugger.IsAttached)
+                                {
+                                    _logger.LogInformation(reportMessage.ToString());
+                                }
                                 messageCount++;
                             }
                             stopwatch.Stop();
