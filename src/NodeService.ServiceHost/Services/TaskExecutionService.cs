@@ -96,6 +96,7 @@ namespace NodeService.ServiceHost.Services
             }
             finally
             {
+                await _taskExecutionContext.DisposeAsync();
                 if (_taskExecutionContext.CancelledManually)
                 {
                     message = "Cancelled manually";

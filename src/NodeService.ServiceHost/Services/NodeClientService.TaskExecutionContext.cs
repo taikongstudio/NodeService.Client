@@ -66,7 +66,7 @@ namespace NodeService.ServiceHost.Services
             string taskId = request.Parameters[nameof(JobExecutionInstanceModel.Id)];
             if (_taskExecutionContextDictionary.TryRemove(taskId, out var jobExecutionContext))
             {
-                await jobExecutionContext.DisposeAsync();
+                await jobExecutionContext.CancelAsync();
                 rsp.Message = $"task {taskId} cancelled";
             }
             else

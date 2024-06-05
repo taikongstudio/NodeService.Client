@@ -55,7 +55,6 @@ namespace NodeService.ServiceHost.Services
                         }
 
                     }
-                    arrayPoolCollection.Dispose();
                 }
             }
             catch (Exception ex)
@@ -127,16 +126,22 @@ namespace NodeService.ServiceHost.Services
             await _reportChannel.EnqueueAsync(report);
         }
 
-        public async ValueTask DisposeAsync()
+        public ValueTask CancelAsync()
         {
             CancelledManually = true;
+            return DisposeAsync();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+
             if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
             {
                 _cancellationTokenSource.Cancel();
                 _cancellationTokenSource.Dispose();
             }
             _taskExecutionContextDictionary.TryRemove(Parameters.Id, out _);
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(5));
             await _logMessageEntryBatchQueue.DisposeAsync();
         }
     }

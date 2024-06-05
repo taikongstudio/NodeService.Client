@@ -27,6 +27,7 @@ namespace NodeService.ServiceHost.Tasks
         string? _fileSystemWatchPath;
         string? _fileSystemWatchRelativePath;
         string? _fileSystemWatchEventLocalDirectory;
+        private string[] _fileSystemWatchEventPathList = [];
 
         public FtpUploadConfigExecutor(
             IProgress<FtpProgress> progress,
@@ -57,6 +58,11 @@ namespace NodeService.ServiceHost.Tasks
             if (envVars.TryGetValue(nameof(FtpUploadConfiguration.LocalDirectory), out var localDirectory))
             {
                 _fileSystemWatchEventLocalDirectory = localDirectory;
+            }
+            if (envVars.TryGetValue("PathList", out var pathListJson))
+            {
+                var pathList = JsonSerializer.Deserialize<IEnumerable<string>>(pathListJson);
+                _fileSystemWatchEventPathList = pathList.Select(Path.GetFullPath).ToArray();
             }
         }
 
@@ -232,7 +238,10 @@ namespace NodeService.ServiceHost.Tasks
             {
                 localFiles = localFiles.Where(FileLengthFilter);
             }
-
+            if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
+            {
+                localFiles = localFiles.Intersect(_fileSystemWatchEventPathList);
+            }
             return localFiles.ToImmutableArray();
         }
 
@@ -474,7 +483,6 @@ namespace NodeService.ServiceHost.Tasks
                 }
 
                 if (FtpUploadConfig.CleanupRemoteDirectory
-                    || FtpUploadConfig.FileExistsTime <= 0
                     || (_remoteFileListDict.TryGetValue(
                     remoteFilePath,
                     out var ftpListItem) 
