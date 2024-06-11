@@ -12,22 +12,17 @@ namespace NodeService.ServiceHost.Tasks
         int _uploadedCount = 0;
         int _skippedCount = 0;
         int _overidedCount = 0;
-
+        string? _fileSystemWatchPath;
+        string? _fileSystemWatchRelativePath;
+        string? _fileSystemWatchEventLocalDirectory;
+        string[] _fileSystemWatchEventPathList = [];
         ConcurrentDictionary<string, FtpListItem> _remoteFileListDict;
-
         readonly IProgress<FtpProgress> _progress;
+        ImmutableDictionary<string, string?> _envVars;
 
         public FtpUploadConfigModel FtpUploadConfig { get; private set; }
 
         public ILogger _logger { get; set; }
-
-
-        ImmutableDictionary<string, string?> _envVars;
-
-        string? _fileSystemWatchPath;
-        string? _fileSystemWatchRelativePath;
-        string? _fileSystemWatchEventLocalDirectory;
-        private string[] _fileSystemWatchEventPathList = [];
 
         public FtpUploadConfigExecutor(
             IProgress<FtpProgress> progress,
@@ -66,7 +61,7 @@ namespace NodeService.ServiceHost.Tasks
             }
         }
 
-        private string GetLocalDirectory()
+        string GetLocalDirectory()
         {
             if (_fileSystemWatchEventLocalDirectory != null)
             {
@@ -94,11 +89,11 @@ namespace NodeService.ServiceHost.Tasks
             var hostName = Dns.GetHostName();
 
 
-            string rootPath = GetLocalDirectory();
+            string rootDirectory = GetLocalDirectory();
 
-            if (!Directory.Exists(rootPath))
+            if (!Directory.Exists(rootDirectory))
             {
-                _logger.LogInformation($"Could not found directory:{rootPath}");
+                _logger.LogInformation($"Could not found directory:{rootDirectory}");
                 return;
             }
 
@@ -108,7 +103,7 @@ namespace NodeService.ServiceHost.Tasks
             }
             if (!FtpUploadConfig.Filters.Any(IsSearchPatternFilter))
             {
-                FtpUploadConfig.Filters.Add(new StringEntry()
+                FtpUploadConfig.Filters.Insert(0, new StringEntry()
                 {
                     Name = nameof(FilePathFilter.SearchPattern),
                     Value = FtpUploadConfig.SearchPattern,
@@ -119,7 +114,7 @@ namespace NodeService.ServiceHost.Tasks
 
             if (!localFilePathList.Any())
             {
-                Console.WriteLine($"Cound not found any mached file in {rootPath}");
+                _logger.LogInformation($"Cound not found any mached file in {rootDirectory}");
                 return;
             }
 
@@ -132,13 +127,17 @@ namespace NodeService.ServiceHost.Tasks
                 FtpUploadConfig.RemoteDirectory = '/' + FtpUploadConfig.RemoteDirectory;
             }
 
-            var remoteFilePathList = localFilePathList.GroupBy(GetPathDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
+            var remoteFilePathList = localFilePathList.GroupBy(GetFilePathDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
             foreach (var kv in remoteFilePathList)
             {
                 var ftpListItem = await ftpClient.GetObjectInfo(
                     kv.Value,
                     true,
                     cancellationToken);
+                if (ftpListItem == null)
+                {
+                    continue;
+                }
                 this._remoteFileListDict.TryAdd(kv.Value, ftpListItem);
             }
 
@@ -157,9 +156,22 @@ namespace NodeService.ServiceHost.Tasks
 
         }
 
-        private IEnumerable<string> EnumerateLocalFiles()
+        IEnumerable<string> EnumerateLocalFiles()
         {
-            IEnumerable<string> localFiles = EnumerateFiles(GetLocalDirectory(), "*");
+            IEnumerable<string> localFiles = [];
+            var firstFilter = FtpUploadConfig.Filters?.FirstOrDefault();
+            if (firstFilter == null)
+            {
+                return localFiles;
+            }
+            if (IsSearchPatternFilter(firstFilter))
+            {
+                localFiles = EnumerateFiles(GetLocalDirectory(), firstFilter.Value);
+            }
+            else
+            {
+                localFiles = EnumerateFiles(GetLocalDirectory(), "*");
+            }
             foreach (var filter in FtpUploadConfig.Filters)
             {
                 if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
@@ -221,7 +233,7 @@ namespace NodeService.ServiceHost.Tasks
                         }
                         break;
                     case FilePathFilter.SearchPattern:
-                        localFiles = localFiles.GroupBy(GetPathDirectoryName)
+                        localFiles = localFiles.GroupBy(GetFilePathDirectoryName)
                                                .SelectMany(x => EnumerateFiles(x.Key, filter.Value)).Distinct();
                         break;
                     default:
@@ -245,15 +257,15 @@ namespace NodeService.ServiceHost.Tasks
             return localFiles.ToImmutableArray();
         }
 
-        private string[] EnumerateFiles(
-            string path,
+        string[] EnumerateFiles(
+            string directory,
             string? searchPattern)
         {
             if (string.IsNullOrEmpty(searchPattern))
             {
                 return [];
             }
-            return Directory.GetFiles(path,
+            return Directory.GetFiles(directory,
                 searchPattern,
                 new EnumerationOptions()
                 {
@@ -265,9 +277,9 @@ namespace NodeService.ServiceHost.Tasks
                 );
         }
 
-        private bool FileLengthFilter(string path)
+        bool FileLengthFilter(string filePath)
         {
-            var fileInfo = new FileInfo(path);
+            var fileInfo = new FileInfo(filePath);
             var matchedCount = 0;
             foreach (var fileLengthFilter in FtpUploadConfig.LengthFilters)
             {
@@ -338,11 +350,11 @@ namespace NodeService.ServiceHost.Tasks
             }
         }
 
-        private bool DateTimeFilter(string path)
+        bool DateTimeFilter(string filePath)
         {
             bool isMatched = false;
-            var lastWriteTime = File.GetLastWriteTime(path);
-            var creationTime = File.GetCreationTime(path);
+            var lastWriteTime = File.GetLastWriteTime(filePath);
+            var creationTime = File.GetCreationTime(filePath);
             foreach (var dateTimeFilter in FtpUploadConfig.DateTimeFilters)
             {
                 switch (dateTimeFilter.Kind)
@@ -371,15 +383,17 @@ namespace NodeService.ServiceHost.Tasks
             return isMatched;
         }
 
-        private bool IsSearchPatternFilter(StringEntry entry)
+        bool IsSearchPatternFilter(StringEntry entry)
         {
             return Enum.TryParse(
                 entry.Name,
                 true,
-                out FilePathFilter pathFilter) && pathFilter == Infrastructure.DataModels.FilePathFilter.SearchPattern;
+                out FilePathFilter pathFilter)
+                &&
+                pathFilter == FilePathFilter.SearchPattern;
         }
 
-        private async Task UploadFileAsync(
+        async Task UploadFileAsync(
             AsyncFtpClient ftpClient,
             string localFilePath,
             string remoteFilePath,
@@ -426,7 +440,7 @@ namespace NodeService.ServiceHost.Tasks
             }
         }
 
-        private void PrintRemoteFiles()
+        void PrintRemoteFiles()
         {
             if (!FtpUploadConfig.PrintRemoteFiles)
             {
@@ -435,12 +449,12 @@ namespace NodeService.ServiceHost.Tasks
             _logger.LogInformation("Enumerate Ftp objects Begin");
             foreach (var item in _remoteFileListDict)
             {
-                _logger.LogInformation($"FullName:{item.Key},ModifiedTime:{item.Value.Modified},Length:{item.Value.Size}");
+                _logger.LogInformation($"FullName:{item.Key},ModifiedTime:{item.Value?.Modified},Length:{item.Value?.Size}");
             }
             _logger.LogInformation("Enumerate Ftp objects End");
         }
 
-        private void PrintLocalFiles(IEnumerable<string> localFiles)
+        void PrintLocalFiles(IEnumerable<string> localFiles)
         {
             if (!FtpUploadConfig.PrintLocalFiles)
             {
@@ -455,7 +469,7 @@ namespace NodeService.ServiceHost.Tasks
             _logger.LogInformation("Enumerate local Objects End");
         }
 
-        private async Task<FtpStatus> UploadFileCoreAsync(
+        async Task<FtpStatus> UploadFileCoreAsync(
             AsyncFtpClient ftpClient,
             string localFilePath,
             string remoteFilePath,
@@ -522,7 +536,7 @@ namespace NodeService.ServiceHost.Tasks
             return ftpStatus;
         }
 
-        private async Task<FtpStatus> UploadSharingViolationFileAsync(
+        async Task<FtpStatus> UploadSharingViolationFileAsync(
             AsyncFtpClient ftpClient,
             string localFilePath,
             string remoteFilePath,
@@ -544,7 +558,7 @@ namespace NodeService.ServiceHost.Tasks
             return ftpStatus;
         }
 
-        private FtpRemoteExists ConvertFtpFileExistsToFtpRemoteExists(FileExists ftpFileExists)
+        FtpRemoteExists ConvertFtpFileExistsToFtpRemoteExists(FileExists ftpFileExists)
         {
             switch (ftpFileExists)
             {
@@ -568,7 +582,7 @@ namespace NodeService.ServiceHost.Tasks
             return FtpRemoteExists.Skip;
         }
 
-        private bool DiffFileInfo(string localFilePath, FtpListItem remoteFileInfo)
+        bool DiffFileInfo(string localFilePath, FtpListItem remoteFileInfo)
         {
             if (remoteFileInfo == null)
             {
@@ -586,12 +600,12 @@ namespace NodeService.ServiceHost.Tasks
             return diffSize && diffFileTime;
         }
 
-        private long DiffSize(FileInfo localFileInfo, FtpListItem remoteFileInfo)
+        long DiffSize(FileInfo localFileInfo, FtpListItem remoteFileInfo)
         {
             return localFileInfo.Length - remoteFileInfo.Size;
         }
 
-        private bool DiffFileTime(FileInfo localFileInfo, FtpListItem remoteFileInfo)
+        bool DiffFileTime(FileInfo localFileInfo, FtpListItem remoteFileInfo)
         {
             var lastWriteTime = localFileInfo.LastWriteTime;
             bool compareDateTime = false;
@@ -655,9 +669,9 @@ namespace NodeService.ServiceHost.Tasks
             yield break;
         }
 
-        string GetPathDirectoryName(string path)
+        string GetFilePathDirectoryName(string filePath)
         {
-            return Path.GetDirectoryName(path) ?? path;
+            return Path.GetDirectoryName(filePath) ?? filePath;
         }
 
     }

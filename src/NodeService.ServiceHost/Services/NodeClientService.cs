@@ -1,4 +1,5 @@
-﻿using NodeService.Infrastructure.Concurrent;
+﻿using Grpc.Net.Client.Web;
+using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
 
 namespace NodeService.ServiceHost.Services
@@ -167,6 +168,20 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
+        HttpMessageHandler GetHttpMessageHandler(HttpClientHandler httpClientHandler)
+        {
+            _logger.LogInformation($"OperationSystem:{Environment.OSVersion}");
+            if (OperatingSystem.IsWindows())
+            {
+                if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 0, 0))
+                {
+                    return httpClientHandler;
+                }
+                return new GrpcWebHandler(httpClientHandler);
+            }
+            return httpClientHandler;
+        }
+
         private async Task RunGrpcLoopAsync(CancellationToken cancellationToken = default)
         {
             try
@@ -178,7 +193,7 @@ namespace NodeService.ServiceHost.Services
 
                 var grpcChannelOptions = new GrpcChannelOptions()
                 {
-                    HttpHandler = httpClientHandler,
+                    HttpHandler = GetHttpMessageHandler(httpClientHandler),
                     Credentials = ChannelCredentials.SecureSsl,
                     ServiceProvider = _serviceProvider,
                 };
