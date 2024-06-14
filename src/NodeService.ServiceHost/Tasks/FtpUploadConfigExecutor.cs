@@ -81,6 +81,7 @@ namespace NodeService.ServiceHost.Tasks
                     ReadTimeout = FtpUploadConfig.FtpConfig.ReadTimeout,
                     DataConnectionReadTimeout = FtpUploadConfig.FtpConfig.DataConnectionReadTimeout,
                     DataConnectionConnectTimeout = FtpUploadConfig.FtpConfig.DataConnectionConnectTimeout,
+                    DataConnectionType = (FtpDataConnectionType)FtpUploadConfig.FtpConfig.DataConnectionType,
                 });
             await ftpClient.AutoConnect(cancellationToken);
             _logger.LogInformation($"Execute config on host {FtpUploadConfig.FtpConfig.Host} port {FtpUploadConfig.FtpConfig.Port}" +
