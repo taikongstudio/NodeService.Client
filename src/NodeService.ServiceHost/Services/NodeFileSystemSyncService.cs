@@ -288,33 +288,10 @@ namespace NodeService.ServiceHost.Services
                 {
                     var localFilePath = kv.Key;
                     var targetFilePath = kv.Value;
-                    var fileInfo = new FileInfo(localFilePath);
-                    var fileSystemSyncInfo = new FileSystemSyncInfo()
-                    {
-                        FileName = Path.GetFileName(localFilePath),
-                        HashAlgorithmType = HashAlgorithmType.Sha256,
-                        IsCompressed = fileInfo.Length > fileSystemWatchConfig.CompressThreshold,
-                        TargetFilePath = targetFilePath,
-                    };
-                    var sourceStream = File.Open(localFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-                    fileSystemSyncInfo.OriginalFileHash = await CryptographyHelper.SHA256_HashStreamAsync(sourceStream);
-                    fileSystemSyncInfo.OriginalFileLength = fileInfo.Length;
-                    fileSystemSyncInfo.HashAlgorithmType = HashAlgorithmType.Sha256;
-                    if (fileSystemSyncInfo.IsCompressed)
-                    {
-                        sourceStream.Position = 0;
-                        var memoryStream = new MemoryStream();
-                        await CompressionHelper.CompressStreamAsync(sourceStream, memoryStream);
-                        fileSystemSyncInfo.Stream = memoryStream;
-                        fileSystemSyncInfo.Stream.Position = 0;
-                        fileSystemSyncInfo.CompressedFileHash = await CryptographyHelper.SHA256_HashStreamAsync(fileSystemSyncInfo.Stream);
-                        fileSystemSyncInfo.CompressedFileLength = fileSystemSyncInfo.Stream.Length;
-                    }
-                    else
-                    {
-                        fileSystemSyncInfo.Stream = sourceStream;
-                    }
-                    fileSystemSyncInfo.Stream.Position = 0;
+                    var fileSystemSyncInfo =await FileSystemSyncInfo.FromFileInfoAsync(
+                        new FileInfo(localFilePath),
+                        targetFilePath,
+                        fileSystemWatchConfig.CompressThreshold);
                     fileSystemSyncParameters.FileSyncInfoList.Add(fileSystemSyncInfo);
                 }
                 catch (Exception ex)
