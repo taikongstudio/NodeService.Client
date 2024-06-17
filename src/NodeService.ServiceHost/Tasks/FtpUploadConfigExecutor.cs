@@ -1,9 +1,6 @@
 ﻿using FluentFTP;
-using System.Collections.Immutable;
-using System.IO;
-using System.Text.RegularExpressions;
-using System.Linq;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -75,7 +72,8 @@ namespace NodeService.ServiceHost.Tasks
             using var ftpClient = new AsyncFtpClient(FtpUploadConfig.FtpConfig.Host,
                 FtpUploadConfig.FtpConfig.Username,
                 FtpUploadConfig.FtpConfig.Password,
-                FtpUploadConfig.FtpConfig.Port, new FtpConfig()
+                FtpUploadConfig.FtpConfig.Port,
+                new FtpConfig()
                 {
                     ConnectTimeout = FtpUploadConfig.FtpConfig.ConnectTimeout,
                     ReadTimeout = FtpUploadConfig.FtpConfig.ReadTimeout,
@@ -98,20 +96,14 @@ namespace NodeService.ServiceHost.Tasks
                 return;
             }
 
-            if (FtpUploadConfig.Filters == null)
-            {
-                FtpUploadConfig.Filters = [];
-            }
-            if (!FtpUploadConfig.Filters.Any(IsSearchPatternFilter))
-            {
-                FtpUploadConfig.Filters.Insert(0, new StringEntry()
-                {
-                    Name = nameof(FilePathFilter.SearchPattern),
-                    Value = FtpUploadConfig.SearchPattern,
-                });
-            }
+            NodeFileSyncDirectoryEnumerator enumerator = new NodeFileSyncDirectoryEnumerator(FtpUploadConfig);
 
-            IEnumerable<string> localFilePathList = EnumerateLocalFiles();
+            IEnumerable<string> localFilePathList = enumerator.EnumerateFiles(GetLocalDirectory());
+
+            if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
+            {
+                localFilePathList = localFilePathList.Intersect(_fileSystemWatchEventPathList);
+            }
 
             if (!localFilePathList.Any())
             {
@@ -128,7 +120,10 @@ namespace NodeService.ServiceHost.Tasks
                 FtpUploadConfig.RemoteDirectory = '/' + FtpUploadConfig.RemoteDirectory;
             }
 
-            var remoteFilePathList = localFilePathList.GroupBy(GetFilePathDirectoryName).SelectMany(CalculateDirectoryRemoteFilePath).ToImmutableArray();
+            var remoteFilePathList = PathHelper.CalculateRemoteFilePath(
+                FtpUploadConfig.LocalDirectory,
+                FtpUploadConfig.RemoteDirectory,
+                localFilePathList);
             foreach (var kv in remoteFilePathList)
             {
                 var ftpListItem = await ftpClient.GetObjectInfo(
@@ -157,242 +152,11 @@ namespace NodeService.ServiceHost.Tasks
 
         }
 
-        IEnumerable<string> EnumerateLocalFiles()
-        {
-            IEnumerable<string> localFiles = [];
-            var firstFilter = FtpUploadConfig.Filters?.FirstOrDefault();
-            if (firstFilter == null)
-            {
-                return localFiles;
-            }
-            if (IsSearchPatternFilter(firstFilter))
-            {
-                localFiles = EnumerateFiles(GetLocalDirectory(), firstFilter.Value);
-            }
-            else
-            {
-                localFiles = EnumerateFiles(GetLocalDirectory(), "*");
-            }
-            foreach (var filter in FtpUploadConfig.Filters)
-            {
-                if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
-                {
-                    continue;
-                }
 
-                if (!Enum.TryParse(filter.Name, true, out FilePathFilter pathFilter))
-                {
-                    continue;
-                }
-                switch (pathFilter)
-                {
-                    case FilePathFilter.Contains:
-                        localFiles = from item in localFiles
-                                     where item.Contains(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotContains:
-                        localFiles = from item in localFiles
-                                     where !item.Contains(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.StartWith:
-                        localFiles = from item in localFiles
-                                     where item.StartsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotStartWith:
-                        localFiles = from item in localFiles
-                                     where !item.StartsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.EndsWith:
-                        localFiles = from item in localFiles
-                                     where item.EndsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotEndsWith:
-                        localFiles = from item in localFiles
-                                     where !item.EndsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.RegExp:
-                        {
-                            var regex = new Regex(filter.Value);
-                            localFiles = from item in localFiles
-                                         where regex.IsMatch(item)
-                                         select item;
-                        }
 
-                        break;
-                    case FilePathFilter.RegExpNotMatch:
-                        {
-                            var regex = new Regex(filter.Value);
-                            localFiles = from item in localFiles
-                                         where !regex.IsMatch(item)
-                                         select item;
-                        }
-                        break;
-                    case FilePathFilter.SearchPattern:
-                        localFiles = localFiles.GroupBy(GetFilePathDirectoryName)
-                                               .SelectMany(x => EnumerateFiles(x.Key, filter.Value)).Distinct();
-                        break;
-                    default:
-                        break;
-                }
-            }
 
-            if (FtpUploadConfig.DateTimeFilters != null && FtpUploadConfig.DateTimeFilters.Count != 0)
-            {
-                localFiles = localFiles.Where(DateTimeFilter);
-            }
 
-            if (FtpUploadConfig.LengthFilters != null && FtpUploadConfig.LengthFilters.Count != 0)
-            {
-                localFiles = localFiles.Where(FileLengthFilter);
-            }
-            if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
-            {
-                localFiles = localFiles.Intersect(_fileSystemWatchEventPathList);
-            }
-            return localFiles.ToImmutableArray();
-        }
 
-        string[] EnumerateFiles(
-            string directory,
-            string? searchPattern)
-        {
-            if (string.IsNullOrEmpty(searchPattern))
-            {
-                return [];
-            }
-            return Directory.GetFiles(directory,
-                searchPattern,
-                new EnumerationOptions()
-                {
-                    MatchCasing = FtpUploadConfig.MatchCasing,
-                    RecurseSubdirectories = FtpUploadConfig.IncludeSubDirectories,
-                    MaxRecursionDepth = FtpUploadConfig.MaxRecursionDepth,
-                    MatchType = FtpUploadConfig.MatchType,
-                }
-                );
-        }
-
-        bool FileLengthFilter(string filePath)
-        {
-            var fileInfo = new FileInfo(filePath);
-            var matchedCount = 0;
-            foreach (var fileLengthFilter in FtpUploadConfig.LengthFilters)
-            {
-                var value0 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[0]);
-                var value1 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[1]);
-                switch (fileLengthFilter.Operator)
-                {
-                    case CompareOperator.LessThan:
-                        if (fileInfo.Length < value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.GreatThan:
-                        if (fileInfo.Length > value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.LessThanEqual:
-                        if (fileInfo.Length <= value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.GreatThanEqual:
-                        if (fileInfo.Length >= value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.Equals:
-                        if (fileInfo.Length == value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.WithinRange:
-                        if (fileInfo.Length >= value0 && fileInfo.Length <= value1)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.OutOfRange:
-                        if (!(fileInfo.Length >= value0 && fileInfo.Length <= value1))
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            return matchedCount > 0;
-
-            static long CalcuateLength(BinaryLengthUnit binaryLengthUnit, double value)
-            {
-                var length = binaryLengthUnit switch
-                {
-                    BinaryLengthUnit.Byte => value,
-                    BinaryLengthUnit.KB => value * 1024,
-                    BinaryLengthUnit.MB => value * 1024 * 1024,
-                    BinaryLengthUnit.GB => value * 1024 * 1024 * 1024,
-                    BinaryLengthUnit.PB => value * 1024 * 1024 * 1024 * 1024,
-                    _ => throw new NotImplementedException(),
-                };
-                return (long)length;
-            }
-        }
-
-        bool DateTimeFilter(string filePath)
-        {
-            bool isMatched = false;
-            var lastWriteTime = File.GetLastWriteTime(filePath);
-            var creationTime = File.GetCreationTime(filePath);
-            foreach (var dateTimeFilter in FtpUploadConfig.DateTimeFilters)
-            {
-                switch (dateTimeFilter.Kind)
-                {
-                    case DateTimeFilterKind.DateTime:
-                        isMatched = dateTimeFilter.IsMatched(lastWriteTime);
-                        break;
-                    case DateTimeFilterKind.TimeOnly:
-                        isMatched = dateTimeFilter.IsMatched(TimeOnly.FromDateTime(lastWriteTime));
-                        break;
-                    case DateTimeFilterKind.Days:
-                    case DateTimeFilterKind.Hours:
-                    case DateTimeFilterKind.Minutes:
-                    case DateTimeFilterKind.Seconds:
-                        isMatched = dateTimeFilter.IsMatched(DateTime.Now - lastWriteTime);
-                        break;
-                    default:
-                        break;
-                }
-
-                if (isMatched)
-                {
-                    break;
-                }
-            }
-            return isMatched;
-        }
-
-        bool IsSearchPatternFilter(StringEntry entry)
-        {
-            return Enum.TryParse(
-                entry.Name,
-                true,
-                out FilePathFilter pathFilter)
-                &&
-                pathFilter == FilePathFilter.SearchPattern;
-        }
 
         async Task UploadFileAsync(
             AsyncFtpClient ftpClient,
@@ -652,28 +416,9 @@ namespace NodeService.ServiceHost.Tasks
             return compareDateTime;
         }
 
-        IEnumerable<KeyValuePair<string, string>> CalculateDirectoryRemoteFilePath(IGrouping<string?, string> filePathDirectoryGroup)
-        {
-            if (filePathDirectoryGroup == null || filePathDirectoryGroup.Key == null)
-            {
-                yield break;
-            }
-            var relativePath = Path.GetRelativePath(FtpUploadConfig.LocalDirectory, filePathDirectoryGroup.Key);
-            foreach (var localFilePath in filePathDirectoryGroup)
-            {
-                var fileName = Path.GetFileName(localFilePath);
-                var remoteFilePath = Path.Combine(FtpUploadConfig.RemoteDirectory, relativePath, fileName);
-                remoteFilePath = remoteFilePath.Replace("\\", "/");
-                remoteFilePath = remoteFilePath.Replace("/./", "/");
-                yield return KeyValuePair.Create(localFilePath, remoteFilePath);
-            }
-            yield break;
-        }
 
-        string GetFilePathDirectoryName(string filePath)
-        {
-            return Path.GetDirectoryName(filePath) ?? filePath;
-        }
+
+
 
     }
 }

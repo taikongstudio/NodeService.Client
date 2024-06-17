@@ -1,6 +1,9 @@
-﻿using Grpc.Net.Client.Web;
+﻿using Google.Protobuf.WellKnownTypes;
+using Grpc.Net.Client.Web;
 using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
+using System.Threading;
+using static NodeService.Infrastructure.Services.NodeService;
 
 namespace NodeService.ServiceHost.Services
 {
@@ -37,8 +40,8 @@ namespace NodeService.ServiceHost.Services
             ILogger<NodeClientService> logger,
             IServiceProvider serviceProvider,
             IAsyncQueue<TaskExecutionContext> taskExecutionContextQueue,
-            IAsyncQueue<JobExecutionReport> taskReportQueue,
-            IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue,
+            IAsyncQueue<TaskExecutionReport> taskReportQueue,
+            [FromKeyedServices(nameof(NodeClientService))]IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
@@ -49,7 +52,7 @@ namespace NodeService.ServiceHost.Services
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _taskExecutionContextQueue = taskExecutionContextQueue;
             _fileSystemWatchEventQueue = fileSystemWatchEventQueue;
-            _taskReportQueue = taskReportQueue;
+            _taskExecutionReportQueue = taskReportQueue;
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _logger = logger;
             _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync,
@@ -86,7 +89,7 @@ namespace NodeService.ServiceHost.Services
             base.Dispose();
         }
 
-        private async Task ProcessSubscribeEventAsync(SubscribeEventInfo subscribeEventInfo)
+        async Task ProcessSubscribeEventAsync(SubscribeEventInfo subscribeEventInfo)
         {
             try
             {
@@ -103,7 +106,7 @@ namespace NodeService.ServiceHost.Services
 
 
 
-        protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected async override Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
 
             try
@@ -115,57 +118,80 @@ namespace NodeService.ServiceHost.Services
                     NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdentityProvider.GetIdentity(),
                     Mode = _serviceHostOptions.mode
                 });
+                await RunLoopAsync(cancellationToken);
 
-                while (!stoppingToken.IsCancellationRequested)
-                {
-                    CancellationTokenRegistration cancellationTokenRegistration = default;
-                    try
-                    {
-                        using var cancellationTokenSource = new CancellationTokenSource();
-                        cancellationTokenRegistration = stoppingToken.Register(cancellationTokenSource.Cancel);
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                while (!cancellationTokenSource.IsCancellationRequested)
-                                {
-                                    var heartBeatCounter1 = GetHeartBeatCounter();
-                                    _logger.LogInformation($"HeartBeatCouner1:{heartBeatCounter1}");
-                                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
-                                    var heartBeatCounter2 = GetHeartBeatCounter();
-                                    _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter2}");
-                                    if (heartBeatCounter2 == heartBeatCounter1)
-                                    {
-                                        _cancellationCounter++;
-                                        cancellationTokenSource.Cancel();
-                                        _logger.LogInformation($"Cancel:CancellationCounter{_cancellationCounter},HeartBeatCounter:{heartBeatCounter1}");
-                                        cancellationTokenRegistration.Unregister();
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogInformation(ex.ToString());
-                            }
-
-                        }, stoppingToken);
-                        await RunGrpcLoopAsync(cancellationTokenSource.Token);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogInformation(ex.ToString());
-                    }
-                    finally
-                    {
-                        cancellationTokenRegistration.Unregister();
-                    }
-
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
             }
+        }
+
+        async ValueTask RunLoopAsync(CancellationToken cancellationToken = default)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                CancellationTokenRegistration cancellationTokenRegistration = default;
+                using var cancellationTokenSource = new CancellationTokenSource();
+                try
+                {
+
+                    cancellationTokenRegistration = cancellationToken.Register(cancellationTokenSource.Cancel);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            while (!cancellationTokenSource.IsCancellationRequested)
+                            {
+                                var heartBeatCounter1 = GetHeartBeatCounter();
+                                _logger.LogInformation($"HeartBeatCouner1:{heartBeatCounter1}");
+                                await Task.Delay(TimeSpan.FromMinutes(10), cancellationTokenSource.Token);
+                                if (cancellationTokenSource.IsCancellationRequested)
+                                {
+                                    return;
+                                }
+                                var heartBeatCounter2 = GetHeartBeatCounter();
+                                _logger.LogInformation($"HeartBeatCouner2:{heartBeatCounter2}");
+                                if (heartBeatCounter2 == heartBeatCounter1)
+                                {
+                                    _cancellationCounter++;
+                                    cancellationTokenSource.Cancel();
+                                    _logger.LogInformation($"Cancel:CancellationCounter{_cancellationCounter},HeartBeatCounter:{heartBeatCounter1}");
+                                    cancellationTokenRegistration.Unregister();
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogInformation(ex.ToString());
+                        }
+                    }, cancellationToken);
+                    await RunTasksAsync(cancellationTokenSource.Token);
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation(ex.ToString());
+                }
+                finally
+                {
+                    cancellationTokenRegistration.Unregister();
+                    try
+                    {
+                        if (!cancellationTokenSource.IsCancellationRequested)
+                        {
+                            cancellationTokenSource.Cancel();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex.ToString());
+                    }
+
+                }
+
+            }
+
         }
 
         HttpMessageHandler GetHttpMessageHandler(HttpClientHandler httpClientHandler)
@@ -182,7 +208,7 @@ namespace NodeService.ServiceHost.Services
             return httpClientHandler;
         }
 
-        private async Task RunGrpcLoopAsync(CancellationToken cancellationToken = default)
+        async ValueTask RunTasksAsync(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -196,114 +222,44 @@ namespace NodeService.ServiceHost.Services
                     HttpHandler = GetHttpMessageHandler(httpClientHandler),
                     Credentials = ChannelCredentials.SecureSsl,
                     ServiceProvider = _serviceProvider,
+                    DisposeHttpClient = true
                 };
 
                 using var grpcChannel = GrpcChannel.ForAddress(_serverOptions.GrpcAddress, grpcChannelOptions);
 
                 var nodeServiceClient = new NodeServiceClient(grpcChannel);
+                var tasks = EnumTasks(nodeServiceClient, cancellationToken).ToArray();
+                await Task.WhenAny(tasks);
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(5));
+            }
+            finally
+            {
+
+            }
+
+        }
+
+        IEnumerable<Task> EnumTasks(NodeServiceClient nodeServiceClient, CancellationToken cancellationToken = default)
+        {
+            yield return SubscribeAsync(nodeServiceClient, cancellationToken);
+            yield return SendFileSystemEventReportAsync(nodeServiceClient, cancellationToken);
+            yield return SendTaskExecutionReportAsync(nodeServiceClient, cancellationToken);
+            yield return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
+        async Task SubscribeAsync(NodeServiceClient nodeServiceClient, CancellationToken cancellationToken = default)
+        {
+            try
+            {
                 using var subscribeCall = nodeServiceClient.Subscribe(new SubscribeRequest()
                 {
                     RequestId = Guid.NewGuid().ToString(),
                 }, _headers, cancellationToken: cancellationToken);
-
-
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-
-                        using var taskReportStreamingCall = nodeServiceClient.SendJobExecutionReport(
-                            _headers,
-                            cancellationToken: cancellationToken);
-                        Stopwatch stopwatch = new Stopwatch();
-                        while (!cancellationToken.IsCancellationRequested)
-                        {
-                            int messageCount = 0;
-                            stopwatch.Start();
-                            while (!cancellationToken.IsCancellationRequested && await _taskReportQueue.WaitToReadAsync(cancellationToken))
-                            {
-                                if (!_taskReportQueue.TryPeek(out var reportMessage))
-                                {
-                                    continue;
-                                }
-                                await taskReportStreamingCall.RequestStream.WriteAsync(
-                                    reportMessage,
-                                    cancellationToken);
-                                await _taskReportQueue.DeuqueAsync(cancellationToken);
-                                messageCount++;
-                            }
-                            stopwatch.Stop();
-                            if (messageCount > 0)
-                            {
-                                _logger.LogInformation($"Sent {messageCount} {nameof(JobExecutionReport)} messages,spent:{stopwatch.Elapsed}");
-                            }
-                            stopwatch.Reset();
-                        }
-
-                    }
-                    catch (RpcException ex)
-                    {
-                        _logger.LogError(ex.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.ToString());
-                    }
-
-
-                }, cancellationToken: cancellationToken);
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-
-                        using var fileSystemWatchEventReportStreamingCall = nodeServiceClient.SendFileSystemWatchEventReport(
-                            _headers,
-                            cancellationToken: cancellationToken);
-                        Stopwatch stopwatch = new Stopwatch();
-                        while (!cancellationToken.IsCancellationRequested)
-                        {
-                            int messageCount = 0;
-                            stopwatch.Start();
-                            while (!cancellationToken.IsCancellationRequested && await _fileSystemWatchEventQueue.WaitToReadAsync(cancellationToken))
-                            {
-                                if (!_fileSystemWatchEventQueue.TryPeek(out var reportMessage))
-                                {
-                                    continue;
-                                }
-                                await fileSystemWatchEventReportStreamingCall.RequestStream.WriteAsync(
-                                    reportMessage,
-                                    cancellationToken);
-                                await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
-                                if (Debugger.IsAttached)
-                                {
-                                    _logger.LogInformation(reportMessage.ToString());
-                                }
-                                messageCount++;
-                            }
-                            stopwatch.Stop();
-                            if (messageCount > 0)
-                            {
-                                _logger.LogInformation($"Sent {messageCount} {nameof(FileSystemWatchEventReport)} messages,spent:{stopwatch.Elapsed}");
-                            }
-                            stopwatch.Reset();
-                        }
-
-                    }
-                    catch (RpcException ex)
-                    {
-                        _logger.LogError(ex.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.ToString());
-                    }
-
-
-                }, cancellationToken: cancellationToken);
-
                 await foreach (var subscribeEvent in subscribeCall.ResponseStream.ReadAllAsync(cancellationToken))
                 {
                     _logger.LogInformation(subscribeEvent.ToString());
@@ -314,34 +270,111 @@ namespace NodeService.ServiceHost.Services
                         CancellationToken = cancellationToken,
                     });
                 }
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+
+        }
+
+        async Task SendFileSystemEventReportAsync(NodeServiceClient nodeServiceClient, CancellationToken cancellationToken=default)
+        {
+            try
+            {
+
+                using var fileSystemWatchEventReportStreamingCall = nodeServiceClient.SendFileSystemWatchEventReport(
+                    _headers,
+                    cancellationToken: cancellationToken);
+                Stopwatch stopwatch = new Stopwatch();
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    int messageCount = 0;
+                    stopwatch.Start();
+                    while (!cancellationToken.IsCancellationRequested && await _fileSystemWatchEventQueue.WaitToReadAsync(cancellationToken))
+                    {
+                        if (!_fileSystemWatchEventQueue.TryPeek(out var reportMessage))
+                        {
+                            continue;
+                        }
+                        await fileSystemWatchEventReportStreamingCall.RequestStream.WriteAsync(
+                            reportMessage,
+                            cancellationToken);
+                        await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
+                        if (Debugger.IsAttached)
+                        {
+                            _logger.LogInformation(reportMessage.ToString());
+                        }
+                        messageCount++;
+                    }
+                    stopwatch.Stop();
+                    if (messageCount > 0)
+                    {
+                        _logger.LogInformation($"Sent {messageCount} {nameof(FileSystemWatchEventReport)} messages,spent:{stopwatch.Elapsed}");
+                    }
+                    stopwatch.Reset();
+                }
 
             }
             catch (RpcException ex)
             {
                 _logger.LogError(ex.Message);
-                if (ex.StatusCode == StatusCode.Cancelled)
-                {
-
-                }
-                await Task.Delay(
-                    TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30),
-                    cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message);
-                await Task.Delay(
-                    TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30),
-                    cancellationToken);
+                _logger.LogError(ex.ToString());
             }
-            finally
-            {
-
-            }
-
         }
 
-        private async Task ProcessSubscribeEventAsync(
+        async Task SendTaskExecutionReportAsync(NodeServiceClient nodeServiceClient, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var taskReportStreamingCall = nodeServiceClient.SendTaskExecutionReport(
+                            _headers,
+                            cancellationToken: cancellationToken);
+
+                Stopwatch stopwatch = new Stopwatch();
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    int messageCount = 0;
+                    stopwatch.Start();
+                    while (!cancellationToken.IsCancellationRequested && await _taskExecutionReportQueue.WaitToReadAsync(cancellationToken))
+                    {
+                        if (!_taskExecutionReportQueue.TryPeek(out var taskExecutionReport))
+                        {
+                            continue;
+                        }
+                        await taskReportStreamingCall.RequestStream.WriteAsync(
+                            taskExecutionReport,
+                            cancellationToken);
+                        await _taskExecutionReportQueue.DeuqueAsync(cancellationToken);
+                        messageCount++;
+                    }
+                    stopwatch.Stop();
+                    if (messageCount > 0)
+                    {
+                        _logger.LogInformation($"Sent {messageCount} {nameof(TaskExecutionReport)} messages,spent:{stopwatch.Elapsed}");
+                    }
+                    stopwatch.Reset();
+                }
+
+            }
+            catch (RpcException ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+            }
+        }
+
+        async ValueTask ProcessSubscribeEventAsync(
             NodeServiceClient client,
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken = default)
@@ -380,7 +413,7 @@ namespace NodeService.ServiceHost.Services
                         subscribeEvent,
                         cancellationToken);
                     break;
-                case SubscribeEvent.EventOneofCase.JobExecutionEventRequest:
+                case SubscribeEvent.EventOneofCase.TaskExecutionEventRequest:
                     await ProcessTaskExecutionEventRequest(
                         client,
                         subscribeEvent,

@@ -5,7 +5,7 @@ namespace NodeService.ServiceHost.Services
     public partial class NodeClientService
     {
 
-        private IAsyncQueue<JobExecutionReport> _taskReportQueue;
+        private IAsyncQueue<TaskExecutionReport> _taskExecutionReportQueue;
         private IAsyncQueue<TaskExecutionContext> _taskExecutionContextQueue;
         private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
 
@@ -14,7 +14,7 @@ namespace NodeService.ServiceHost.Services
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken = default)
         {
-            var req = subscribeEvent.JobExecutionEventRequest;
+            var req = subscribeEvent.TaskExecutionEventRequest;
             try
             {
                 switch (req.Parameters["RequestType"])
@@ -54,35 +54,35 @@ namespace NodeService.ServiceHost.Services
 
         private async Task ProcessTaskCancelRequestEventAsync(
             NodeServiceClient nodeServiceClient,
-            JobExecutionEventRequest request,
+            TaskExecutionEventRequest request,
             CancellationToken cancellationToken = default)
         {
-            var rsp = new JobExecutionEventResponse()
+            var rsp = new TaskExecutionEventResponse()
             {
                 ErrorCode = 0,
                 Message = string.Empty,
                 RequestId = request.RequestId
             };
-            string taskId = request.Parameters[nameof(JobExecutionInstanceModel.Id)];
-            if (_taskExecutionContextDictionary.TryRemove(taskId, out var jobExecutionContext))
+            string taskId = request.Parameters[nameof(TaskExecutionInstanceModel.Id)];
+            if (_taskExecutionContextDictionary.TryRemove(taskId, out var taskExecutionContext))
             {
-                await jobExecutionContext.CancelAsync();
+                await taskExecutionContext.CancelAsync();
                 rsp.Message = $"task {taskId} cancelled";
             }
             else
             {
                 rsp.ErrorCode = -1;
                 rsp.Message = $"invalid task instance id:{taskId}";
-                var report = new JobExecutionReport
+                var report = new TaskExecutionReport
                 {
-                    Status = JobExecutionStatus.Cancelled,
+                    Status = TaskExecutionStatus.Cancelled,
                     Id = taskId,
                     Message = "Cancelled"
                 };
-                await this._taskReportQueue.EnqueueAsync(report);
+                await this._taskExecutionReportQueue.EnqueueAsync(report);
             }
 
-            await nodeServiceClient.SendJobExecutionEventResponseAsync(
+            await nodeServiceClient.SendTaskExecutionEventResponseAsync(
                 rsp,
                 _headers,
                 cancellationToken: cancellationToken);
@@ -90,10 +90,10 @@ namespace NodeService.ServiceHost.Services
 
         private async Task ProcessTaskTriggerEventAsync(
             NodeServiceClient nodeServiceClient,
-            JobExecutionEventRequest request,
+            TaskExecutionEventRequest request,
             CancellationToken cancellationToken = default)
         {
-            var rsp = new JobExecutionEventResponse()
+            var rsp = new TaskExecutionEventResponse()
             {
                 ErrorCode = 0,
                 Message = string.Empty,
@@ -104,11 +104,11 @@ namespace NodeService.ServiceHost.Services
                 rsp.Parameters.Add(kv.Key, kv.Value);
             }
             var taskExecutionContext = _taskExecutionContextDictionary.GetOrAdd(
-                request.Parameters[nameof(JobExecutionInstanceModel.Id)],
+                request.Parameters[nameof(TaskExecutionInstanceModel.Id)],
                 BuildTaskExecutionContext(request.Parameters));
             await this._taskExecutionContextQueue.EnqueueAsync(taskExecutionContext);
             rsp.Message = $"{Dns.GetHostName()} recieved task";
-            await nodeServiceClient.SendJobExecutionEventResponseAsync(
+            await nodeServiceClient.SendTaskExecutionEventResponseAsync(
                 rsp,
                 _headers,
                 cancellationToken: cancellationToken);
@@ -118,7 +118,7 @@ namespace NodeService.ServiceHost.Services
         {
             return new TaskExecutionContext(_serviceProvider.GetService<ILogger<TaskExecutionContext>>(),
                                         TaskCreationParameters.Build(parameters),
-                                        _taskReportQueue,
+                                        _taskExecutionReportQueue,
                                         _taskExecutionContextDictionary);
         }
     }

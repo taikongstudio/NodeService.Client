@@ -43,25 +43,25 @@ namespace NodeService.ServiceHost.Services
             }
             try
             {
-                await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Started, "Started");
+                await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Started, "Started");
                 if (_taskExecutionContext.Parameters == null)
                 {
                     message = $"Parameters is null";
                     result = false;
                     return;
                 }
-                var taskTypeDescConfig = _taskExecutionContext.Parameters.TaskScheduleConfig.JobTypeDesc;
-                if (taskTypeDescConfig == null)
+                var taskTypeDesc = _taskExecutionContext.Parameters.TaskTypeDefinition.TaskTypeDesc;
+                if (taskTypeDesc == null)
                 {
                     message = $"Could not found task type description config";
                     result = false;
                     return;
                 }
 
-                var serviceType = ResolveTaskType(taskTypeDescConfig.FullName);
+                var serviceType = ResolveTaskType(taskTypeDesc.FullName);
                 if (serviceType == null)
                 {
-                    message = $"Could not found task type {taskTypeDescConfig.FullName}";
+                    message = $"Could not found task type {taskTypeDesc.FullName}";
                     result = false;
                     return;
                 }
@@ -73,8 +73,8 @@ namespace NodeService.ServiceHost.Services
                 }
                 else
                 {
-                    await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Running, "Running");
-                    task.SetTaskScheduleConfig(_taskExecutionContext.Parameters.TaskScheduleConfig);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Running, "Running");
+                    task.SetTaskDefinition(_taskExecutionContext.Parameters.TaskTypeDefinition);
                     task.SetEnvironmentVariables(_taskExecutionContext.Parameters.EnvironmentVariables);
                     await task.ExecuteAsync(_taskExecutionContext.CancellationToken);
                     result = true;
@@ -100,16 +100,16 @@ namespace NodeService.ServiceHost.Services
                 if (_taskExecutionContext.CancelledManually)
                 {
                     message = "Cancelled manually";
-                    await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Cancelled, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Cancelled, message);
                 }
                 else if (!result)
                 {
-                    await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Failed, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Failed, message);
                 }
                 else
                 {
                     message = "Finished";
-                    await _taskExecutionContext.UpdateStatusAsync(JobExecutionStatus.Finished, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Finished, message);
                 }
             }
         }

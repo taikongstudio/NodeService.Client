@@ -32,4 +32,3 @@ global using System.Threading.Tasks;
 global using System.Threading.Tasks.Dataflow;
 global using static NodeService.Infrastructure.Services.NodeService;
 global using ILogger = Microsoft.Extensions.Logging.ILogger;
-global using JobExecutionStatus = NodeService.Infrastructure.Models.JobExecutionReport.Types.JobExecutionStatus;

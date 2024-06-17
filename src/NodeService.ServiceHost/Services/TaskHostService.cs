@@ -54,11 +54,11 @@ namespace NodeService.ServiceHost.Services
             while (!stoppingToken.IsCancellationRequested)
             {
                 var taskExecutionContext = await _taskExecutionContextQueue.DeuqueAsync(stoppingToken);
-                StartJobExecutionContextService(taskExecutionContext);
+                StartTaskExecutionContextService(taskExecutionContext);
             }
         }
 
-        private void StartJobExecutionContextService(TaskExecutionContext taskExecutionContext)
+        private void StartTaskExecutionContextService(TaskExecutionContext taskExecutionContext)
         {
             Task.Factory.StartNew(
                 ExecuteTaskImpl,

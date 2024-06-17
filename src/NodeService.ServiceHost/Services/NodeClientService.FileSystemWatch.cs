@@ -5,22 +5,23 @@ namespace NodeService.ServiceHost.Services
 {
     public partial class NodeClientService
     {
-        private class FileSystemWatcherInfo
+        class FileSystemWatcherInfo
         {
             public FileSystemWatcher Watcher { get; set; }
 
             public FileSystemWatchConfigModel Configuration { get; set; }
 
         }
-        private ConcurrentDictionary<string, FileSystemWatcherInfo> _watchers;
-        private readonly IAsyncQueue<FileSystemWatchEventReport> _fileSystemWatchEventQueue;
 
-        private void InitializeFileSystemWatch()
+        ConcurrentDictionary<string, FileSystemWatcherInfo> _watchers;
+        readonly IAsyncQueue<FileSystemWatchEventReport> _fileSystemWatchEventQueue;
+
+        void InitializeFileSystemWatch()
         {
             _watchers = new ConcurrentDictionary<string, FileSystemWatcherInfo>();
         }
 
-        private void DeleteFileSystemWatcherInfo(FileSystemWatchConfigModel config)
+        void DeleteFileSystemWatcherInfo(FileSystemWatchConfigModel config)
         {
             if (!this._watchers.TryRemove(config.Id, out var info))
             {
@@ -32,7 +33,7 @@ namespace NodeService.ServiceHost.Services
             info.Watcher.Dispose();
         }
 
-        private void AddOrUpdateFileSystemWatchConfiguration(FileSystemWatchConfigModel config)
+        void AddOrUpdateFileSystemWatchConfiguration(FileSystemWatchConfigModel config)
         {
             this._watchers.AddOrUpdate(config.Id,
                 (key) => AddFileSystemWatcherInfo(config),
@@ -40,7 +41,7 @@ namespace NodeService.ServiceHost.Services
 
         }
 
-        private FileSystemWatcherInfo AddFileSystemWatcherInfo(FileSystemWatchConfigModel config)
+        FileSystemWatcherInfo AddFileSystemWatcherInfo(FileSystemWatchConfigModel config)
         {
             _logger.LogInformation($"Add {nameof(FileSystemWatcher)} {config.Id}");
             FileSystemWatcherInfo fileSystemWatcherInfo = new FileSystemWatcherInfo();
@@ -52,7 +53,7 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-        private FileSystemWatcherInfo UpdateFileSystemWatcherInfo(
+        FileSystemWatcherInfo UpdateFileSystemWatcherInfo(
             FileSystemWatcherInfo info,
             FileSystemWatchConfigModel config)
         {
@@ -85,7 +86,7 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-        private bool TryFindConfigId(object sender, out string? configId)
+        bool TryFindConfigId(object sender, out string? configId)
         {
             configId = null;
             foreach (var item in this._watchers.Values)
@@ -100,7 +101,7 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-        private FileSystemWatchEventInfo CreateEventInfo(
+        FileSystemWatchEventInfo CreateEventInfo(
             WatcherChangeTypes watcherChangeTypes,
             string fullPath,
             string name)
@@ -152,7 +153,7 @@ namespace NodeService.ServiceHost.Services
             return eventInfo;
         }
 
-        private FileSystemWatchRenameInfo CreateRenamedEventInfo(
+        FileSystemWatchRenameInfo CreateRenamedEventInfo(
             WatcherChangeTypes watcherChangeTypes,
             string fullPath,
             string name,
@@ -210,7 +211,7 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-        private void AttachFileSystemWatcherEvents(FileSystemWatcher fileSystemWatcher)
+        void AttachFileSystemWatcherEvents(FileSystemWatcher fileSystemWatcher)
         {
             fileSystemWatcher.Changed += FileSystemWatcher_Changed;
             fileSystemWatcher.Created += FileSystemWatcher_Created;
@@ -219,7 +220,7 @@ namespace NodeService.ServiceHost.Services
             fileSystemWatcher.Error += FileSystemWatcher_Error;
         }
 
-        private void DetachFileSystemWatcherEvents(FileSystemWatcher fileSystemWatcher)
+        void DetachFileSystemWatcherEvents(FileSystemWatcher fileSystemWatcher)
         {
             fileSystemWatcher.Changed -= FileSystemWatcher_Changed;
             fileSystemWatcher.Created -= FileSystemWatcher_Created;
@@ -228,7 +229,7 @@ namespace NodeService.ServiceHost.Services
             fileSystemWatcher.Error -= FileSystemWatcher_Error;
         }
 
-        private void FileSystemWatcher_Error(object sender, ErrorEventArgs e)
+        void FileSystemWatcher_Error(object sender, ErrorEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
             {
@@ -246,7 +247,7 @@ namespace NodeService.ServiceHost.Services
             });
         }
 
-        private void FileSystemWatcher_Renamed(object sender, RenamedEventArgs e)
+        void FileSystemWatcher_Renamed(object sender, RenamedEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
             {
@@ -260,7 +261,7 @@ namespace NodeService.ServiceHost.Services
             });
         }
 
-        private void FileSystemWatcher_Deleted(object sender, FileSystemEventArgs e)
+        void FileSystemWatcher_Deleted(object sender, FileSystemEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
             {
@@ -274,7 +275,7 @@ namespace NodeService.ServiceHost.Services
             });
         }
 
-        private void FileSystemWatcher_Created(object sender, FileSystemEventArgs e)
+        void FileSystemWatcher_Created(object sender, FileSystemEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
             {
@@ -288,7 +289,7 @@ namespace NodeService.ServiceHost.Services
             });
         }
 
-        private void FileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
+        void FileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
         {
             if (!TryFindConfigId(sender, out string? configId) || configId == null)
             {

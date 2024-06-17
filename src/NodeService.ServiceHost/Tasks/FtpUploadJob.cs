@@ -17,7 +17,7 @@ namespace NodeService.ServiceHost.Tasks
         public override async Task ExecuteAsync(CancellationToken stoppingToken = default)
         {
             FtpUploadJobOptions ftpUploadJobOptions = new FtpUploadJobOptions();
-            await ftpUploadJobOptions.InitAsync(TaskScheduleConfig, ApiService);
+            await ftpUploadJobOptions.InitAsync(TaskDefinition, ApiService);
             var nodeId = _nodeIdentityProvider.GetIdentity();
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {

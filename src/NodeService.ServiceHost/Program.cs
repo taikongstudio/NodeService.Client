@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
+using System.Text;
 
 namespace NodeService.ServiceHost
 {
@@ -29,6 +30,7 @@ namespace NodeService.ServiceHost
                     return;
                 }
                 EnsureOptions(options);
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
                 Environment.CurrentDirectory = AppContext.BaseDirectory;
                 LogManager.AutoShutdown = true;
                 Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", options.env);
@@ -43,14 +45,17 @@ namespace NodeService.ServiceHost
                 builder.Services.AddSingleton<TaskExecutionContextDictionary>();
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
-                builder.Services.AddSingleton<IAsyncQueue<JobExecutionReport>, AsyncQueue<JobExecutionReport>>();
-                builder.Services.AddSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>();
-
+                builder.Services.AddSingleton<IAsyncQueue<TaskExecutionReport>, AsyncQueue<TaskExecutionReport>>();
+                builder.Services.AddKeyedSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>(nameof(NodeClientService));
+                builder.Services.AddSingleton(new BatchQueue<FileSystemWatchEventReport>(1024, TimeSpan.FromSeconds(5)));
                 builder.Services.AddHostedService<TaskHostService>();
+                builder.Services.AddHostedService<NodeFileSystemSyncService>();
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<PythonRuntimeService>();
                 builder.Services.AddHostedService<ProcessServerService>();
                 builder.Services.AddHostedService<ParentProcessMonitorService>();
+
+                builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog($"NLog.config");

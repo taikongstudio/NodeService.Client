@@ -5,7 +5,7 @@ namespace NodeService.ServiceHost.Services
 {
     public class TaskExecutionContext : IAsyncDisposable
     {
-        private readonly IAsyncQueue<JobExecutionReport> _reportChannel;
+        private readonly IAsyncQueue<TaskExecutionReport> _reportQueue;
         private readonly ActionBlock<LogEntry> _logActionBlock;
         private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
         private CancellationTokenSource _cancellationTokenSource;
@@ -15,12 +15,12 @@ namespace NodeService.ServiceHost.Services
         public TaskExecutionContext(
             ILogger<TaskExecutionContext> logger,
             TaskCreationParameters parameters,
-            IAsyncQueue<JobExecutionReport> reportQueue,
+            IAsyncQueue<TaskExecutionReport> reportQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary)
         {
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _cancellationTokenSource = new CancellationTokenSource();
-            _reportChannel = reportQueue;
+            _reportQueue = reportQueue;
             _logger = logger;
             _logActionBlock = new ActionBlock<LogEntry>(WriteLogAsync, new ExecutionDataflowBlockOptions()
             {
@@ -37,12 +37,12 @@ namespace NodeService.ServiceHost.Services
             {
                 await foreach (var arrayPoolCollection in _logMessageEntryBatchQueue.ReceiveAllAsync(CancellationToken))
                 {
-                    foreach (var logStatusGroup in arrayPoolCollection.Where(static x => x.Status != (int)JobExecutionStatus.Unknown)
+                    foreach (var logStatusGroup in arrayPoolCollection.Where(static x => x.Status != (int)TaskExecutionStatus.Unknown)
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
                         int logEntryCount = logStatusGroup.Count();
-                        int pageSize = 512;
+                        int pageSize = 1024;
                         int pageCount = Math.DivRem(logEntryCount, pageSize, out int result);
                         if (result > 0)
                         {
@@ -51,7 +51,7 @@ namespace NodeService.ServiceHost.Services
                         for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
                         {
                             var entries = logStatusGroup.Skip(pageIndex * pageSize).Take(pageSize).Select(LogEntryToTaskExecutionLogEntry);
-                            await EnqueueLogsAsync((JobExecutionStatus)status, entries);
+                            await EnqueueLogsAsync((TaskExecutionStatus)status, entries);
                         }
 
                     }
@@ -63,11 +63,11 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-        private static JobExecutionLogEntry LogEntryToTaskExecutionLogEntry(LogEntry logEntry)
+        private static TaskExecutionLogEntry LogEntryToTaskExecutionLogEntry(LogEntry logEntry)
         {
-            return new JobExecutionLogEntry()
+            return new TaskExecutionLogEntry()
             {
-                Type = (JobExecutionLogEntry.Types.JobExecutionLogEntryType)logEntry.Type,
+                Type = (TaskExecutionLogEntryType)logEntry.Type,
                 DateTime = Timestamp.FromDateTime(logEntry.DateTimeUtc),
                 Value = logEntry.Value,
             };
@@ -94,36 +94,36 @@ namespace NodeService.ServiceHost.Services
 
         public TaskCreationParameters Parameters { get; private set; }
 
-        public JobExecutionStatus Status { get; private set; }
+        public TaskExecutionStatus Status { get; private set; }
 
         public string Message { get; set; } = string.Empty;
 
-        public bool CancelledManually { get; set; }
+        public bool CancelledManually { get; private set; }
 
 
-        public async Task UpdateStatusAsync(JobExecutionStatus status, string message)
+        public async Task UpdateStatusAsync(TaskExecutionStatus status, string message)
         {
             Status = status;
-            var report = new JobExecutionReport
+            var report = new TaskExecutionReport
             {
                 Status = Status,
                 Id = Parameters.Id,
                 Message = message
             };
-            report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
-            await _reportChannel.EnqueueAsync(report);
+            report.Properties.Add(nameof(TaskExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
+            await _reportQueue.EnqueueAsync(report);
         }
 
-        public async Task EnqueueLogsAsync(JobExecutionStatus status, IEnumerable<JobExecutionLogEntry> logEntries)
+        public async Task EnqueueLogsAsync(TaskExecutionStatus status, IEnumerable<TaskExecutionLogEntry> logEntries)
         {
-            var report = new JobExecutionReport
+            var report = new TaskExecutionReport
             {
                 Status = status,
                 Id = Parameters.Id
             };
             report.LogEntries.AddRange(logEntries);
-            report.Properties.Add(nameof(JobExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
-            await _reportChannel.EnqueueAsync(report);
+            report.Properties.Add(nameof(TaskExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
+            await _reportQueue.EnqueueAsync(report);
         }
 
         public ValueTask CancelAsync()
@@ -135,11 +135,12 @@ namespace NodeService.ServiceHost.Services
         public async ValueTask DisposeAsync()
         {
 
-            if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
+            if (_cancellationTokenSource == null || _cancellationTokenSource.IsCancellationRequested)
             {
-                _cancellationTokenSource.Cancel();
-                _cancellationTokenSource.Dispose();
+                return;
             }
+            _cancellationTokenSource.Cancel();
+            _cancellationTokenSource.Dispose();
             _taskExecutionContextDictionary.TryRemove(Parameters.Id, out _);
             await Task.Delay(TimeSpan.FromSeconds(5));
             await _logMessageEntryBatchQueue.DisposeAsync();

@@ -16,7 +16,7 @@ namespace NodeService.ServiceHost.Tasks
             try
             {
                 ShouHuUploadJobOptions options = new ShouHuUploadJobOptions();
-                await options.InitAsync(TaskScheduleConfig, ApiService);
+                await options.InitAsync(TaskDefinition, ApiService);
                 Logger.LogInformation("开始上报");
 
                 _producerUtil = new ProducerUtil(Logger);

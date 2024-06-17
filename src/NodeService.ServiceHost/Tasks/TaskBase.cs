@@ -6,7 +6,7 @@ namespace NodeService.ServiceHost.Tasks
     {
         public ILogger Logger { get; private set; }
 
-        public JobScheduleConfigModel TaskScheduleConfig { get; private set; }
+        public TaskDefinitionModel TaskDefinition { get; private set; }
 
         public ApiService ApiService { get; private set; }
 
@@ -21,9 +21,9 @@ namespace NodeService.ServiceHost.Tasks
 
         public abstract Task ExecuteAsync(CancellationToken cancellationToken = default);
 
-        public void SetTaskScheduleConfig(JobScheduleConfigModel taskDefinition)
+        public void SetTaskDefinition(TaskDefinitionModel taskDefinition)
         {
-            TaskScheduleConfig = taskDefinition;
+            TaskDefinition = taskDefinition;
         }
 
         public void SetEnvironmentVariables(IEnumerable<StringEntry> envVars)
