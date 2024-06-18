@@ -46,14 +46,16 @@ namespace NodeService.ServiceHost
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
                 builder.Services.AddSingleton<IAsyncQueue<TaskExecutionReport>, AsyncQueue<TaskExecutionReport>>();
-                builder.Services.AddKeyedSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>(nameof(NodeClientService));
                 builder.Services.AddSingleton(new BatchQueue<FileSystemWatchEventReport>(1024, TimeSpan.FromSeconds(5)));
+                builder.Services.AddKeyedSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>(nameof(NodeClientService));
+                builder.Services.AddKeyedSingleton<IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>>, AsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>>>(nameof(NodeFileSystemWatchService));
                 builder.Services.AddHostedService<TaskHostService>();
                 builder.Services.AddHostedService<NodeFileSystemSyncService>();
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<PythonRuntimeService>();
                 builder.Services.AddHostedService<ProcessServerService>();
                 builder.Services.AddHostedService<ParentProcessMonitorService>();
+                builder.Services.AddHostedService<NodeFileSystemWatchService>();
 
                 builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();

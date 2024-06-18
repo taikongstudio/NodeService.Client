@@ -31,7 +31,7 @@ namespace NodeService.ServiceHost.Services
             _ = Task.Run(ProcessLogMessageEntries);
         }
 
-        private async void ProcessLogMessageEntries()
+        private async Task ProcessLogMessageEntries()
         {
             try
             {

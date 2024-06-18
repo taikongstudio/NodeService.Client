@@ -1,4 +1,5 @@
 ﻿using Confluent.Kafka;
+using NodeService.Infrastructure.Concurrent;
 using NodeService.Infrastructure.Models;
 using System.Configuration;
 
@@ -23,7 +24,12 @@ namespace NodeService.ServiceHost.Services
                     var key = kv.Key;
                     var segments = key.Split("_", StringSplitOptions.RemoveEmptyEntries);
                     eventReport.ConfigurationId = segments[1];
-                    ProcessConfigurationChangedEvent(kv.Value);
+                    var changedEvent = JsonSerializer.Deserialize<ConfigurationChangedEvent>(kv.Value);
+                    if (changedEvent == null)
+                    {
+                        continue;
+                    }
+                    await ProcessConfigurationChangedEvent(changedEvent);
                 }
                 catch (Exception ex)
                 {
@@ -37,13 +43,9 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-        private void ProcessConfigurationChangedEvent(string json)
+        private async Task ProcessConfigurationChangedEvent(ConfigurationChangedEvent changedEvent)
         {
-            var changedEvent = JsonSerializer.Deserialize<ConfigurationChangedEvent>(json);
-            if (changedEvent == null)
-            {
-                return;
-            }
+
             var type = typeof(JsonBasedDataModel).Assembly.GetType(changedEvent.TypeName);
             if (type == null)
             {
@@ -52,34 +54,29 @@ namespace NodeService.ServiceHost.Services
             switch (type.Name)
             {
                 case nameof(FileSystemWatchConfigModel):
-                    ProcessFileSystemWatchConfigurationChangedEvent(changedEvent);
+                    {
+                        var fileSystemWatchConfig = JsonSerializer.Deserialize<FileSystemWatchConfigModel>(changedEvent.Json);
+                        if (fileSystemWatchConfig == null)
+                        {
+                            return;
+                        }
+                        var opKind = changedEvent.ChangedType switch
+                        {
+                            ConfigurationChangedType.Add => BatchQueueOperationKind.InsertOrUpdate,
+                            ConfigurationChangedType.Update => BatchQueueOperationKind.InsertOrUpdate,
+                            ConfigurationChangedType.Delete => BatchQueueOperationKind.Delete,
+                            ConfigurationChangedType.None or _ => BatchQueueOperationKind.None
+                        };
+                        var op = new BatchQueueOperation<FileSystemWatchConfigModel, bool>(fileSystemWatchConfig, opKind);
+                        await _fileSystemConfigurationQueue.EnqueueAsync(op);
+                        var result = await op.WaitAsync();
+                    }
                     break;
                 default:
                     break;
             }
         }
 
-        private void ProcessFileSystemWatchConfigurationChangedEvent(ConfigurationChangedEvent changedEvent)
-        {
-            var fileSystemWatchConfig = JsonSerializer.Deserialize<FileSystemWatchConfigModel>(changedEvent.Json);
-            if (fileSystemWatchConfig == null)
-            {
-                return;
-            }
-            switch (changedEvent.ChangedType)
-            {
-                case ConfigurationChangedType.None:
-                    break;
-                case ConfigurationChangedType.Add:
-                case ConfigurationChangedType.Update:
-                    this.AddOrUpdateFileSystemWatchConfiguration(fileSystemWatchConfig);
-                    break;
-                case ConfigurationChangedType.Delete:
-                    this.DeleteFileSystemWatcherInfo(fileSystemWatchConfig);
-                    break;
-                default:
-                    break;
-            }
-        }
+
     }
 }

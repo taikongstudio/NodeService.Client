@@ -21,17 +21,17 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-
-        private readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
-        private readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
-        private readonly INodeIdentityProvider _nodeIdentityProvider;
-        private readonly Metadata _headers;
-        private readonly IServiceProvider _serviceProvider;
-        private ServerOptions _serverOptions;
-        private readonly IDisposable? _serverOptionsMonitorToken;
-        private readonly ServiceOptions _serviceHostOptions;
-        private long _heartBeatCounter;
-        private long _cancellationCounter;
+        readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemConfigurationQueue;
+        readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
+        readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
+        readonly INodeIdentityProvider _nodeIdentityProvider;
+        readonly Metadata _headers;
+        readonly IServiceProvider _serviceProvider;
+        readonly IDisposable? _serverOptionsMonitorToken;
+        readonly ServiceOptions _serviceHostOptions;
+        long _heartBeatCounter;
+        long _cancellationCounter;
+        ServerOptions _serverOptions;
 
         public ILogger<NodeClientService> _logger { get; private set; }
 
@@ -42,6 +42,7 @@ namespace NodeService.ServiceHost.Services
             IAsyncQueue<TaskExecutionContext> taskExecutionContextQueue,
             IAsyncQueue<TaskExecutionReport> taskReportQueue,
             [FromKeyedServices(nameof(NodeClientService))]IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue,
+            [FromKeyedServices(nameof(NodeFileSystemWatchService))]IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel,bool>> fileSystemConfigurationQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
@@ -53,7 +54,7 @@ namespace NodeService.ServiceHost.Services
             _taskExecutionContextQueue = taskExecutionContextQueue;
             _fileSystemWatchEventQueue = fileSystemWatchEventQueue;
             _taskExecutionReportQueue = taskReportQueue;
-            _taskExecutionContextDictionary = taskExecutionContextDictionary;
+            _fileSystemConfigurationQueue = fileSystemConfigurationQueue;
             _logger = logger;
             _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync,
             new ExecutionDataflowBlockOptions()
@@ -72,7 +73,6 @@ namespace NodeService.ServiceHost.Services
             _serverOptions = serverOptionsMonitor.CurrentValue;
             _serverOptionsMonitorToken = serverOptionsMonitor.OnChange(OnServerOptionsChanged);
             _serviceHostOptions = serviceHostOptions;
-            InitializeFileSystemWatch();
         }
 
         private void OnServerOptionsChanged(ServerOptions serverOptions)

@@ -18,6 +18,8 @@ namespace NodeService.ServiceHost.Services
             }
 
             public NodeConfigurationDirectoryKey Key { get; private set; }
+
+            public FileSystemWatchConfigModel FileSystemWatchConfig { get; set; }
             public IEnumerable<FileSystemWatchEventReport> Reports { get; private set; }
 
             public static NodeFileSystemSyncContext From(IGrouping<NodeConfigurationDirectoryKey, FileSystemWatchEventReport> groups)
@@ -28,6 +30,7 @@ namespace NodeService.ServiceHost.Services
 
 
         readonly ILogger<NodeClientService> _logger;
+        private readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemWatchConfigQueue;
         readonly IDisposable _token;
         readonly BatchQueue<FileSystemWatchEventReport> _fileSystemWatchEventBatchQueue;
         readonly ConcurrentDictionary<NodeConfigurationDirectoryKey, DirectoryCounterInfo> _directoryCounterDict;
@@ -39,12 +42,14 @@ namespace NodeService.ServiceHost.Services
         public NodeFileSystemSyncService(
             ILogger<NodeClientService> logger,
             [FromKeyedServices(nameof(NodeClientService))] IAsyncQueue<FileSystemWatchEventReport> sourceQueue,
+            [FromKeyedServices(nameof(NodeFileSystemWatchService))] IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> fileSystemWatchConfigQueue,
             INodeIdentityProvider nodeIdentityProvider,
             HttpClient httpClient,
             IOptionsMonitor<ServerOptions> optionsMonitor
             )
         {
             _logger = logger;
+            _fileSystemWatchConfigQueue = fileSystemWatchConfigQueue;
             _token = sourceQueue.RegisterInterceptor(SendBatchQueueAsync);
             _fileSystemWatchEventBatchQueue = new BatchQueue<FileSystemWatchEventReport>(1024, TimeSpan.FromSeconds(10));
             _directoryCounterDict = new();
@@ -119,6 +124,16 @@ namespace NodeService.ServiceHost.Services
                 {
                     return;
                 }
+                var fileSystemWatchConfig = await QueryFileSystemWatchConfigAsync(
+                                        nodeFileSystemSyncContext.Key.ConfigurationId,
+                                        cancellationToken);
+                if (fileSystemWatchConfig == null)
+                {
+                    await DeleteWatcherAsync(nodeFileSystemSyncContext.Key.ConfigurationId, cancellationToken);
+                    return;
+                }
+
+
                 if (!_directoryCounterDict.TryGetValue(nodeFileSystemSyncContext.Key, out var directoryCounterInfo))
                 {
                     directoryCounterInfo = new DirectoryCounterInfo(nodeFileSystemSyncContext.Key.Directory);
@@ -163,13 +178,6 @@ namespace NodeService.ServiceHost.Services
                     return;
                 }
 
-                var fileSystemWatchConfig = await QueryFileSystemWatchConfigAsync(
-                    nodeFileSystemSyncContext.Key.ConfigurationId,
-                    cancellationToken);
-                if (fileSystemWatchConfig == null)
-                {
-                    return;
-                }
 
                 if (changesCount > fileSystemWatchConfig.TriggerThreshold
                     &&
@@ -196,6 +204,15 @@ namespace NodeService.ServiceHost.Services
                 _logger.LogError(ex.ToString());
             }
 
+        }
+
+        async Task DeleteWatcherAsync(string configId, CancellationToken cancellationToken = default)
+        {
+            var op = new BatchQueueOperation<FileSystemWatchConfigModel, bool>(new FileSystemWatchConfigModel()
+            {
+                Id = configId,
+            }, BatchQueueOperationKind.Delete);
+            await op.WaitAsync(cancellationToken);
         }
 
         async ValueTask<FileSystemWatchConfigModel?> QueryFileSystemWatchConfigAsync(
