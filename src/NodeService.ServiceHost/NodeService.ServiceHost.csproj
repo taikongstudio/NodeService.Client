@@ -38,4 +38,10 @@
 	  <ProjectReference Include="..\..\..\NodeService.Infrastructure\src\NodeService.Infrastructure\NodeService.Infrastructure.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <None Update="package.key">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
 </Project>
