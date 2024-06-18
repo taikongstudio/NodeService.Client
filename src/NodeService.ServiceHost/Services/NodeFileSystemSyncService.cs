@@ -257,7 +257,7 @@ namespace NodeService.ServiceHost.Services
             {
                 return;
             }
-            var nodeFileSyncDirectoryEnumerator = new NodeFileSyncDirectoryEnumerator(ftpUploadConfig);
+            var nodeFileSyncDirectoryEnumerator = new NodeFileSystemEnumerator(ftpUploadConfig);
             var filePathList = nodeFileSyncDirectoryEnumerator.EnumerateFiles(directoryCounterInfo.Directory);
             if (directoryCounterInfo.PathList != null)
             {
@@ -277,18 +277,20 @@ namespace NodeService.ServiceHost.Services
             {
                 FtpConfigId = ftpUploadConfig.FtpConfigId,
                 NodeId = _nodeIdentityProvider.GetIdentity(),
+                FileSystemWatchConfigurationId = fileSystemWatchConfig.Id,
                 TargetDirectory = PathHelper.CalcuateTargetDirectory(
-                ftpUploadConfig.LocalDirectory,
-                directoryCounterInfo.Directory,
-                ftpUploadConfig.RemoteDirectory)
+                                            ftpUploadConfig.LocalDirectory,
+                                            directoryCounterInfo.Directory,
+                                            ftpUploadConfig.RemoteDirectory)
             };
+
             foreach (var kv in remotePathList)
             {
                 try
                 {
                     var localFilePath = kv.Key;
                     var targetFilePath = kv.Value;
-                    var fileSystemSyncInfo =await FileSystemSyncInfo.FromFileInfoAsync(
+                    var fileSystemSyncInfo = await FileSystemFileSyncInfo.FromFileInfoAsync(
                         new FileInfo(localFilePath),
                         targetFilePath,
                         fileSystemWatchConfig.CompressThreshold);
@@ -303,9 +305,12 @@ namespace NodeService.ServiceHost.Services
             var rsp = await _apiService.FileSystemSyncAsync(fileSystemSyncParameters);
             if (rsp.ErrorCode == 0)
             {
-                foreach (var item in rsp.Result.Progresses)
+                if (Debugger.IsAttached)
                 {
-                    _logger.LogInformation(JsonSerializer.Serialize(item));
+                    foreach (var item in rsp.Result.Progresses)
+                    {
+                        _logger.LogInformation(JsonSerializer.Serialize(item));
+                    }
                 }
             }
             else

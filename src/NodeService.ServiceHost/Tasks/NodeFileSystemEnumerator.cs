@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog.Filters;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -52,12 +53,56 @@ namespace NodeService.ServiceHost.Tasks
 
     }
 
-    internal class NodeFileSyncDirectoryEnumerator
+    internal class NodeFileSystemEnumerator
     {
         FtpUploadConfigModel _ftpUploadConfig;
-        public NodeFileSyncDirectoryEnumerator(FtpUploadConfigModel ftpUploadConfig)
+        EnumerationOptions _enumerationOptions;
+        public NodeFileSystemEnumerator(FtpUploadConfigModel ftpUploadConfig)
         {
             _ftpUploadConfig = ftpUploadConfig;
+            _enumerationOptions = new EnumerationOptions()
+            {
+                MatchCasing = ftpUploadConfig.MatchCasing,
+                RecurseSubdirectories = ftpUploadConfig.IncludeSubDirectories,
+                MaxRecursionDepth = ftpUploadConfig.MaxRecursionDepth,
+                MatchType = ftpUploadConfig.MatchType,
+            };
+        }
+
+        public IEnumerable<string> EnumerateDirectories(string directory)
+        {
+            if (_ftpUploadConfig.DirectoryFilters == null)
+            {
+                _ftpUploadConfig.DirectoryFilters = [];
+            }
+            IEnumerable<string> directoriesList = [];
+            var firstDirectoryFilter = _ftpUploadConfig.DirectoryFilters?.FirstOrDefault();
+            if (firstDirectoryFilter == null)
+            {
+                return directoriesList = EnumerateDirectories(directory, "*");
+            }
+            int skipCount = 0;
+            if (firstDirectoryFilter.IsSearchPatternFilter())
+            {
+                directoriesList = EnumerateDirectories(directory, firstDirectoryFilter.Value);
+                skipCount = skipCount + 1;
+            }
+            else
+            {
+                directoriesList = EnumerateDirectories(directory, "*");
+            }
+            foreach (var directoryFilter in _ftpUploadConfig.DirectoryFilters.Skip(skipCount))
+            {
+                if (directoryFilter == null)
+                {
+                    continue;
+                }
+                directoriesList = ExecuteFilter(
+                    directoriesList,
+                    directoryFilter,
+                    DirectorySearchPattern);
+            }
+            return directoriesList;
         }
 
         public IEnumerable<string> EnumerateFiles(string directory)
@@ -76,128 +121,166 @@ namespace NodeService.ServiceHost.Tasks
                 });
             }
 
-            IEnumerable<string> localFiles = [];
+            IEnumerable<string> filePathList = [];
             var firstFilter = _ftpUploadConfig.Filters?.FirstOrDefault();
             if (firstFilter == null)
             {
-                return localFiles;
+                return filePathList = EnumerateFiles(directory, "*");
             }
+            int skipCount = 0;
             if (firstFilter.IsSearchPatternFilter())
             {
-                localFiles = EnumerateFiles(directory, _ftpUploadConfig, firstFilter.Value);
+                filePathList = EnumerateFiles(directory, firstFilter.Value);
+                skipCount = skipCount + 1;
             }
             else
             {
-                localFiles = EnumerateFiles(directory, _ftpUploadConfig, "*");
+                filePathList = EnumerateFiles(directory, "*");
             }
-            foreach (var filter in _ftpUploadConfig.Filters)
+            foreach (var filter in _ftpUploadConfig.Filters.Skip(skipCount))
             {
-                if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
+                if (filter == null)
                 {
                     continue;
                 }
-
-                if (!Enum.TryParse(filter.Name, true, out FilePathFilter pathFilter))
+                if (firstFilter == filter)
                 {
                     continue;
                 }
-                switch (pathFilter)
-                {
-                    case FilePathFilter.Contains:
-                        localFiles = from item in localFiles
-                                     where item.Contains(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotContains:
-                        localFiles = from item in localFiles
-                                     where !item.Contains(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.StartWith:
-                        localFiles = from item in localFiles
-                                     where item.StartsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotStartWith:
-                        localFiles = from item in localFiles
-                                     where !item.StartsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.EndsWith:
-                        localFiles = from item in localFiles
-                                     where item.EndsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.NotEndsWith:
-                        localFiles = from item in localFiles
-                                     where !item.EndsWith(filter.Value)
-                                     select item;
-                        break;
-                    case FilePathFilter.RegExp:
-                        {
-                            var regex = new Regex(filter.Value);
-                            localFiles = from item in localFiles
-                                         where regex.IsMatch(item)
-                                         select item;
-                        }
-
-                        break;
-                    case FilePathFilter.RegExpNotMatch:
-                        {
-                            var regex = new Regex(filter.Value);
-                            localFiles = from item in localFiles
-                                         where !regex.IsMatch(item)
-                                         select item;
-                        }
-                        break;
-                    case FilePathFilter.SearchPattern:
-                        if (firstFilter == filter)
-                        {
-                            continue;
-                        }
-                        localFiles = localFiles.GroupBy(PathHelper.GetFilePathDirectoryName)
-                                               .SelectMany(x => EnumerateFiles(x.Key, _ftpUploadConfig, filter.Value)).Distinct();
-                        break;
-                    default:
-                        break;
-                }
+                filePathList = ExecuteFilter(
+                    filePathList,
+                    filter,
+                    FilePathSearchPattern);
             }
 
             if (_ftpUploadConfig.DateTimeFilters != null && _ftpUploadConfig.DateTimeFilters.Count != 0)
             {
-                localFiles = localFiles.Where(DateTimeFilter);
+                filePathList = filePathList.Where(DateTimeFilter);
             }
 
             if (_ftpUploadConfig.LengthFilters != null && _ftpUploadConfig.LengthFilters.Count != 0)
             {
-                localFiles = localFiles.Where(FileLengthFilter);
+                filePathList = filePathList.Where(FileLengthFilter);
             }
 
-            return localFiles.ToImmutableArray();
+            return filePathList;
 
 
 
         }
 
-        string[] EnumerateFiles(
+        IEnumerable<string> ExecuteFilter(
+            IEnumerable<string> pathList,
+            StringEntry filter,
+            Func<IEnumerable<string>, StringEntry, IEnumerable<string>> searchPatternHandler)
+        {
+            if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
+            {
+                return pathList;
+            }
+
+            if (!Enum.TryParse(filter.Name, true, out FilePathFilter pathFilter))
+            {
+                return pathList;
+            }
+            switch (pathFilter)
+            {
+                case FilePathFilter.Contains:
+                    pathList = from item in pathList
+                               where item.Contains(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.NotContains:
+                    pathList = from item in pathList
+                               where !item.Contains(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.StartWith:
+                    pathList = from item in pathList
+                               where item.StartsWith(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.NotStartWith:
+                    pathList = from item in pathList
+                               where !item.StartsWith(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.EndsWith:
+                    pathList = from item in pathList
+                               where item.EndsWith(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.NotEndsWith:
+                    pathList = from item in pathList
+                               where !item.EndsWith(filter.Value)
+                               select item;
+                    break;
+                case FilePathFilter.RegExp:
+                    {
+                        var regex = new Regex(filter.Value);
+                        pathList = from item in pathList
+                                   where regex.IsMatch(item)
+                                   select item;
+                    }
+
+                    break;
+                case FilePathFilter.RegExpNotMatch:
+                    {
+                        var regex = new Regex(filter.Value);
+                        pathList = from item in pathList
+                                   where !regex.IsMatch(item)
+                                   select item;
+                    }
+                    break;
+                case FilePathFilter.SearchPattern:
+                    pathList = searchPatternHandler == null ? pathList : searchPatternHandler(pathList, filter);
+                    break;
+                default:
+                    break;
+            }
+
+            return pathList;
+        }
+
+        IEnumerable<string> FilePathSearchPattern(IEnumerable<string> pathList, StringEntry filter)
+        {
+            var newPathList = pathList.GroupBy(PathHelper.GetFilePathDirectoryName).SelectMany(x => EnumerateFiles(x.Key, filter.Value)).Distinct();
+            return newPathList;
+        }
+
+        IEnumerable<string> DirectorySearchPattern(IEnumerable<string> pathList, StringEntry filter)
+        {
+            var newPathList = pathList.SelectMany(x => EnumerateDirectories(x, filter.Value)).Distinct();
+            return newPathList;
+        }
+
+        IEnumerable<string> EnumerateFiles(
             string directory,
-            FtpUploadConfigModel ftpUploadConfig,
             string? searchPattern)
         {
             if (string.IsNullOrEmpty(searchPattern))
             {
                 return [];
             }
-            return Directory.GetFiles(directory,
-                searchPattern,
-                new EnumerationOptions()
-                {
-                    MatchCasing = ftpUploadConfig.MatchCasing,
-                    RecurseSubdirectories = ftpUploadConfig.IncludeSubDirectories,
-                    MaxRecursionDepth = ftpUploadConfig.MaxRecursionDepth,
-                    MatchType = ftpUploadConfig.MatchType,
-                }
-                );
+            return Directory.EnumerateFiles(directory,
+                    searchPattern,
+                    _enumerationOptions
+                    );
+        }
+
+        IEnumerable<string> EnumerateDirectories(
+                string directory,
+                string? searchPattern)
+        {
+            if (string.IsNullOrEmpty(searchPattern))
+            {
+                return [];
+            }
+            return Directory.EnumerateDirectories(
+                    directory,
+                    searchPattern,
+                    _enumerationOptions
+                    );
         }
 
         bool FileLengthFilter(string filePath)

@@ -96,22 +96,22 @@ namespace NodeService.ServiceHost.Tasks
                 return;
             }
 
-            NodeFileSyncDirectoryEnumerator enumerator = new NodeFileSyncDirectoryEnumerator(FtpUploadConfig);
+            var enumerator = new NodeFileSystemEnumerator(FtpUploadConfig);
 
-            IEnumerable<string> localFilePathList = enumerator.EnumerateFiles(GetLocalDirectory());
+            var filePathList = enumerator.EnumerateDirectories(rootDirectory).SelectMany(enumerator.EnumerateFiles);
 
             if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
             {
-                localFilePathList = localFilePathList.Intersect(_fileSystemWatchEventPathList);
+                filePathList = filePathList.Intersect(_fileSystemWatchEventPathList);
             }
 
-            if (!localFilePathList.Any())
+            if (!filePathList.Any())
             {
                 _logger.LogInformation($"Cound not found any mached file in {rootDirectory}");
                 return;
             }
 
-            PrintLocalFiles(localFilePathList);
+            PrintLocalFiles(filePathList);
 
             FtpUploadConfig.RemoteDirectory = FtpUploadConfig.RemoteDirectory.Replace("$(HostName)", hostName).Replace("\\", "/");
 
@@ -123,7 +123,7 @@ namespace NodeService.ServiceHost.Tasks
             var remoteFilePathList = PathHelper.CalculateRemoteFilePath(
                 FtpUploadConfig.LocalDirectory,
                 FtpUploadConfig.RemoteDirectory,
-                localFilePathList);
+                filePathList);
             foreach (var kv in remoteFilePathList)
             {
                 var ftpListItem = await ftpClient.GetObjectInfo(
@@ -148,7 +148,7 @@ namespace NodeService.ServiceHost.Tasks
                     cancellationToken);
             }
 
-            _logger.LogInformation($"uploadedCount:{_uploadedCount} skippedCount:{_skippedCount} overidedCount:{_overidedCount}");
+            _logger.LogInformation($"UploadedCount:{_uploadedCount} SkippedCount:{_skippedCount} OveridedCount:{_overidedCount}");
 
         }
 
@@ -361,7 +361,8 @@ namespace NodeService.ServiceHost.Tasks
             bool diffSize = DiffSize(localFileInfo, remoteFileInfo) != 0;
             bool diffFileTime = DiffFileTime(localFileInfo, remoteFileInfo);
             _logger.LogInformation($"{nameof(DiffFileInfo)}:Local:{localFileInfo.FullName}=>Remote:{remoteFileInfo.FullName}" +
-                $"{nameof(DiffSize)}:{diffSize} {nameof(DiffFileTime)}:{diffFileTime}");
+                $" {nameof(DiffSize)}:{diffSize} Local:{localFileInfo.Length} Remote:{remoteFileInfo.Size}" +
+                $" {nameof(DiffFileTime)}:{diffFileTime}  Local:{localFileInfo.LastWriteTime} Remote:{remoteFileInfo.Modified}");
             return diffSize && diffFileTime;
         }
 
