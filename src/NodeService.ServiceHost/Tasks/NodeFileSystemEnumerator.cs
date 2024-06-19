@@ -29,7 +29,7 @@ namespace NodeService.ServiceHost.Tasks
             foreach (var directoryGroup in directoryGroups)
             {
                 var relativePath = Path.GetRelativePath(localBaseDirectory, directoryGroup.Key);
-                foreach (var localFilePath in filePathList)
+                foreach (var localFilePath in directoryGroup)
                 {
                     var fileName = Path.GetFileName(localFilePath);
                     var remoteFilePath = Path.Combine(remoteBaseDirectory, relativePath, fileName);
@@ -42,7 +42,7 @@ namespace NodeService.ServiceHost.Tasks
             yield break;
         }
 
-        public static string CalcuateTargetDirectory(string localDirectoryBase, string relativeTo, string remoteDirectoryBase)
+        public static string CalcuateRemoteDirectory(string localDirectoryBase, string relativeTo, string remoteDirectoryBase)
         {
             var relativePath = Path.GetRelativePath(localDirectoryBase, relativeTo);
             var targetDirectory = Path.Combine(remoteDirectoryBase, relativePath);

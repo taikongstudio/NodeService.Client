@@ -124,6 +124,11 @@ namespace NodeService.ServiceHost.Tasks
                 FtpUploadConfig.LocalDirectory,
                 FtpUploadConfig.RemoteDirectory,
                 filePathList);
+            if (remoteFilePathList.Count() != filePathList.Count())
+            {
+                throw new InvalidOperationException("file count error");
+            }
+            _remoteFileListDict.Clear();
             foreach (var kv in remoteFilePathList)
             {
                 var ftpListItem = await ftpClient.GetObjectInfo(

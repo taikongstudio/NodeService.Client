@@ -295,7 +295,7 @@ namespace NodeService.ServiceHost.Services
                 FtpConfigId = ftpUploadConfig.FtpConfigId,
                 NodeId = _nodeIdentityProvider.GetIdentity(),
                 FileSystemWatchConfigurationId = fileSystemWatchConfig.Id,
-                TargetDirectory = PathHelper.CalcuateTargetDirectory(
+                TargetDirectory = PathHelper.CalcuateRemoteDirectory(
                                             ftpUploadConfig.LocalDirectory,
                                             directoryCounterInfo.Directory,
                                             ftpUploadConfig.RemoteDirectory)
