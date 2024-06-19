@@ -103,14 +103,10 @@ namespace NodeService.ServiceHost.Services
             {
                 rsp.Parameters.Add(kv.Key, kv.Value);
             }
-            if (true)
-            {
-
-            }
             var taskExecutionContext = _taskExecutionContextDictionary.GetOrAdd(
                 request.Parameters[nameof(TaskExecutionInstanceModel.Id)],
                 BuildTaskExecutionContext(request.Parameters));
-            await this._taskExecutionContextQueue.EnqueueAsync(taskExecutionContext);
+            await _taskExecutionContextQueue.EnqueueAsync(taskExecutionContext, cancellationToken);
             rsp.Message = $"{Dns.GetHostName()} recieved task";
             await nodeServiceClient.SendTaskExecutionEventResponseAsync(
                 rsp,

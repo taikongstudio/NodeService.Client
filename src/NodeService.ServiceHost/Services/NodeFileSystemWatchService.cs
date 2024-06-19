@@ -26,7 +26,7 @@ namespace NodeService.ServiceHost.Services
 
         public NodeFileSystemWatchService(
             ILogger<NodeFileSystemWatchService> logger,
-            [FromKeyedServices(nameof(NodeFileSystemWatchService))]IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> fileSystemWatchConfigQueue,
+            [FromKeyedServices(nameof(NodeFileSystemWatchService))] IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> fileSystemWatchConfigQueue,
             [FromKeyedServices(nameof(NodeClientService))] IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue
             )
         {

@@ -57,6 +57,10 @@ namespace NodeService.ServiceHost.Services
                     }
                 }
             }
+            catch (TaskCanceledException)
+            {
+
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
@@ -100,17 +104,27 @@ namespace NodeService.ServiceHost.Services
 
         public bool CancelledManually { get; private set; }
 
-
-        public async Task UpdateStatusAsync(TaskExecutionStatus status, string message)
+        public async Task UpdateStatusAsync(
+            TaskExecutionStatus status,
+            string message,
+            IEnumerable<KeyValuePair<string, string>>? props = null)
         {
             Status = status;
             var report = new TaskExecutionReport
             {
                 Status = Status,
                 Id = Parameters.Id,
-                Message = message
+                Message = message,
             };
             report.Properties.Add(nameof(TaskExecutionReport.CreatedDateTime), DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
+            if (props != null)
+            {
+                foreach (var kv in props)
+                {
+                    report.Properties.TryAdd(kv.Key, kv.Value);
+                }
+            }
+
             await _reportQueue.EnqueueAsync(report);
         }
 
