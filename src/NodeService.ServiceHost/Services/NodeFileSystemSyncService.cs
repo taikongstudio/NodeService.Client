@@ -3,6 +3,7 @@ using NodeService.ServiceHost.Helpers;
 using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Tasks;
 using System.Collections.Concurrent;
+using System.Net.Http;
 using System.Security.Authentication;
 
 namespace NodeService.ServiceHost.Services
@@ -30,12 +31,13 @@ namespace NodeService.ServiceHost.Services
 
 
         readonly ILogger<NodeClientService> _logger;
-        private readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemWatchConfigQueue;
-        readonly IDisposable _token;
+        readonly IHttpClientFactory _httpClientFactory;
+        readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemWatchConfigQueue;
+        readonly IDisposable _interceptorToken;
         readonly BatchQueue<FileSystemWatchEventReport> _fileSystemWatchEventBatchQueue;
         readonly ConcurrentDictionary<NodeConfigurationDirectoryKey, DirectoryCounterInfo> _directoryCounterDict;
         readonly IDisposable? _monitorToken;
-        readonly ApiService _apiService;
+        private readonly IDisposable? _serverOptionsMonitorToken;
         readonly INodeIdentityProvider _nodeIdentityProvider;
         ServerOptions _serverOptions;
 
@@ -44,25 +46,24 @@ namespace NodeService.ServiceHost.Services
             [FromKeyedServices(nameof(NodeClientService))] IAsyncQueue<FileSystemWatchEventReport> sourceQueue,
             [FromKeyedServices(nameof(NodeFileSystemWatchService))] IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> fileSystemWatchConfigQueue,
             INodeIdentityProvider nodeIdentityProvider,
-            HttpClient httpClient,
+            IHttpClientFactory httpClientFactory,
             IOptionsMonitor<ServerOptions> optionsMonitor
             )
         {
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
             _fileSystemWatchConfigQueue = fileSystemWatchConfigQueue;
-            _token = sourceQueue.RegisterInterceptor(SendBatchQueueAsync);
+            _interceptorToken = sourceQueue.RegisterInterceptor(SendBatchQueueAsync);
             _fileSystemWatchEventBatchQueue = new BatchQueue<FileSystemWatchEventReport>(1024, TimeSpan.FromSeconds(10));
             _directoryCounterDict = new();
-            _apiService = new ApiService(httpClient);
             OnServerOptionChanged(optionsMonitor.CurrentValue);
+            _serverOptionsMonitorToken = optionsMonitor.OnChange(OnServerOptionChanged);
             _nodeIdentityProvider = nodeIdentityProvider;
         }
 
         void OnServerOptionChanged(ServerOptions serverOptions)
         {
             _serverOptions = serverOptions;
-            _apiService.HttpClient.BaseAddress = new Uri(_serverOptions.HttpAddress);
-            _apiService.HttpClient.Timeout = TimeSpan.FromSeconds(200);
         }
 
         async ValueTask SendBatchQueueAsync(FileSystemWatchEventReport fileSystemWatchEventReport)
@@ -87,8 +88,10 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    var directoryFileSyncContexts = arrayPoolCollection.GroupBy(NodeConfigurationDirectoryKey.Create).Select(NodeFileSystemSyncContext.From);
 
+
+                    var directoryFileSyncContexts = arrayPoolCollection.GroupBy(NodeConfigurationDirectoryKey.Create).Select(NodeFileSystemSyncContext.From);
+                    
                     if (Debugger.IsAttached)
                     {
                         foreach (var context in directoryFileSyncContexts)
@@ -212,6 +215,7 @@ namespace NodeService.ServiceHost.Services
             {
                 Id = configId,
             }, BatchQueueOperationKind.Delete);
+            await _fileSystemWatchConfigQueue.EnqueueAsync(op, cancellationToken);
             await op.WaitAsync(cancellationToken);
         }
 
@@ -221,7 +225,8 @@ namespace NodeService.ServiceHost.Services
         {
             try
             {
-                var rsp = await _apiService.QueryFileSystemWatchConfigAsync(id, cancellationToken);
+                using var apiService = CreateApiService();
+                var rsp = await apiService.QueryFileSystemWatchConfigAsync(id, cancellationToken);
                 if (rsp.ErrorCode != 0)
                 {
                     return null;
@@ -241,7 +246,8 @@ namespace NodeService.ServiceHost.Services
         {
             try
             {
-                var rsp = await _apiService.QueryFtpUploadConfigAsync(id, cancellationToken);
+                using var apiService = CreateApiService();
+                var rsp = await apiService.QueryFtpUploadConfigAsync(id, cancellationToken);
                 if (rsp.ErrorCode != 0)
                 {
                     return null;
@@ -258,7 +264,7 @@ namespace NodeService.ServiceHost.Services
         public override void Dispose()
         {
             _monitorToken?.Dispose();
-            _token.Dispose();
+            _interceptorToken.Dispose();
             base.Dispose();
         }
 
@@ -319,7 +325,8 @@ namespace NodeService.ServiceHost.Services
                 }
 
             }
-            var rsp = await _apiService.FileSystemSyncAsync(fileSystemSyncParameters);
+            using ApiService apiService = CreateApiService();
+            var rsp = await apiService.FileSystemSyncAsync(fileSystemSyncParameters);
             if (rsp.ErrorCode == 0)
             {
                 if (Debugger.IsAttached)
@@ -336,6 +343,12 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-
+        ApiService CreateApiService()
+        {
+            var apiService = new ApiService(_httpClientFactory.CreateClient());
+            apiService.HttpClient.BaseAddress = new Uri(_serverOptions.HttpAddress);
+            apiService.HttpClient.Timeout = TimeSpan.FromMinutes(5);
+            return apiService;
+        }
     }
 }

@@ -83,7 +83,7 @@ namespace NodeService.ServiceHost.Services
                 }
                 finally
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10));
+                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
                 }
             }
 
