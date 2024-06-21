@@ -1,6 +1,11 @@
-﻿using Microsoft.AspNetCore.Hosting;
+﻿using Grpc.Net.Client.Configuration;
+using Grpc.Net.Client.Web;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 
 namespace NodeService.ServiceHost
@@ -56,6 +61,51 @@ namespace NodeService.ServiceHost
                 builder.Services.AddHostedService<ProcessServerService>();
                 builder.Services.AddHostedService<ParentProcessMonitorService>();
                 builder.Services.AddHostedService<NodeFileSystemWatchService>();
+
+                builder.Services.AddGrpcClient<NodeServiceClient>((sp, options) =>
+                {
+                    var serverOptions = sp.GetService<IOptionsSnapshot<ServerOptions>>();
+                    options.Address = new Uri(serverOptions.Value.GrpcAddress);
+
+                }).ConfigurePrimaryHttpMessageHandler((sp) =>
+                {
+                    var httpClientHandler = new HttpClientHandler()
+                    {
+                        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                    };
+
+                    if (OperatingSystem.IsWindows())
+                    {
+                        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 0, 0))
+                        {
+                            return httpClientHandler;
+                        }
+                        return new GrpcWebHandler(httpClientHandler);
+                    }
+
+                    return httpClientHandler;
+
+                }).ConfigureChannel((sp,options) =>
+                {
+                    options.Credentials = ChannelCredentials.SecureSsl;
+                    options.ServiceProvider = sp;
+                    var defaultMethodConfig = new MethodConfig
+                    {
+                        Names = { MethodName.Default },
+                        RetryPolicy = new RetryPolicy
+                        {
+                            MaxAttempts = 100,
+                            InitialBackoff = TimeSpan.FromSeconds(1),
+                            MaxBackoff = TimeSpan.FromSeconds(10),
+                            BackoffMultiplier = 1.5,
+                            RetryableStatusCodes = { StatusCode.Unavailable }
+                        }
+                    };
+                    options.ServiceConfig = new ServiceConfig()
+                    {
+                        MethodConfigs = { defaultMethodConfig }
+                    };
+                });
 
                 builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();

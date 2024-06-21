@@ -64,7 +64,6 @@ namespace NodeService.ServiceHost.Services
 
             heartBeatRsp.Properties.Add("CollectTimeSpan", stopwatch.Elapsed.ToString());
             await client.SendHeartBeatResponseAsync(heartBeatRsp, _headers, null, cancellationToken);
-            IncreaseHeartBeatCounter();
 
             void CollectNetworkInterfaces(HeartBeatResponse heartBeatRsp)
             {
@@ -120,7 +119,7 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    Domain domain = Domain.GetComputerDomain();
+                    using var domain = Domain.GetComputerDomain();
                     heartBeatRsp.Properties.Add(NodePropertyModel.Domain_ComputerDomain_Key, domain.Name);
                 }
                 catch (Exception ex)
@@ -266,14 +265,5 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-        private void IncreaseHeartBeatCounter()
-        {
-            Interlocked.Increment(ref _heartBeatCounter);
-        }
-
-        private long GetHeartBeatCounter()
-        {
-            return Interlocked.Read(ref _heartBeatCounter);
-        }
     }
 }
