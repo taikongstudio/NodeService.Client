@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "NodeService.DeviceHost": {
+      "commandName": "Project",
+      "commandLineArgs": "--env Production"
+    }
+  }
+}

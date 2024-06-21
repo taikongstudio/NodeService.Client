@@ -31,7 +31,7 @@ namespace NodeService.DeviceHost
         {
             try
             {
-                EnsureOptions(options);
+                //EnsureOptions(options);
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
                 Environment.CurrentDirectory = AppContext.BaseDirectory;
                 LogManager.AutoShutdown = true;

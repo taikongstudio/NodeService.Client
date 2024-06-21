@@ -89,7 +89,7 @@ namespace NodeService.DeviceHost.Devices
                 ushort startAddress = (ushort)0x00A0;
                 var registers = await _master.ReadHoldingRegisters32Async(0, startAddress, 2);
                 var temperature = BitConverter.UInt32BitsToSingle(registers[0]);
-                var humidity = BitConverter.UInt32BitsToSingle(registers[0]);
+                var humidity = BitConverter.UInt32BitsToSingle(registers[1]);
                 _logger.LogInformation($"temperature:{temperature}");
                 _logger.LogInformation($"humidity:{humidity}");
                 return true;
