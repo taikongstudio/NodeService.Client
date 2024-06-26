@@ -48,7 +48,7 @@ namespace NodeService.ServiceHost.Services
                     {
                         case BatchQueueOperationKind.None:
                             break;
-                        case BatchQueueOperationKind.InsertOrUpdate:
+                        case BatchQueueOperationKind.AddOrUpdate:
                             this.AddOrUpdateFileSystemWatchConfiguration(op.Argument);
                             break;
                         case BatchQueueOperationKind.Delete:

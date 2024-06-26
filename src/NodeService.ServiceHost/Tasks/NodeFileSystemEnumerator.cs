@@ -1,4 +1,5 @@
-﻿using NLog.Filters;
+﻿using Newtonsoft.Json.Linq;
+using NLog.Filters;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -69,28 +70,55 @@ namespace NodeService.ServiceHost.Tasks
             };
         }
 
-        public IEnumerable<string> EnumerateDirectories(string directory)
+        public IEnumerable<string> EnumerateAllFiles()
         {
+            if (!_ftpUploadConfig.IncludeSubDirectories)
+            {
+                foreach (var filePath in EnumerateFiles(_ftpUploadConfig.Value.LocalDirectory))
+                {
+                    yield return filePath;
+                }
+            }
+            else
+            {
+                foreach (var filePath in ExecuteFilters(Directory.EnumerateFiles(_ftpUploadConfig.Value.LocalDirectory, _ftpUploadConfig.Value.SearchPattern ?? "*")))
+                {
+                    yield return filePath;
+                }
+                foreach (var directory in EnumerateSubDirectories(_ftpUploadConfig.Value.LocalDirectory))
+                {
+                    foreach (var filePath in EnumerateFiles(directory))
+                    {
+                        yield return filePath;
+                    }
+                }
+            }
+            yield break;
+        }
+
+        public IEnumerable<string> EnumerateSubDirectories(string directory)
+        {
+            if (!_ftpUploadConfig.IncludeSubDirectories)
+            {
+                return [];
+            }
             if (_ftpUploadConfig.DirectoryFilters == null)
             {
                 _ftpUploadConfig.DirectoryFilters = [];
             }
+            int skipCount = 0;
             IEnumerable<string> directoriesList = [];
             var firstDirectoryFilter = _ftpUploadConfig.DirectoryFilters?.FirstOrDefault();
-            if (firstDirectoryFilter == null)
+            if (firstDirectoryFilter == null || !firstDirectoryFilter.IsSearchPatternFilter())
             {
-                return directoriesList = EnumerateDirectories(directory, "*");
+                directoriesList = EnumerateDirectories(directory, "*");
             }
-            int skipCount = 0;
-            if (firstDirectoryFilter.IsSearchPatternFilter())
+            else
             {
                 directoriesList = EnumerateDirectories(directory, firstDirectoryFilter.Value);
                 skipCount = skipCount + 1;
             }
-            else
-            {
-                directoriesList = EnumerateDirectories(directory, "*");
-            }
+
             foreach (var directoryFilter in _ftpUploadConfig.DirectoryFilters.Skip(skipCount))
             {
                 if (directoryFilter == null)
@@ -108,10 +136,7 @@ namespace NodeService.ServiceHost.Tasks
         public IEnumerable<string> EnumerateFiles(string directory)
         {
 
-            if (_ftpUploadConfig.Filters == null)
-            {
-                _ftpUploadConfig.Filters = [];
-            }
+            _ftpUploadConfig.Filters ??= [];
             if (!_ftpUploadConfig.Filters.Any(StringEntryExtensions.IsSearchPatternFilter))
             {
                 _ftpUploadConfig.Filters.Insert(0, new StringEntry()
@@ -137,13 +162,16 @@ namespace NodeService.ServiceHost.Tasks
             {
                 filePathList = EnumerateFiles(directory, "*");
             }
+            filePathList = ExecuteFilters(filePathList, skipCount);
+
+            return filePathList;
+        }
+
+        private IEnumerable<string> ExecuteFilters(IEnumerable<string> filePathList, int skipCount = 0)
+        {
             foreach (var filter in _ftpUploadConfig.Filters.Skip(skipCount))
             {
                 if (filter == null)
-                {
-                    continue;
-                }
-                if (firstFilter == filter)
                 {
                     continue;
                 }
@@ -164,15 +192,12 @@ namespace NodeService.ServiceHost.Tasks
             }
 
             return filePathList;
-
-
-
         }
 
         IEnumerable<string> ExecuteFilter(
             IEnumerable<string> pathList,
             StringEntry filter,
-            Func<IEnumerable<string>, StringEntry, IEnumerable<string>> searchPatternHandler)
+            Func<IEnumerable<string>, StringEntry, IEnumerable<string>>? searchPatternHandler = null)
         {
             if (filter.Name == null || string.IsNullOrEmpty(filter.Value))
             {
@@ -260,7 +285,7 @@ namespace NodeService.ServiceHost.Tasks
         {
             if (string.IsNullOrEmpty(searchPattern))
             {
-                return [];
+                searchPattern = "*";
             }
             return Directory.EnumerateFiles(directory,
                     searchPattern,
@@ -274,7 +299,7 @@ namespace NodeService.ServiceHost.Tasks
         {
             if (string.IsNullOrEmpty(searchPattern))
             {
-                return [];
+                searchPattern = "*";
             }
             return Directory.EnumerateDirectories(
                     directory,

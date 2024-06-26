@@ -96,7 +96,7 @@ namespace NodeService.ServiceHost.Services
                     {
                         foreach (var context in directoryFileSyncContexts)
                         {
-                            await ProcessNodeFileSystemSyncContextdAsync(context, cancellationToken);
+                            await ProcessNodeFileSystemSyncContextAsync(context, cancellationToken);
                         }
                     }
                     else
@@ -105,7 +105,7 @@ namespace NodeService.ServiceHost.Services
                         {
                             CancellationToken = cancellationToken,
                             MaxDegreeOfParallelism = 4,
-                        }, ProcessNodeFileSystemSyncContextdAsync);
+                        }, ProcessNodeFileSystemSyncContextAsync);
                     }
                 }
                 catch (Exception ex)
@@ -117,7 +117,7 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-        async ValueTask ProcessNodeFileSystemSyncContextdAsync(
+        async ValueTask ProcessNodeFileSystemSyncContextAsync(
             NodeFileSystemSyncContext nodeFileSystemSyncContext,
             CancellationToken cancellationToken = default)
         {

@@ -1,6 +1,7 @@
 ﻿using FluentFTP;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.IO;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -97,8 +98,7 @@ namespace NodeService.ServiceHost.Tasks
             }
 
             var enumerator = new NodeFileSystemEnumerator(FtpUploadConfig);
-
-            var filePathList = enumerator.EnumerateDirectories(rootDirectory).SelectMany(enumerator.EnumerateFiles);
+            var filePathList = enumerator.EnumerateAllFiles();
 
             if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
             {

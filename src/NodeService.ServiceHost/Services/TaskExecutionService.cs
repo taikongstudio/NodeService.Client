@@ -96,7 +96,6 @@ namespace NodeService.ServiceHost.Services
             }
             finally
             {
-                await _taskExecutionContext.DisposeAsync();
                 if (_taskExecutionContext.CancelledManually)
                 {
                     message = "Cancelled manually";
@@ -111,6 +110,7 @@ namespace NodeService.ServiceHost.Services
                     message = "Finished";
                     await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Finished, message);
                 }
+                await _taskExecutionContext.DisposeAsync();
             }
         }
     }

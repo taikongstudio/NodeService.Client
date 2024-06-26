@@ -45,7 +45,7 @@ namespace NodeService.ServiceHost
                     ? "Development." : string.Empty)}json",
                     false, true);
 
-                builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
+                builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection(nameof(ServerOptions)));
                 builder.Services.AddSingleton<INodeIdentityProvider, NodeIdentityProvider>();
                 builder.Services.AddSingleton<TaskExecutionContextDictionary>();
                 builder.Services.AddSingleton<ServiceOptions>(options);
@@ -64,8 +64,8 @@ namespace NodeService.ServiceHost
 
                 builder.Services.AddGrpcClient<NodeServiceClient>((sp, options) =>
                 {
-                    var serverOptions = sp.GetService<IOptionsSnapshot<ServerOptions>>();
-                    options.Address = new Uri(serverOptions.Value.GrpcAddress);
+                    var serverOptions = sp.GetService<IConfiguration>().GetSection(nameof(ServerOptions)).Get<ServerOptions>();
+                    options.Address = new Uri(serverOptions.GrpcAddress);
 
                 }).ConfigurePrimaryHttpMessageHandler((sp) =>
                 {

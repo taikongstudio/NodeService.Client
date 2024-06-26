@@ -60,12 +60,8 @@ namespace NodeService.ServiceHost.Services
 
         private void StartTaskExecutionContextService(TaskExecutionContext taskExecutionContext)
         {
-            Task.Factory.StartNew(
-                ExecuteTaskImpl,
-                taskExecutionContext,
-                taskExecutionContext.CancellationToken,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default);
+            var thread = new Thread(ExecuteTaskImpl);
+            thread.Start(taskExecutionContext);
         }
 
         private bool IsTaskType(Type type)
@@ -86,7 +82,7 @@ namespace NodeService.ServiceHost.Services
             try
             {
 
-                HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
+                var builder = Host.CreateApplicationBuilder([]);
                 builder.Services.AddSingleton(taskExecutionContext);
                 builder.Services.AddHostedService<TaskExecutionService>();
                 builder.Services.AddSingleton(_nodeIdentityProvider);
@@ -101,14 +97,12 @@ namespace NodeService.ServiceHost.Services
                 }
                 builder.Services.AddSingleton(taskExecutionContext.LogMessageTargetBlock);
                 builder.Services.AddSingleton(_taskExecutionContextDictionary);
-                builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("JobLogger")
+                builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("TaskLogger")
                 );
 
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddTaskLogger();
-
-
 
                 using var app = builder.Build();
 

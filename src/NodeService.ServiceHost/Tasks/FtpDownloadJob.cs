@@ -21,19 +21,23 @@ namespace NodeService.ServiceHost.Tasks
             FtpDownloadJobOptions options = new FtpDownloadJobOptions();
             await options.InitAsync(TaskDefinition, ApiService, cancellationToken);
             var nodeId = _nodeIdentityProvider.GetIdentity();
+            await ApplyEnvVarsAsync(nodeId, options.FtpDownloadConfig, cancellationToken);
+            var ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(this, options.FtpDownloadConfig, Logger);
+            await ftpDownloadConfigExecutor.ExecuteAsync(cancellationToken);
+        }
+
+        async ValueTask ApplyEnvVarsAsync(string nodeId, FtpDownloadConfigModel ftpDownloadConfig, CancellationToken cancellationToken)
+        {
             var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, cancellationToken);
             if (rsp.ErrorCode == 0 && rsp.Result != null)
             {
                 foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
                 {
-                    options.FtpDownloadConfig.LocalDirectory = options.FtpDownloadConfig.LocalDirectory.Replace($"$({envVar.Name})", envVar.Value);
-                    options.FtpDownloadConfig.RemoteDirectory = options.FtpDownloadConfig.RemoteDirectory.Replace($"$({envVar.Name})", envVar.Value);
-                    options.FtpDownloadConfig.SearchPattern = options.FtpDownloadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
+                    ftpDownloadConfig.LocalDirectory = ftpDownloadConfig.LocalDirectory.Replace($"$({envVar.Name})", envVar.Value);
+                    ftpDownloadConfig.RemoteDirectory = ftpDownloadConfig.RemoteDirectory.Replace($"$({envVar.Name})", envVar.Value);
+                    ftpDownloadConfig.SearchPattern = ftpDownloadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
                 }
             }
-            FtpDownloadConfigExecutor ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(this, options.FtpDownloadConfig, Logger);
-            await ftpDownloadConfigExecutor.ExecuteAsync(cancellationToken);
-
         }
 
         public void Report(FtpProgress value)

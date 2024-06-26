@@ -57,9 +57,12 @@ namespace NodeService.ServiceHost.Services
                     }
                 }
             }
-            catch (TaskCanceledException)
+            catch (TaskCanceledException ex)
             {
-
+                if (ex.CancellationToken != CancellationToken)
+                {
+                    _logger.LogError(ex.ToString());
+                }
             }
             catch (Exception ex)
             {
@@ -148,16 +151,14 @@ namespace NodeService.ServiceHost.Services
 
         public async ValueTask DisposeAsync()
         {
-
             if (_cancellationTokenSource == null || _cancellationTokenSource.IsCancellationRequested)
             {
                 return;
             }
+            _taskExecutionContextDictionary.TryRemove(Parameters.Id, out _);
+            await _logMessageEntryBatchQueue.DisposeAsync();
             _cancellationTokenSource.Cancel();
             _cancellationTokenSource.Dispose();
-            _taskExecutionContextDictionary.TryRemove(Parameters.Id, out _);
-            await Task.Delay(TimeSpan.FromSeconds(5));
-            await _logMessageEntryBatchQueue.DisposeAsync();
         }
     }
 }

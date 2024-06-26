@@ -40,7 +40,7 @@
             return path;
         }
 
-        public override async Task ExecuteAsync(CancellationToken stoppingToken = default)
+        public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
             string batchScriptTempFile = null;
             using var process = new Process();
@@ -55,7 +55,7 @@
                 scripts = scripts.Replace("$(NodeId)", nodeId);
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
                 scripts = scripts.Replace("$(ParentProcessId)", Environment.ProcessId.ToString());
-                var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, stoppingToken);
+                var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, cancellationToken);
                 if (rsp.ErrorCode == 0 && rsp.Result != null)
                 {
                     foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
@@ -94,7 +94,7 @@
                 process.BeginErrorReadLine();
 
                 // 等待脚本执行完毕
-                int taskIndex = Task.WaitAny(process.WaitForExitAsync(), Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken));
+                int taskIndex = Task.WaitAny(process.WaitForExitAsync(), Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
                 if (taskIndex == 1)
                 {
                     process.Kill(true);

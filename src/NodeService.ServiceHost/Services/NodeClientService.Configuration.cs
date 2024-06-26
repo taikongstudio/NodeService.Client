@@ -62,8 +62,7 @@ namespace NodeService.ServiceHost.Services
                         }
                         var opKind = changedEvent.ChangedType switch
                         {
-                            ConfigurationChangedType.Add => BatchQueueOperationKind.InsertOrUpdate,
-                            ConfigurationChangedType.Update => BatchQueueOperationKind.InsertOrUpdate,
+                            ConfigurationChangedType.Add or ConfigurationChangedType.Update => BatchQueueOperationKind.AddOrUpdate,
                             ConfigurationChangedType.Delete => BatchQueueOperationKind.Delete,
                             ConfigurationChangedType.None or _ => BatchQueueOperationKind.None
                         };
