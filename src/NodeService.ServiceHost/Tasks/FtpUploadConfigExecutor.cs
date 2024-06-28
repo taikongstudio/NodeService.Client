@@ -97,12 +97,13 @@ namespace NodeService.ServiceHost.Tasks
                 return;
             }
 
+            _logger.LogInformation("Start enumerate files");
             var enumerator = new NodeFileSystemEnumerator(FtpUploadConfig);
-            var filePathList = enumerator.EnumerateAllFiles();
+            var filePathList = enumerator.EnumerateAllFiles().ToList();
 
             if (_fileSystemWatchEventPathList != null && _fileSystemWatchEventPathList.Length != 0)
             {
-                filePathList = filePathList.Intersect(_fileSystemWatchEventPathList);
+                filePathList = filePathList.Intersect(_fileSystemWatchEventPathList).ToList();
             }
 
             if (!filePathList.Any())
