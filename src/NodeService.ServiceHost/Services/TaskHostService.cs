@@ -73,49 +73,71 @@ namespace NodeService.ServiceHost.Services
             return type.IsAssignableTo(typeof(TaskBase));
         }
 
-        private void ExecuteTaskImpl(object? state)
+        private async void ExecuteTaskImpl(object? state)
         {
-            if (state is not TaskExecutionContext taskExecutionContext)
-            {
-                return;
-            }
             try
             {
-
-                var builder = Host.CreateApplicationBuilder([]);
-                builder.Services.AddSingleton(taskExecutionContext);
-                builder.Services.AddHostedService<TaskExecutionService>();
-                builder.Services.AddSingleton(_nodeIdentityProvider);
-                builder.Services.AddScoped(sp => new HttpClient
+                if (state is not TaskExecutionContext taskExecutionContext)
                 {
-                    BaseAddress = new Uri(_serverOptions.HttpAddress)
-                });
-                builder.Services.AddScoped<ApiService>();
-                foreach (var taskType in typeof(TaskBase).Assembly.GetExportedTypes().Where(IsTaskType))
-                {
-                    builder.Services.AddScoped(taskType);
+                    return;
                 }
-                builder.Services.AddSingleton(taskExecutionContext.LogMessageTargetBlock);
-                builder.Services.AddSingleton(_taskExecutionContextDictionary);
-                builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("TaskLogger")
-                );
+                try
+                {
 
-                builder.Logging.ClearProviders();
-                builder.Logging.AddConsole();
-                builder.Logging.AddTaskLogger();
+                    var builder = Host.CreateApplicationBuilder([]);
+                    builder.Services.AddSingleton(taskExecutionContext);
+                    builder.Services.AddHostedService<TaskExecutionService>();
+                    builder.Services.AddSingleton(_nodeIdentityProvider);
+                    builder.Services.AddScoped(sp => new HttpClient
+                    {
+                        BaseAddress = new Uri(_serverOptions.HttpAddress)
+                    });
+                    builder.Services.AddScoped<ApiService>();
+                    foreach (var taskType in typeof(TaskBase).Assembly.GetExportedTypes().Where(IsTaskType))
+                    {
+                        builder.Services.AddScoped(taskType);
+                    }
+                    builder.Services.AddSingleton(taskExecutionContext.LogMessageTargetBlock);
+                    builder.Services.AddSingleton(_taskExecutionContextDictionary);
+                    builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("TaskLogger")
+                    );
 
-                using var app = builder.Build();
+                    builder.Services.AddHttpClient();
+                    builder.Logging.ClearProviders();
+                    builder.Logging.AddConsole();
+                    builder.Logging.AddFilter((category, lever) =>
+                    {
+                        if (category == "Microsoft.Hosting.Lifetime")
+                        {
+                            return false;
+                        }
+                        return true;
+                    });
+                    builder.Logging.AddTaskLogger();
 
-                app.RunAsync(taskExecutionContext.CancellationToken).Wait();
+                    using var app = builder.Build();
+
+                    await app.RunAsync(taskExecutionContext.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                    await taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Failed, ex.ToString());
+                }
+                finally
+                {
+                    if (!taskExecutionContext.IsDisposed)
+                    {
+                        await taskExecutionContext.DisposeAsync();
+                    }
+                    _taskExecutionContextDictionary.TryRemove(taskExecutionContext.Parameters.Id, out _);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
             }
-            finally
-            {
-                _taskExecutionContextDictionary.TryRemove(taskExecutionContext.Parameters.Id, out _);
-            }
+
         }
     }
 }

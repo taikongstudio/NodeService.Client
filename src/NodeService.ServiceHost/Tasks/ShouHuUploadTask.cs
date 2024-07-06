@@ -2,12 +2,12 @@
 
 namespace NodeService.ServiceHost.Tasks
 {
-    public class ShouHuUploadJob : TaskBase
+    public class ShouHuUploadTask : TaskBase
     {
         private ProducerUtil _producerUtil;
         private WindowsUtil _windowsUtil;
 
-        public ShouHuUploadJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
+        public ShouHuUploadTask(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
         }
 

@@ -1,354 +1,266 @@
-﻿using NodeService.Infrastructure.Concurrent;
-using NodeService.ServiceHost.Helpers;
-using NodeService.ServiceHost.Models;
-using NodeService.ServiceHost.Tasks;
-using System.Collections.Concurrent;
-using System.Net.Http;
-using System.Security.Authentication;
+﻿//using NodeService.Infrastructure.Concurrent;
+//using NodeService.Infrastructure.NodeFileSystem;
+//using NodeService.ServiceHost.Models;
+//using NodeService.ServiceHost.Tasks;
+//using System.Collections.Concurrent;
 
-namespace NodeService.ServiceHost.Services
-{
-    public class NodeFileSystemSyncService : BackgroundService
-    {
-        class NodeFileSystemSyncContext
-        {
-            public NodeFileSystemSyncContext(NodeConfigurationDirectoryKey key, IEnumerable<FileSystemWatchEventReport> reports)
-            {
-                Key = key;
-                Reports = reports;
-            }
+//namespace NodeService.ServiceHost.Services
+//{
+//    public class NodeFileSystemSyncService : BackgroundService
+//    {
+//        readonly ILogger<NodeClientService> _logger;
+//        readonly IHttpClientFactory _httpClientFactory;
+//        readonly NodeFileSystemTable _nodeFileSystemTable;
+//        readonly IDisposable? _monitorToken;
+//        private readonly IDisposable? _serverOptionsMonitorToken;
+//        readonly INodeIdentityProvider _nodeIdentityProvider;
+//        ServerOptions _serverOptions;
 
-            public NodeConfigurationDirectoryKey Key { get; private set; }
+//        public NodeFileSystemSyncService(
+//            ILogger<NodeClientService> logger,
+//           INodeIdentityProvider nodeIdentityProvider,
+//            IHttpClientFactory httpClientFactory,
+//            IOptionsMonitor<ServerOptions> optionsMonitor
+//            )
+//        {
+//            _logger = logger;
+//            _httpClientFactory = httpClientFactory;
+//            _nodeFileSystemTable = new NodeFileSystemTable();
+//            OnServerOptionChanged(optionsMonitor.CurrentValue);
+//            _serverOptionsMonitorToken = optionsMonitor.OnChange(OnServerOptionChanged);
+//            _nodeIdentityProvider = nodeIdentityProvider;
+//        }
 
-            public FileSystemWatchConfigModel FileSystemWatchConfig { get; set; }
-            public IEnumerable<FileSystemWatchEventReport> Reports { get; private set; }
+//        void OnServerOptionChanged(ServerOptions serverOptions)
+//        {
+//            _serverOptions = serverOptions;
+//        }
 
-            public static NodeFileSystemSyncContext From(IGrouping<NodeConfigurationDirectoryKey, FileSystemWatchEventReport> groups)
-            {
-                return new NodeFileSystemSyncContext(groups.Key, groups);
-            }
-        }
+//        protected override async Task ExecuteAsync(CancellationToken cancellationToken = default)
+//        {
+//            _logger.LogInformation("Start");
+//            await foreach (var array in _fileSystemWatchEventBatchQueue.ReceiveAllAsync(cancellationToken))
+//            {
 
+//            }
+//        }
 
-        readonly ILogger<NodeClientService> _logger;
-        readonly IHttpClientFactory _httpClientFactory;
-        readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemWatchConfigQueue;
-        readonly IDisposable _interceptorToken;
-        readonly BatchQueue<FileSystemWatchEventReport> _fileSystemWatchEventBatchQueue;
-        readonly ConcurrentDictionary<NodeConfigurationDirectoryKey, DirectoryCounterInfo> _directoryCounterDict;
-        readonly IDisposable? _monitorToken;
-        private readonly IDisposable? _serverOptionsMonitorToken;
-        readonly INodeIdentityProvider _nodeIdentityProvider;
-        ServerOptions _serverOptions;
+//        async ValueTask ProcessNodeFileAddOrUpdateEventAsync(
+//            FileInfo fileInfo,
+//            FileSystemWatchEventReport  eventReport,
+//            CancellationToken cancellationToken = default)
+//        {
+//            try
+//            {
+//                var fileSystemWatchConfig = await QueryFileSystemWatchConfigAsync(
+//                                        eventReport.ConfigurationId,
+//                                        cancellationToken);
+//                if (fileSystemWatchConfig == null)
+//                {
+//                    await DeleteWatcherAsync(eventReport.ConfigurationId, cancellationToken);
+//                    return;
+//                }
 
-        public NodeFileSystemSyncService(
-            ILogger<NodeClientService> logger,
-            [FromKeyedServices(nameof(NodeClientService))] IAsyncQueue<FileSystemWatchEventReport> sourceQueue,
-            [FromKeyedServices(nameof(NodeFileSystemWatchService))] IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> fileSystemWatchConfigQueue,
-            INodeIdentityProvider nodeIdentityProvider,
-            IHttpClientFactory httpClientFactory,
-            IOptionsMonitor<ServerOptions> optionsMonitor
-            )
-        {
-            _logger = logger;
-            _httpClientFactory = httpClientFactory;
-            _fileSystemWatchConfigQueue = fileSystemWatchConfigQueue;
-            _interceptorToken = sourceQueue.RegisterInterceptor(SendBatchQueueAsync);
-            _fileSystemWatchEventBatchQueue = new BatchQueue<FileSystemWatchEventReport>(1024, TimeSpan.FromSeconds(10));
-            _directoryCounterDict = new();
-            OnServerOptionChanged(optionsMonitor.CurrentValue);
-            _serverOptionsMonitorToken = optionsMonitor.OnChange(OnServerOptionChanged);
-            _nodeIdentityProvider = nodeIdentityProvider;
-        }
+//                if (!_nodeFileSystemTable.TryGetValue(fileInfo.FullName, out var oldRecord) || oldRecord == null)
+//                {
+//                    oldRecord = new NodeFileSystemWatchRecord()
+//                    {
+//                        ChangedCount = 0,
+//                        LastChangeTime = DateTime.UtcNow,
+//                        LastTriggerCount = 0,
+//                        LastTriggerTime = DateTime.MinValue,
+//                    };
+//                }
+//               var  newRecord = oldRecord with
+//                {
+//                    ChangedCount = oldRecord.ChangedCount + 1,
+//                    LastChangeTime = DateTime.UtcNow,
+//                    LastTriggerCount = oldRecord.LastTriggerCount,
+//                    LastTriggerTime = oldRecord.LastTriggerTime,
+//                };
+//                _nodeFileSystemTable.AddOrUpdate(fileInfo.FullName, newRecord);
 
-        void OnServerOptionChanged(ServerOptions serverOptions)
-        {
-            _serverOptions = serverOptions;
-        }
+//                long changesCount = newRecord.ChangedCount - oldRecord.LastTriggerCount;
+//                if (changesCount == 0)
+//                {
+//                    return;
+//                }
 
-        async ValueTask SendBatchQueueAsync(FileSystemWatchEventReport fileSystemWatchEventReport)
-        {
-            if (fileSystemWatchEventReport.Created != null
-                ||
-                fileSystemWatchEventReport.Changed != null
-                ||
-                fileSystemWatchEventReport.Deleted != null
-                ||
-                fileSystemWatchEventReport.Renamed != null
-                )
-            {
-                await _fileSystemWatchEventBatchQueue.SendAsync(fileSystemWatchEventReport);
-            }
-        }
+//                if (changesCount > fileSystemWatchConfig.TriggerThreshold
+//                    &&
+//                    DateTime.UtcNow - directoryCounterInfo.LastTriggerTaskTime > TimeSpan.FromSeconds(fileSystemWatchConfig.TimeThreshold))
+//                {
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken = default)
-        {
-            _logger.LogInformation("Start");
-            await foreach (var arrayPoolCollection in _fileSystemWatchEventBatchQueue.ReceiveAllAsync(cancellationToken))
-            {
-                try
-                {
+//                    switch (fileSystemWatchConfig.EventHandler)
+//                    {
+//                        case FileSystemWatchEventHandler.Taskflow:
+//                            break;
+//                        case FileSystemWatchEventHandler.AutoSync:
+//                            await AutoSyncAsync(directoryCounterInfo, fileSystemWatchConfig, cancellationToken);
+//                            break;
+//                        default:
+//                            break;
+//                    }
+//                }
+//            }
+//            catch (Exception ex)
+//            {
+//                _logger.LogError(ex.ToString());
+//            }
 
+//        }
 
-                    var directoryFileSyncContexts = arrayPoolCollection.GroupBy(NodeConfigurationDirectoryKey.Create).Select(NodeFileSystemSyncContext.From);
-                    
-                    if (Debugger.IsAttached)
-                    {
-                        foreach (var context in directoryFileSyncContexts)
-                        {
-                            await ProcessNodeFileSystemSyncContextAsync(context, cancellationToken);
-                        }
-                    }
-                    else
-                    {
-                        await Parallel.ForEachAsync(directoryFileSyncContexts, new ParallelOptions()
-                        {
-                            CancellationToken = cancellationToken,
-                            MaxDegreeOfParallelism = 4,
-                        }, ProcessNodeFileSystemSyncContextAsync);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex.ToString());
-                }
+//        async Task DeleteWatcherAsync(string configId, CancellationToken cancellationToken = default)
+//        {
+//            var op = new BatchQueueOperation<FileSystemWatchConfigModel, bool>(new FileSystemWatchConfigModel()
+//            {
+//                Id = configId,
+//            }, BatchQueueOperationKind.Delete);
+//            await _fileSystemWatchConfigQueue.EnqueueAsync(op, cancellationToken);
+//            await op.WaitAsync(cancellationToken);
+//        }
 
+//        async ValueTask<FileSystemWatchConfigModel?> QueryFileSystemWatchConfigAsync(
+//            string id,
+//            CancellationToken cancellationToken = default)
+//        {
+//            try
+//            {
+//                using var apiService = CreateApiService();
+//                var rsp = await apiService.QueryFileSystemWatchConfigAsync(id, cancellationToken);
+//                if (rsp.ErrorCode != 0)
+//                {
+//                    return null;
+//                }
+//                return rsp.Result;
+//            }
+//            catch (Exception ex)
+//            {
+//                _logger.LogError(ex.ToString());
+//            }
+//            return null;
+//        }
 
-            }
-        }
+//        async ValueTask<FtpUploadConfigModel?> QueryFtpUploadConfigAsync(
+//            string id,
+//            CancellationToken cancellationToken = default)
+//        {
+//            try
+//            {
+//                using var apiService = CreateApiService();
+//                var rsp = await apiService.QueryFtpUploadConfigAsync(id, cancellationToken);
+//                if (rsp.ErrorCode != 0)
+//                {
+//                    return null;
+//                }
+//                return rsp.Result;
+//            }
+//            catch (Exception ex)
+//            {
+//                _logger.LogError(ex.ToString());
+//            }
+//            return null;
+//        }
 
-        async ValueTask ProcessNodeFileSystemSyncContextAsync(
-            NodeFileSystemSyncContext nodeFileSystemSyncContext,
-            CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                if (nodeFileSystemSyncContext.Key.Directory == null)
-                {
-                    return;
-                }
-                var fileSystemWatchConfig = await QueryFileSystemWatchConfigAsync(
-                                        nodeFileSystemSyncContext.Key.ConfigurationId,
-                                        cancellationToken);
-                if (fileSystemWatchConfig == null)
-                {
-                    await DeleteWatcherAsync(nodeFileSystemSyncContext.Key.ConfigurationId, cancellationToken);
-                    return;
-                }
+//        public override void Dispose()
+//        {
+//            _monitorToken?.Dispose();
+//            _interceptorToken.Dispose();
+//            base.Dispose();
+//        }
 
+//        async ValueTask AutoSyncAsync(DirectoryChangeInfo directoryCounterInfo, FileSystemWatchConfigModel fileSystemWatchConfig, CancellationToken cancellationToken = default)
+//        {
+//            if (fileSystemWatchConfig.HandlerContext == null)
+//            {
+//                return;
+//            }
 
-                if (!_directoryCounterDict.TryGetValue(nodeFileSystemSyncContext.Key, out var directoryCounterInfo))
-                {
-                    directoryCounterInfo = new DirectoryCounterInfo(nodeFileSystemSyncContext.Key.Directory);
-                    _directoryCounterDict.TryAdd(nodeFileSystemSyncContext.Key, directoryCounterInfo);
-                }
+//            var ftpUploadConfig = await QueryFtpUploadConfigAsync(fileSystemWatchConfig.HandlerContext, cancellationToken);
+//            if (ftpUploadConfig == null)
+//            {
+//                return;
+//            }
+//            var nodeFileSyncDirectoryEnumerator = new NodeFileSystemEnumerator(ftpUploadConfig);
 
-                foreach (var eventReport in nodeFileSystemSyncContext.Reports)
-                {
-                    switch (eventReport.EventCase)
-                    {
-                        case FileSystemWatchEventReport.EventOneofCase.None:
-                            break;
-                        case FileSystemWatchEventReport.EventOneofCase.Created:
-                            directoryCounterInfo.CreatedCount++;
-                            directoryCounterInfo.TotalCount++;
-                            directoryCounterInfo.PathList.Add(eventReport.Created.FullPath);
-                            break;
-                        case FileSystemWatchEventReport.EventOneofCase.Changed:
-                            directoryCounterInfo.ChangedCount++;
-                            directoryCounterInfo.TotalCount++;
-                            directoryCounterInfo.PathList.Add(eventReport.Changed.FullPath);
-                            break;
-                        case FileSystemWatchEventReport.EventOneofCase.Deleted:
-                            directoryCounterInfo.DeletedCount++;
-                            directoryCounterInfo.TotalCount++;
-                            directoryCounterInfo.PathList.Add(eventReport.Deleted.FullPath);
-                            break;
-                        case FileSystemWatchEventReport.EventOneofCase.Renamed:
-                            directoryCounterInfo.RenamedCount++;
-                            directoryCounterInfo.TotalCount++;
-                            directoryCounterInfo.PathList.Add(eventReport.Renamed.FullPath);
-                            break;
-                        case FileSystemWatchEventReport.EventOneofCase.Error:
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                long changesCount = directoryCounterInfo.TotalCount - directoryCounterInfo.LastTriggerCount;
-                if (changesCount == 0)
-                {
-                    return;
-                }
+//            var remotePathList = PathHelper.CalculateRemoteFilePath(
+//                ftpUploadConfig.LocalDirectory,
+//                ftpUploadConfig.RemoteDirectory,
+//                filePathList);
 
+//            var fileSystemSyncParameters = new FileSystemSyncParameters
+//            {
+//                FtpConfigId = ftpUploadConfig.FtpConfigId,
+//                NodeId = _nodeIdentityProvider.GetIdentity(),
+//                FileSystemWatchConfigurationId = fileSystemWatchConfig.Id,
+//                TargetDirectory = PathHelper.CalcuateRemoteDirectory(
+//                                            ftpUploadConfig.LocalDirectory,
+//                                            directoryCounterInfo.Directory,
+//                                            ftpUploadConfig.RemoteDirectory)
+//            };
 
-                if (changesCount > fileSystemWatchConfig.TriggerThreshold
-                    &&
-                    DateTime.UtcNow - directoryCounterInfo.LastTriggerTaskTime > TimeSpan.FromSeconds(fileSystemWatchConfig.TimeThreshold))
-                {
+//            var filePathPathList = PathHelper.CalculateRemoteFilePath(
+//                ftpUploadConfig.LocalDirectory,
+//                ftpUploadConfig.RemoteDirectory,
+//                filePathList);
 
-                    switch (fileSystemWatchConfig.EventHandler)
-                    {
-                        case FileSystemWatchEventHandler.Taskflow:
-                            break;
-                        case FileSystemWatchEventHandler.AutoSync:
-                            await AutoSyncAsync(directoryCounterInfo, fileSystemWatchConfig, cancellationToken);
-                            break;
-                        default:
-                            break;
-                    }
-                    directoryCounterInfo.PathList.Clear();
-                    directoryCounterInfo.LastTriggerTaskTime = DateTime.UtcNow;
-                    directoryCounterInfo.LastTriggerCount = directoryCounterInfo.TotalCount;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
+//            foreach (var kv in filePathPathList)
+//            {
+//                try
+//                {
+//                    var localFilePath = kv.Key;
+//                    var targetFilePath = kv.Value;
+//                    var fileInfo = new FileInfo("D:\\Downloads\\Evernote_7.2.2.8065.exe");
+//                    string compressedFilePath = null;
+//                    FileStream compressedStream = null;
+//                    var req = await NodeFileSyncRequestBuilder.FromFileInfoAsync(
+//                        "DebugMachine",
+//                        "ea61cc81-e1f2-44b0-a90a-a86584da2f9c",
+//                        NodeFileSyncConfigurationProtocol.Ftp,
+//                        $"/debugtest/{fileInfo.Name}",
+//                       fileInfo,
+//                        new DefaultSHA256HashAlgorithmProvider(),
+//                        new DefaultGzipCompressionProvider(),
+//                        (fileInfo) =>
+//                        {
+//                            compressedFilePath = compressedFilePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+//                            compressedStream = File.Create(compressedFilePath);
+//                            return compressedStream;
+//                        });
+//                    compressedStream?.Seek(0, SeekOrigin.Begin);
+//                    var uploadRsp = await apiService.NodeFileUploadFileAsync(req, compressedStream ?? File.OpenRead(fileInfo.FullName));
+//                    File.Delete(compressedFilePath);
+//                }
+//                catch (Exception ex)
+//                {
+//                    _logger.LogError(ex.ToString());
+//                }
 
-        }
+//            }
+//            using ApiService apiService = CreateApiService();
+//            var rsp = await apiService.FileSystemSyncAsync(fileSystemSyncParameters);
+//            if (rsp.ErrorCode == 0)
+//            {
+//                if (Debugger.IsAttached)
+//                {
+//                    foreach (var item in rsp.Result.Progresses)
+//                    {
+//                        _logger.LogInformation(JsonSerializer.Serialize(item));
+//                    }
+//                }
+//            }
+//            else
+//            {
+//                _logger.LogError(rsp.Message);
+//            }
+//        }
 
-        async Task DeleteWatcherAsync(string configId, CancellationToken cancellationToken = default)
-        {
-            var op = new BatchQueueOperation<FileSystemWatchConfigModel, bool>(new FileSystemWatchConfigModel()
-            {
-                Id = configId,
-            }, BatchQueueOperationKind.Delete);
-            await _fileSystemWatchConfigQueue.EnqueueAsync(op, cancellationToken);
-            await op.WaitAsync(cancellationToken);
-        }
-
-        async ValueTask<FileSystemWatchConfigModel?> QueryFileSystemWatchConfigAsync(
-            string id,
-            CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                using var apiService = CreateApiService();
-                var rsp = await apiService.QueryFileSystemWatchConfigAsync(id, cancellationToken);
-                if (rsp.ErrorCode != 0)
-                {
-                    return null;
-                }
-                return rsp.Result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-            return null;
-        }
-
-        async ValueTask<FtpUploadConfigModel?> QueryFtpUploadConfigAsync(
-            string id,
-            CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                using var apiService = CreateApiService();
-                var rsp = await apiService.QueryFtpUploadConfigAsync(id, cancellationToken);
-                if (rsp.ErrorCode != 0)
-                {
-                    return null;
-                }
-                return rsp.Result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
-            return null;
-        }
-
-        public override void Dispose()
-        {
-            _monitorToken?.Dispose();
-            _interceptorToken.Dispose();
-            base.Dispose();
-        }
-
-        async ValueTask AutoSyncAsync(DirectoryCounterInfo directoryCounterInfo, FileSystemWatchConfigModel fileSystemWatchConfig, CancellationToken cancellationToken = default)
-        {
-            if (fileSystemWatchConfig.HandlerContext == null)
-            {
-                return;
-            }
-
-            var ftpUploadConfig = await QueryFtpUploadConfigAsync(fileSystemWatchConfig.HandlerContext, cancellationToken);
-            if (ftpUploadConfig == null)
-            {
-                return;
-            }
-            var nodeFileSyncDirectoryEnumerator = new NodeFileSystemEnumerator(ftpUploadConfig);
-            var filePathList = nodeFileSyncDirectoryEnumerator.EnumerateFiles(directoryCounterInfo.Directory);
-            if (directoryCounterInfo.PathList != null)
-            {
-                filePathList = directoryCounterInfo.PathList.Intersect(filePathList);
-            }
-            if (!filePathList.Any())
-            {
-                return;
-            }
-
-            var remotePathList = PathHelper.CalculateRemoteFilePath(
-                ftpUploadConfig.LocalDirectory,
-                ftpUploadConfig.RemoteDirectory,
-                filePathList);
-
-            var fileSystemSyncParameters = new FileSystemSyncParameters
-            {
-                FtpConfigId = ftpUploadConfig.FtpConfigId,
-                NodeId = _nodeIdentityProvider.GetIdentity(),
-                FileSystemWatchConfigurationId = fileSystemWatchConfig.Id,
-                TargetDirectory = PathHelper.CalcuateRemoteDirectory(
-                                            ftpUploadConfig.LocalDirectory,
-                                            directoryCounterInfo.Directory,
-                                            ftpUploadConfig.RemoteDirectory)
-            };
-
-            foreach (var kv in remotePathList)
-            {
-                try
-                {
-                    var localFilePath = kv.Key;
-                    var targetFilePath = kv.Value;
-                    var fileSystemSyncInfo = await FileSystemFileSyncInfo.FromFileInfoAsync(
-                        new FileInfo(localFilePath),
-                        targetFilePath,
-                        fileSystemWatchConfig.CompressThreshold);
-                    fileSystemSyncParameters.FileSyncInfoList.Add(fileSystemSyncInfo);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex.ToString());
-                }
-
-            }
-            using ApiService apiService = CreateApiService();
-            var rsp = await apiService.FileSystemSyncAsync(fileSystemSyncParameters);
-            if (rsp.ErrorCode == 0)
-            {
-                if (Debugger.IsAttached)
-                {
-                    foreach (var item in rsp.Result.Progresses)
-                    {
-                        _logger.LogInformation(JsonSerializer.Serialize(item));
-                    }
-                }
-            }
-            else
-            {
-                _logger.LogError(rsp.Message);
-            }
-        }
-
-        ApiService CreateApiService()
-        {
-            var apiService = new ApiService(_httpClientFactory.CreateClient());
-            apiService.HttpClient.BaseAddress = new Uri(_serverOptions.HttpAddress);
-            apiService.HttpClient.Timeout = TimeSpan.FromMinutes(5);
-            return apiService;
-        }
-    }
-}
+//        ApiService CreateApiService()
+//        {
+//            var apiService = new ApiService(_httpClientFactory.CreateClient());
+//            apiService.HttpClient.BaseAddress = new Uri(_serverOptions.HttpAddress);
+//            apiService.HttpClient.Timeout = TimeSpan.FromMinutes(5);
+//            return apiService;
+//        }
+//    }
+//}

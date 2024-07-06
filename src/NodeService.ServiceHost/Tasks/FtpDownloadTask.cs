@@ -2,11 +2,11 @@
 
 namespace NodeService.ServiceHost.Tasks
 {
-    public class FtpDownloadJob : TaskBase, IProgress<FtpProgress>
+    public class FtpDownloadTask : TaskBase, IProgress<FtpProgress>
     {
         private readonly INodeIdentityProvider _nodeIdentityProvider;
 
-        public FtpDownloadJob(
+        public FtpDownloadTask(
             INodeIdentityProvider nodeIdentityProvider,
             ApiService apiService,
             ILogger<TaskBase> logger) : base(apiService, logger)

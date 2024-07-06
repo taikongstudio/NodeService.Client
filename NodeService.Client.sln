@@ -15,7 +15,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.Infrastructure.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.ServiceProcess", "src\NodeService.ServiceProcess\NodeService.ServiceProcess.csproj", "{D26DDCC6-3E04-4FF5-BBC5-1ADB73BBB20B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeService.DeviceHost", "src\NodeService.DeviceHost\NodeService.DeviceHost.csproj", "{C144F673-138E-441C-A96E-057FBF9AFD8B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NodeService.DeviceHost", "src\NodeService.DeviceHost\NodeService.DeviceHost.csproj", "{C144F673-138E-441C-A96E-057FBF9AFD8B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeFileSync", "src\NodeFileSync\NodeFileSync.csproj", "{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -201,6 +203,30 @@ Global
 		{C144F673-138E-441C-A96E-057FBF9AFD8B}.TraceAlloc|x64.Build.0 = Debug|Any CPU
 		{C144F673-138E-441C-A96E-057FBF9AFD8B}.TraceAlloc|x86.ActiveCfg = Debug|Any CPU
 		{C144F673-138E-441C-A96E-057FBF9AFD8B}.TraceAlloc|x86.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|x64.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Debug|x86.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|ARM64.Build.0 = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|x64.ActiveCfg = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|x64.Build.0 = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|x86.ActiveCfg = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.Release|x86.Build.0 = Release|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|Any CPU.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|ARM64.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|ARM64.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|x64.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|x64.Build.0 = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|x86.ActiveCfg = Debug|Any CPU
+		{0B2ECFE3-81A3-420B-B1F8-2F1387FDC75E}.TraceAlloc|x86.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,18 +1,22 @@
 ﻿using FluentFTP;
 using System.Collections.Concurrent;
+using System.Net.Http;
 namespace NodeService.ServiceHost.Tasks
 {
-    public class FtpUploadJob : TaskBase, IProgress<FtpProgress>
+    public class FtpUploadTask : TaskBase, IProgress<FtpProgress>
     {
         readonly INodeIdentityProvider _nodeIdentityProvider;
+        readonly IHttpClientFactory _httpClientFactory;
         readonly ConcurrentDictionary<string, FtpProgress> _progressDict;
 
-        public FtpUploadJob(
+        public FtpUploadTask(
             INodeIdentityProvider nodeIdentityProvider,
+            IHttpClientFactory httpClientFactory,
             ApiService apiService,
-            ILogger<FtpUploadJob> logger) : base(apiService, logger)
+            ILogger<FtpUploadTask> logger) : base(apiService, logger)
         {
             _nodeIdentityProvider = nodeIdentityProvider;
+            _httpClientFactory = httpClientFactory;
             _progressDict = new ConcurrentDictionary<string, FtpProgress>();
         }
 
@@ -24,10 +28,17 @@ namespace NodeService.ServiceHost.Tasks
             foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
             {
                 Logger.LogInformation($"Start executing config:{ftpUploadConfig.Name}");
-                var ftpUploadTaskExecutor = new FtpUploadConfigExecutor(this, ftpUploadConfig, Logger);
-                await ApplyNodeEnvVarsAsync(nodeId, ftpUploadConfig, cancellationToken);
-                ftpUploadTaskExecutor.SetEnvironmentVariables(EnvironmentVariables);
-                await ftpUploadTaskExecutor.ExecuteAsync(cancellationToken);
+                var httpUploadTaskExecutor = new HttpUploadExecutor(
+                    nodeId,
+                    ftpUploadConfig,
+                    _httpClientFactory,
+                    Logger);
+                await ApplyNodeEnvVarsAsync(
+                    nodeId,
+                    ftpUploadConfig,
+                    cancellationToken);
+                httpUploadTaskExecutor.SetEnvironmentVariables(EnvironmentVariables);
+                await httpUploadTaskExecutor.ExecuteAsync(cancellationToken);
                 Logger.LogInformation($"Finish executing config:{ftpUploadConfig.Name} completed");
             }
             PrintStats();

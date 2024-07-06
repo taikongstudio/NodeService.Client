@@ -1,10 +1,10 @@
 ﻿namespace NodeService.ServiceHost.Tasks
 {
-    public class ExecuteBatchScriptJob : TaskBase
+    public class ExecuteBatchScriptTask : TaskBase
     {
         private readonly INodeIdentityProvider _nodeIdentityProvider;
 
-        public ExecuteBatchScriptJob(
+        public ExecuteBatchScriptTask(
             INodeIdentityProvider nodeIdentityProvider,
             ApiService apiService,
             ILogger<TaskBase> logger) : base(apiService, logger)

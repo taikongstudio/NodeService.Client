@@ -24,7 +24,6 @@ namespace NodeService.ServiceHost.Services
 
         readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemConfigurationQueue;
         readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
-        readonly ActionBlock<BulkUploadFileOperation> _uploadFileActionBlock;
         readonly INodeIdentityProvider _nodeIdentityProvider;
         readonly Metadata _headers;
         readonly NodeServiceClient _nodeServiceClient;
@@ -64,11 +63,6 @@ namespace NodeService.ServiceHost.Services
                 EnsureOrdered = true,
             });
 
-            _uploadFileActionBlock = new ActionBlock<BulkUploadFileOperation>(ProcessUploadFileAsync,
-            new ExecutionDataflowBlockOptions()
-            {
-                MaxDegreeOfParallelism = Debugger.IsAttached ? 1 : 8,
-            });
             _nodeIdentityProvider = nodeIdentityProvider;
             _headers = [];
             _serviceHostOptions = serviceHostOptions;
@@ -355,24 +349,6 @@ namespace NodeService.ServiceHost.Services
                     break;
                 case SubscribeEvent.EventOneofCase.HeartBeatRequest:
                     await ProcessHeartBeatRequest(
-                        client,
-                        subscribeEvent,
-                        cancellationToken);
-                    break;
-                case SubscribeEvent.EventOneofCase.FileSystemListDirectoryRequest:
-                    await ProcessFileSystemListDirectoryRequest(
-                        client,
-                        subscribeEvent,
-                        cancellationToken);
-                    break;
-                case SubscribeEvent.EventOneofCase.FileSystemListDriveRequest:
-                    await ProcessFileSystemListDriveRequest(
-                        client,
-                        subscribeEvent,
-                        cancellationToken);
-                    break;
-                case SubscribeEvent.EventOneofCase.FileSystemBulkOperationRequest:
-                    await ProcessFileSystemBulkOperationRequest(
                         client,
                         subscribeEvent,
                         cancellationToken);

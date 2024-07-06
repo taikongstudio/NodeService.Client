@@ -55,7 +55,7 @@ namespace NodeService.ServiceHost
                 builder.Services.AddKeyedSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>(nameof(NodeClientService));
                 builder.Services.AddKeyedSingleton<IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>>, AsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>>>(nameof(NodeFileSystemWatchService));
                 builder.Services.AddHostedService<TaskHostService>();
-                builder.Services.AddHostedService<NodeFileSystemSyncService>();
+                builder.Services.AddHttpClient();
                 builder.Services.AddHostedService<NodeClientService>();
                 builder.Services.AddHostedService<PythonRuntimeService>();
                 builder.Services.AddHostedService<ProcessServerService>();

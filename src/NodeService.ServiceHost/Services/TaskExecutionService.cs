@@ -1,5 +1,6 @@
 ﻿
 
+using Google.Protobuf.WellKnownTypes;
 using NodeService.ServiceHost.Tasks;
 using Type = System.Type;
 
@@ -96,19 +97,25 @@ namespace NodeService.ServiceHost.Services
             }
             finally
             {
+                var lastMessageEntry = new TaskExecutionLogEntry()
+                {
+                    DateTime = Timestamp.FromDateTime(DateTime.UtcNow),
+                    Type = TaskExecutionLogEntryType.StdOut,
+                    Value = "good bye!",
+                };
                 if (_taskExecutionContext.CancelledManually)
                 {
                     message = "Cancelled manually";
-                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Cancelled, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Cancelled, message, [lastMessageEntry]);
                 }
                 else if (!result)
                 {
-                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Failed, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Failed, message, [lastMessageEntry]);
                 }
                 else
                 {
                     message = "Finished";
-                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Finished, message);
+                    await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Finished, message, [lastMessageEntry]);
                 }
                 await _taskExecutionContext.DisposeAsync();
             }

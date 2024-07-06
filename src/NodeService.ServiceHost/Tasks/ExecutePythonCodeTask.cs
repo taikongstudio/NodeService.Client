@@ -2,9 +2,9 @@
 
 namespace NodeService.ServiceHost.Tasks
 {
-    public class ExecutePythonCodeJob : TaskBase
+    public class ExecutePythonCodeTask : TaskBase
     {
-        public ExecutePythonCodeJob(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
+        public ExecutePythonCodeTask(ApiService apiService, ILogger<TaskBase> logger) : base(apiService, logger)
         {
         }
 

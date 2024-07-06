@@ -1,10 +1,13 @@
 ﻿using NodeService.Infrastructure.Concurrent;
+using NodeService.Infrastructure.NodeFileSystem;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NodeFileAttributes = NodeService.Infrastructure.NodeFileSystem.NodeFileAttributes;
 
 namespace NodeService.ServiceHost.Services
 {
@@ -92,7 +95,7 @@ namespace NodeService.ServiceHost.Services
         FileSystemWatcherInfo AddFileSystemWatcherInfo(FileSystemWatchConfigModel config)
         {
             _logger.LogInformation($"Add {nameof(FileSystemWatcher)} {config.Id}");
-            FileSystemWatcherInfo fileSystemWatcherInfo = new FileSystemWatcherInfo();
+            var fileSystemWatcherInfo = new FileSystemWatcherInfo();
             fileSystemWatcherInfo.Watcher = new FileSystemWatcher();
             fileSystemWatcherInfo.Configuration = config;
             AttachFileSystemWatcherEvents(fileSystemWatcherInfo.Watcher);
@@ -111,6 +114,7 @@ namespace NodeService.ServiceHost.Services
             watcher.Path = Path.Combine(config.Path, config.RelativePath ?? string.Empty);
             watcher.IncludeSubdirectories = config.IncludeSubdirectories;
             watcher.NotifyFilter = config.NotifyFilter;
+            watcher.InternalBufferSize = config.InternalBufferSize;
             if (config.UseDefaultFilter)
             {
                 watcher.Filter = config.Filter;
@@ -134,7 +138,7 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-        bool TryFindConfigId(object sender, out string? configId)
+        bool TryFindConfigurationId(object sender, out string? configId)
         {
             configId = null;
             foreach (var item in this._watchers.Values)
@@ -163,35 +167,7 @@ namespace NodeService.ServiceHost.Services
             try
             {
 
-                if (Directory.Exists(fullPath))
-                {
-                    var directoryInfo = new DirectoryInfo(fullPath);
-                    var objectInfo = new VirtualFileSystemObjectInfo()
-                    {
-                        CreationTime = directoryInfo.CreationTime,
-                        FullName = directoryInfo.FullName,
-                        LastWriteTime = directoryInfo.LastWriteTime,
-                        Length = 0,
-                        Name = directoryInfo.Name,
-                        Type = VirtualFileSystemObjectType.File,
-                    };
-                    eventInfo.Properties.Add(nameof(DirectoryInfo), JsonSerializer.Serialize(objectInfo));
-                }
-                else if (File.Exists(fullPath))
-                {
-                    var fileInfo = new FileInfo(fullPath);
-                    var objectInfo = new VirtualFileSystemObjectInfo()
-                    {
-                        CreationTime = fileInfo.CreationTime,
-                        FullName = fileInfo.FullName,
-                        LastWriteTime = fileInfo.LastWriteTime,
-                        Length = fileInfo.Length,
-                        Name = fileInfo.Name,
-                        Type = VirtualFileSystemObjectType.File,
-                    };
-                    eventInfo.Properties.Add(nameof(FileInfo), JsonSerializer.Serialize(objectInfo));
-                }
-
+                CreateObjectInfo(fullPath, eventInfo.Properties);
             }
             catch (Exception ex)
             {
@@ -219,36 +195,7 @@ namespace NodeService.ServiceHost.Services
             };
             try
             {
-
-                if (Directory.Exists(fullPath))
-                {
-                    var directoryInfo = new DirectoryInfo(fullPath);
-                    var objectInfo = new VirtualFileSystemObjectInfo()
-                    {
-                        CreationTime = directoryInfo.CreationTime,
-                        FullName = directoryInfo.FullName,
-                        LastWriteTime = directoryInfo.LastWriteTime,
-                        Length = 0,
-                        Name = directoryInfo.Name,
-                        Type = VirtualFileSystemObjectType.File,
-                    };
-                    eventInfo.Properties.Add(nameof(DirectoryInfo), JsonSerializer.Serialize(objectInfo));
-                }
-                else if (File.Exists(fullPath))
-                {
-                    var fileInfo = new FileInfo(fullPath);
-                    var objectInfo = new VirtualFileSystemObjectInfo()
-                    {
-                        CreationTime = fileInfo.CreationTime,
-                        FullName = fileInfo.FullName,
-                        LastWriteTime = fileInfo.LastWriteTime,
-                        Length = fileInfo.Length,
-                        Name = fileInfo.Name,
-                        Type = VirtualFileSystemObjectType.File,
-                    };
-                    eventInfo.Properties.Add(nameof(FileInfo), JsonSerializer.Serialize(objectInfo));
-                }
-
+                CreateObjectInfo(fullPath, eventInfo.Properties);
             }
             catch (Exception ex)
             {
@@ -258,6 +205,41 @@ namespace NodeService.ServiceHost.Services
             return eventInfo;
         }
 
+        private static void CreateObjectInfo(string fullPath, IDictionary<string, string> props)
+        {
+            if (Directory.Exists(fullPath))
+            {
+                var directoryInfo = new DirectoryInfo(fullPath);
+                var objectInfo = new NodeFileInfo()
+                {
+                    CreationTime = directoryInfo.CreationTime,
+                    LastWriteTime = directoryInfo.LastWriteTime,
+                    LastAccessTime = directoryInfo.LastAccessTime,
+                    FullName = directoryInfo.FullName,
+                    Attributes = (NodeFileAttributes)directoryInfo.Attributes,
+                    Length = 0,
+                    Name = directoryInfo.Name,
+                    DirectoryName = directoryInfo.Parent?.Name,
+                };
+                props.Add(nameof(DirectoryInfo), JsonSerializer.Serialize(objectInfo));
+            }
+            else if (File.Exists(fullPath))
+            {
+                var fileInfo = new FileInfo(fullPath);
+                var objectInfo = new NodeFileInfo()
+                {
+                    CreationTime = fileInfo.CreationTime,
+                    LastAccessTime = fileInfo.LastAccessTime,
+                    LastWriteTime = fileInfo.LastWriteTime,
+                    FullName = fileInfo.FullName,
+                    Length = fileInfo.Length,
+                    Name = fileInfo.Name,
+                    DirectoryName = fileInfo.DirectoryName,
+                    Attributes = (NodeFileAttributes)fileInfo.Attributes,
+                };
+                props.Add(nameof(FileInfo), JsonSerializer.Serialize(objectInfo));
+            }
+        }
 
         void AttachFileSystemWatcherEvents(FileSystemWatcher fileSystemWatcher)
         {
@@ -279,7 +261,7 @@ namespace NodeService.ServiceHost.Services
 
         void FileSystemWatcher_Error(object sender, ErrorEventArgs e)
         {
-            if (!TryFindConfigId(sender, out string? configId) || configId == null)
+            if (!TryFindConfigurationId(sender, out string? configId) || configId == null)
             {
                 return;
             }
@@ -297,7 +279,7 @@ namespace NodeService.ServiceHost.Services
 
         void FileSystemWatcher_Renamed(object sender, RenamedEventArgs e)
         {
-            if (!TryFindConfigId(sender, out string? configId) || configId == null)
+            if (!TryFindConfigurationId(sender, out string? configId) || configId == null)
             {
                 return;
             }
@@ -311,7 +293,7 @@ namespace NodeService.ServiceHost.Services
 
         void FileSystemWatcher_Deleted(object sender, FileSystemEventArgs e)
         {
-            if (!TryFindConfigId(sender, out string? configId) || configId == null)
+            if (!TryFindConfigurationId(sender, out string? configId) || configId == null)
             {
                 return;
             }
@@ -325,7 +307,7 @@ namespace NodeService.ServiceHost.Services
 
         void FileSystemWatcher_Created(object sender, FileSystemEventArgs e)
         {
-            if (!TryFindConfigId(sender, out string? configId) || configId == null)
+            if (!TryFindConfigurationId(sender, out string? configId) || configId == null)
             {
                 return;
             }
@@ -339,7 +321,7 @@ namespace NodeService.ServiceHost.Services
 
         void FileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
         {
-            if (!TryFindConfigId(sender, out string? configId) || configId == null)
+            if (!TryFindConfigurationId(sender, out string? configId) || configId == null)
             {
                 return;
             }

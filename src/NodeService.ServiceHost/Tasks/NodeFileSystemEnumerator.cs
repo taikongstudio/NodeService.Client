@@ -34,13 +34,25 @@ namespace NodeService.ServiceHost.Tasks
                 {
                     var fileName = Path.GetFileName(localFilePath);
                     var remoteFilePath = Path.Combine(remoteBaseDirectory, relativePath, fileName);
-                    remoteFilePath = remoteFilePath.Replace("\\", "/");
-                    remoteFilePath = remoteFilePath.Replace("/./", "/");
+                    remoteFilePath = AltDirectorySeperator(remoteFilePath);
                     yield return KeyValuePair.Create(localFilePath, remoteFilePath);
                 }
             }
 
             yield break;
+        }
+
+        public static string AltDirectorySeperator(string remoteFilePath)
+        {
+            if (remoteFilePath.Contains('\\'))
+            {
+                remoteFilePath = remoteFilePath.Replace("\\", "/");
+            }
+            if (remoteFilePath.Contains("/./", StringComparison.OrdinalIgnoreCase))
+            {
+                remoteFilePath = remoteFilePath.Replace("/./", "/");
+            }
+            return remoteFilePath;
         }
 
         public static string CalcuateRemoteDirectory(string localDirectoryBase, string relativeTo, string remoteDirectoryBase)
@@ -54,7 +66,7 @@ namespace NodeService.ServiceHost.Tasks
 
     }
 
-    internal class NodeFileSystemEnumerator
+    internal class NodeFileSystemEnumerator : NodeFileSystemMatcherBase
     {
         FtpUploadConfigModel _ftpUploadConfig;
         EnumerationOptions _enumerationOptions;
@@ -183,15 +195,25 @@ namespace NodeService.ServiceHost.Tasks
 
             if (_ftpUploadConfig.DateTimeFilters != null && _ftpUploadConfig.DateTimeFilters.Count != 0)
             {
-                filePathList = filePathList.Where(DateTimeFilter);
+                filePathList = filePathList.Where(ExecuteDateTimeFilters);
             }
 
             if (_ftpUploadConfig.LengthFilters != null && _ftpUploadConfig.LengthFilters.Count != 0)
             {
-                filePathList = filePathList.Where(FileLengthFilter);
+                filePathList = filePathList.Where(ExecuteFileLengthFilter);
             }
 
             return filePathList;
+        }
+
+        bool ExecuteFileLengthFilter(string filePath)
+        {
+            return base.ExecuteFileLengthFilters(filePath, _ftpUploadConfig.Value.LengthFilters);
+        }
+
+        bool ExecuteDateTimeFilters(string filePath)
+        {
+            return base.ExecuteDateTimeFilters(filePath, _ftpUploadConfig.Value.DateTimeFilters);
         }
 
         IEnumerable<string> ExecuteFilter(
@@ -307,113 +329,5 @@ namespace NodeService.ServiceHost.Tasks
                     _enumerationOptions
                     );
         }
-
-        bool FileLengthFilter(string filePath)
-        {
-            var fileInfo = new FileInfo(filePath);
-            var matchedCount = 0;
-            foreach (var fileLengthFilter in _ftpUploadConfig.LengthFilters)
-            {
-                var value0 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[0]);
-                var value1 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[1]);
-                switch (fileLengthFilter.Operator)
-                {
-                    case CompareOperator.LessThan:
-                        if (fileInfo.Length < value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.GreatThan:
-                        if (fileInfo.Length > value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.LessThanEqual:
-                        if (fileInfo.Length <= value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.GreatThanEqual:
-                        if (fileInfo.Length >= value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.Equals:
-                        if (fileInfo.Length == value0)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.WithinRange:
-                        if (fileInfo.Length >= value0 && fileInfo.Length <= value1)
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    case CompareOperator.OutOfRange:
-                        if (!(fileInfo.Length >= value0 && fileInfo.Length <= value1))
-                        {
-                            matchedCount++;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            return matchedCount > 0;
-
-            static long CalcuateLength(BinaryLengthUnit binaryLengthUnit, double value)
-            {
-                var length = binaryLengthUnit switch
-                {
-                    BinaryLengthUnit.Byte => value,
-                    BinaryLengthUnit.KB => value * 1024,
-                    BinaryLengthUnit.MB => value * 1024 * 1024,
-                    BinaryLengthUnit.GB => value * 1024 * 1024 * 1024,
-                    BinaryLengthUnit.PB => value * 1024 * 1024 * 1024 * 1024,
-                    _ => throw new NotImplementedException(),
-                };
-                return (long)length;
-            }
-        }
-
-        bool DateTimeFilter(string filePath)
-        {
-            bool isMatched = false;
-            var lastWriteTime = File.GetLastWriteTime(filePath);
-            var creationTime = File.GetCreationTime(filePath);
-            foreach (var dateTimeFilter in _ftpUploadConfig.DateTimeFilters)
-            {
-                switch (dateTimeFilter.Kind)
-                {
-                    case DateTimeFilterKind.DateTime:
-                        isMatched = dateTimeFilter.IsMatched(lastWriteTime);
-                        break;
-                    case DateTimeFilterKind.TimeOnly:
-                        isMatched = dateTimeFilter.IsMatched(TimeOnly.FromDateTime(lastWriteTime));
-                        break;
-                    case DateTimeFilterKind.Days:
-                    case DateTimeFilterKind.Hours:
-                    case DateTimeFilterKind.Minutes:
-                    case DateTimeFilterKind.Seconds:
-                        isMatched = dateTimeFilter.IsMatched(DateTime.Now - lastWriteTime);
-                        break;
-                    default:
-                        break;
-                }
-
-                if (isMatched)
-                {
-                    break;
-                }
-            }
-            return isMatched;
-        }
-
-
     }
 }

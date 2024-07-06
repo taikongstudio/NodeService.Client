@@ -1,5 +1,6 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using NodeService.Infrastructure.Concurrent;
+using System.Drawing.Printing;
 
 namespace NodeService.ServiceHost.Services
 {
@@ -11,6 +12,27 @@ namespace NodeService.ServiceHost.Services
         private CancellationTokenSource _cancellationTokenSource;
         private readonly BatchQueue<LogEntry> _logMessageEntryBatchQueue;
         private readonly ILogger _logger;
+
+        public CancellationToken CancellationToken
+        {
+            get
+            {
+                return _cancellationTokenSource.Token;
+            }
+        }
+
+        public ITargetBlock<LogEntry> LogMessageTargetBlock => _logActionBlock;
+
+
+
+
+        public TaskCreationParameters Parameters { get; private set; }
+
+        public TaskExecutionStatus Status { get; private set; }
+
+        public bool IsDisposed { get; private set; }
+
+        public bool CancelledManually { get; private set; }
 
         public TaskExecutionContext(
             ILogger<TaskExecutionContext> logger,
@@ -41,19 +63,11 @@ namespace NodeService.ServiceHost.Services
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
-                        int logEntryCount = logStatusGroup.Count();
-                        int pageSize = 1024;
-                        int pageCount = Math.DivRem(logEntryCount, pageSize, out int result);
-                        if (result > 0)
+                        foreach (var logEntries in logStatusGroup.Chunk(1024))
                         {
-                            pageCount = pageCount + 1;
-                        }
-                        for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
-                        {
-                            var entries = logStatusGroup.Skip(pageIndex * pageSize).Take(pageSize).Select(LogEntryToTaskExecutionLogEntry);
+                            var entries = logEntries.Select(LogEntryToTaskExecutionLogEntry);
                             await EnqueueLogsAsync((TaskExecutionStatus)status, entries);
                         }
-
                     }
                 }
             }
@@ -80,15 +94,6 @@ namespace NodeService.ServiceHost.Services
             };
         }
 
-        public CancellationToken CancellationToken
-        {
-            get
-            {
-                return _cancellationTokenSource.Token;
-            }
-        }
-
-        public ITargetBlock<LogEntry> LogMessageTargetBlock => _logActionBlock;
 
 
         private async Task WriteLogAsync(LogEntry logEntry)
@@ -98,18 +103,10 @@ namespace NodeService.ServiceHost.Services
         }
 
 
-
-        public TaskCreationParameters Parameters { get; private set; }
-
-        public TaskExecutionStatus Status { get; private set; }
-
-        public string Message { get; set; } = string.Empty;
-
-        public bool CancelledManually { get; private set; }
-
         public async Task UpdateStatusAsync(
             TaskExecutionStatus status,
             string message,
+            IEnumerable<TaskExecutionLogEntry>? logEntries = null,
             IEnumerable<KeyValuePair<string, string>>? props = null)
         {
             Status = status;
@@ -127,7 +124,10 @@ namespace NodeService.ServiceHost.Services
                     report.Properties.TryAdd(kv.Key, kv.Value);
                 }
             }
-
+            if (logEntries != null)
+            {
+                report.LogEntries.AddRange(logEntries);
+            }
             await _reportQueue.EnqueueAsync(report);
         }
 
@@ -159,6 +159,7 @@ namespace NodeService.ServiceHost.Services
             await _logMessageEntryBatchQueue.DisposeAsync();
             _cancellationTokenSource.Cancel();
             _cancellationTokenSource.Dispose();
+            IsDisposed = true;
         }
     }
 }
