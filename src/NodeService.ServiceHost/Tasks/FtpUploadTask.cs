@@ -1,10 +1,13 @@
 ﻿using FluentFTP;
+using NodeService.Infrastructure;
+using NodeService.ServiceHost.Models;
 using System.Collections.Concurrent;
 using System.Net.Http;
 namespace NodeService.ServiceHost.Tasks
 {
-    public class FtpUploadTask : TaskBase, IProgress<FtpProgress>
+    public class FtpUploadTask : TaskBase
     {
+        readonly ServerOptions _serverOptions;
         readonly INodeIdentityProvider _nodeIdentityProvider;
         readonly IHttpClientFactory _httpClientFactory;
         readonly ConcurrentDictionary<string, FtpProgress> _progressDict;
@@ -13,8 +16,10 @@ namespace NodeService.ServiceHost.Tasks
             INodeIdentityProvider nodeIdentityProvider,
             IHttpClientFactory httpClientFactory,
             ApiService apiService,
+            ServerOptions serverOptions,
             ILogger<FtpUploadTask> logger) : base(apiService, logger)
         {
+            _serverOptions = serverOptions;
             _nodeIdentityProvider = nodeIdentityProvider;
             _httpClientFactory = httpClientFactory;
             _progressDict = new ConcurrentDictionary<string, FtpProgress>();
@@ -22,14 +27,42 @@ namespace NodeService.ServiceHost.Tasks
 
         public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
-            FtpUploadJobOptions ftpUploadJobOptions = new FtpUploadJobOptions();
-            await ftpUploadJobOptions.InitAsync(TaskDefinition, ApiService);
+            var ftpUploadTaskOptions = new FtpUploadTaskOptions();
+            await ftpUploadTaskOptions.InitAsync(TaskDefinition, ApiService);
             var nodeId = _nodeIdentityProvider.GetIdentity();
-            foreach (var ftpUploadConfig in ftpUploadJobOptions.FtpUploadConfigs)
+            var queryNodeInfoRsp = await ApiService.QueryNodeInfoAsync(nodeId, cancellationToken);
+
+            if (queryNodeInfoRsp.Result == null)
+            {
+                throw new Exception("Node info not found");
+            }
+            var nodeInfo = queryNodeInfoRsp.Result;
+            var queryNodeSettingsRsp = await ApiService.QueryNodeSettingsAsync(cancellationToken);
+            if (queryNodeSettingsRsp.Result==null)
+            {
+                throw new Exception("Node settings not found");
+            }
+            var nodeSettings = queryNodeSettingsRsp.Result;
+            string? siteUrl = null;
+            foreach (var item in nodeSettings.NodeSiteMapping)
+            {
+                if (item.Name==nodeInfo.Profile.FactoryName)
+                {
+                    siteUrl = item.Value;
+                    break;
+                }
+            }
+            if (siteUrl==null)
+            {
+                throw new Exception("site url not found");
+            }
+            foreach (var ftpUploadConfig in ftpUploadTaskOptions.FtpUploadConfigs)
             {
                 Logger.LogInformation($"Start executing config:{ftpUploadConfig.Name}");
                 var httpUploadTaskExecutor = new HttpUploadExecutor(
                     nodeId,
+                    TaskCreationParameters.Id,
+                    siteUrl,
                     ftpUploadConfig,
                     _httpClientFactory,
                     Logger);
@@ -41,26 +74,8 @@ namespace NodeService.ServiceHost.Tasks
                 await httpUploadTaskExecutor.ExecuteAsync(cancellationToken);
                 Logger.LogInformation($"Finish executing config:{ftpUploadConfig.Name} completed");
             }
-            PrintStats();
         }
 
-        private void PrintStats()
-        {
-            Logger.LogInformation("Progress:");
-            foreach (var ftpProgress in _progressDict.Values)
-            {
-                if (ftpProgress == null)
-                {
-                    continue;
-                }
-                Logger.LogInformation($"LocalPath:{ftpProgress.LocalPath} RemotePath:{ftpProgress.RemotePath} Size:{ftpProgress.TransferredBytes} Time:{ftpProgress.ETA} TransferSpeed:{ftpProgress.TransferSpeedToString()}");
-            }
-        }
-
-        public void Report(FtpProgress value)
-        {
-            _progressDict.AddOrUpdate(value.LocalPath, value, (key, oldValue) => value);
-        }
 
         async Task ApplyNodeEnvVarsAsync(
                     string nodeId,
@@ -70,11 +85,14 @@ namespace NodeService.ServiceHost.Tasks
             var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, cancellationToken);
             if (rsp.ErrorCode == 0 && rsp.Result != null)
             {
-                foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
+                foreach (var envVar in rsp.Result.EnvironmentVariables)
                 {
                     ftpUploadConfig.LocalDirectory = ftpUploadConfig.LocalDirectory.Replace($"$({envVar.Name})", envVar.Value);
                     ftpUploadConfig.RemoteDirectory = ftpUploadConfig.RemoteDirectory.Replace($"$({envVar.Name})", envVar.Value);
-                    ftpUploadConfig.SearchPattern = ftpUploadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
+                    if (ftpUploadConfig.SearchPattern != null)
+                    {
+                        ftpUploadConfig.SearchPattern = ftpUploadConfig.SearchPattern.Replace($"$({envVar.Name})", envVar.Value);
+                    }
                 }
             }
         }

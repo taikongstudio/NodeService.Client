@@ -46,7 +46,7 @@ namespace NodeService.ServiceHost.Services
         private async Task ProcessConfigurationChangedEvent(ConfigurationChangedEvent changedEvent)
         {
 
-            var type = typeof(JsonBasedDataModel).Assembly.GetType(changedEvent.TypeName);
+            var type = typeof(JsonRecordBase).Assembly.GetType(changedEvent.TypeName);
             if (type == null)
             {
                 return;

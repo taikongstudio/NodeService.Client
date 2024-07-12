@@ -15,7 +15,7 @@ namespace NodeService.ServiceHost.Tasks
 
         public override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            ExecutePythonCodeJobOptions options = new();
+            var options = new ExecutePythonCodeTaskOptions();
             await options.InitAsync(TaskDefinition, ApiService, stoppingToken);
             if (options.Code == null)
             {

@@ -50,7 +50,7 @@ namespace NodeService.ServiceHost.Services
 
         private AppProcessInfo ConvertProcessToAppProcessInfo(ProcessChannelInfo processChannelInfo)
         {
-            AppProcessInfo appProcessInfo = new AppProcessInfo();
+            var appProcessInfo = new AppProcessInfo();
             try
             {
                 appProcessInfo.HasExited = true;

@@ -57,7 +57,7 @@ namespace NodeService.ServiceHost.Services
 
         }
 
-        private async Task<IEnumerable<WindowsTaskConfigModel>> QueryTasksConfigAsync(CancellationToken cancellationToken = default)
+        private async Task<IEnumerable<WindowsTaskConfigModel>> QueryWindowsTasksConfigAsync(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -90,26 +90,26 @@ namespace NodeService.ServiceHost.Services
                 {
                     folder = Microsoft.Win32.TaskScheduler.TaskService.Instance.RootFolder.CreateFolder("NodeService.Tasks");
                 }
-                var taskConfigList = await QueryTasksConfigAsync(cancellationToken);
-                if (!taskConfigList.Any())
+                var windowsTaskConfigList = await QueryWindowsTasksConfigAsync(cancellationToken);
+                if (!windowsTaskConfigList.Any())
                 {
                     _logger.LogInformation($"使用默认任务配置");
                     using var stream = typeof(RegisterTaskService).Assembly.GetManifestResourceStream("NodeService.WindowsService.Tasks.RegisterTaskStartupService.xml");
                     using var streamReader = new StreamReader(stream, leaveOpen: true);
-                    var defaultTaskConfig = new WindowsTaskConfigModel()
+                    var defaultWindowsTaskConfig = new WindowsTaskConfigModel()
                     {
                         Name = "RegisterTaskStartupService",
                         XmlText = await streamReader.ReadToEndAsync(cancellationToken)
                     };
-                    taskConfigList = [defaultTaskConfig];
+                    windowsTaskConfigList = [defaultWindowsTaskConfig];
                 }
                 var tasksDirectory = Path.Combine(AppContext.BaseDirectory, "Tasks");
                 if (!Directory.Exists(tasksDirectory))
                 {
                     Directory.CreateDirectory(tasksDirectory);
                 }
-                List<string> taskNames = new List<string>();
-                foreach (var taskConfig in taskConfigList)
+                List<string> taskNames = [];
+                foreach (var taskConfig in windowsTaskConfigList)
                 {
                     var taskName = taskConfig.Name;
                     taskNames.Add(taskName);

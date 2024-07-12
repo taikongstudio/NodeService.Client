@@ -48,7 +48,7 @@
             {
                 string nodeId = this._nodeIdentityProvider.GetIdentity();
                 batchScriptTempFile = Path.Combine(EnsureScriptsHomeDirectory(), $"{Guid.NewGuid()}.bat");
-                ExecuteBatchScriptJobOptions options = new ExecuteBatchScriptJobOptions();
+                var options = new ExecuteBatchScriptTaskOptions();
                 await options.InitAsync(TaskDefinition, ApiService);
                 string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");

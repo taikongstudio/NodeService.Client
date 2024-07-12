@@ -11,6 +11,7 @@ namespace NodeService.ServiceHost.Tasks
         public ApiService ApiService { get; private set; }
 
         public ImmutableDictionary<string, string?> EnvironmentVariables { get; private set; }
+        public TaskCreationParameters TaskCreationParameters { get; private set; }
 
         protected TaskBase(ApiService apiService, ILogger<TaskBase> logger)
         {
@@ -24,6 +25,11 @@ namespace NodeService.ServiceHost.Tasks
         public void SetTaskDefinition(TaskDefinitionModel taskDefinition)
         {
             TaskDefinition = taskDefinition;
+        }
+
+        public void SetTaskCreationParameters(TaskCreationParameters parameters)
+        {
+            TaskCreationParameters = parameters;
         }
 
         public void SetEnvironmentVariables(IEnumerable<StringEntry> envVars)

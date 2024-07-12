@@ -18,7 +18,7 @@ namespace NodeService.ServiceHost.Tasks
 
         public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
-            FtpDownloadJobOptions options = new FtpDownloadJobOptions();
+            var options = new FtpDownloadTaskOptions();
             await options.InitAsync(TaskDefinition, ApiService, cancellationToken);
             var nodeId = _nodeIdentityProvider.GetIdentity();
             await ApplyEnvVarsAsync(nodeId, options.FtpDownloadConfig, cancellationToken);

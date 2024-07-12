@@ -15,12 +15,12 @@ namespace NodeService.ServiceHost.Services
         public TaskExecutionService(
             IServiceProvider serviceProvider,
             ILogger<TaskExecutionService> logger,
-            TaskExecutionContext jobExecutionContext
+            TaskExecutionContext taskExecutionContext
             )
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
-            _taskExecutionContext = jobExecutionContext;
+            _taskExecutionContext = taskExecutionContext;
         }
 
         private Type? ResolveTaskType(string taskTypeFullName)
@@ -28,7 +28,11 @@ namespace NodeService.ServiceHost.Services
             if (taskTypeFullName.StartsWith("NodeService.WindowsService.Services"))
             {
                 taskTypeFullName = $"NodeService.ServiceHost.Tasks.{taskTypeFullName.Substring(taskTypeFullName.LastIndexOf('.') + 1)}";
-                return Type.GetType(taskTypeFullName);
+                var type = Type.GetType(taskTypeFullName);
+                if (type == null)
+                {
+                    taskTypeFullName = taskTypeFullName.Remove(taskTypeFullName.LastIndexOf("Job")) + "Task";
+                }
             }
             return Type.GetType(taskTypeFullName);
         }
@@ -75,6 +79,7 @@ namespace NodeService.ServiceHost.Services
                 else
                 {
                     await _taskExecutionContext.UpdateStatusAsync(TaskExecutionStatus.Running, "Running");
+                    task.SetTaskCreationParameters(_taskExecutionContext.Parameters);
                     task.SetTaskDefinition(_taskExecutionContext.Parameters.TaskTypeDefinition);
                     task.SetEnvironmentVariables(_taskExecutionContext.Parameters.EnvironmentVariables);
                     await task.ExecuteAsync(_taskExecutionContext.CancellationToken);

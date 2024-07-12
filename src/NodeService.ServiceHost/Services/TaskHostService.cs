@@ -1,4 +1,5 @@
-﻿using NodeService.Infrastructure.Concurrent;
+﻿using Microsoft.Extensions.DependencyInjection;
+using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
 using NodeService.ServiceHost.Tasks;
 using Type = System.Type;
@@ -73,6 +74,12 @@ namespace NodeService.ServiceHost.Services
             return type.IsAssignableTo(typeof(TaskBase));
         }
 
+        private void SetupHttpClient(HttpClient httpClient)
+        {
+            httpClient.Timeout = TimeSpan.FromHours(1);
+            httpClient.BaseAddress = new Uri(_serverOptions.HttpAddress);
+        }
+
         private async void ExecuteTaskImpl(object? state)
         {
             try
@@ -85,13 +92,10 @@ namespace NodeService.ServiceHost.Services
                 {
 
                     var builder = Host.CreateApplicationBuilder([]);
+                    builder.Services.AddSingleton(_serverOptions);
                     builder.Services.AddSingleton(taskExecutionContext);
                     builder.Services.AddHostedService<TaskExecutionService>();
                     builder.Services.AddSingleton(_nodeIdentityProvider);
-                    builder.Services.AddScoped(sp => new HttpClient
-                    {
-                        BaseAddress = new Uri(_serverOptions.HttpAddress)
-                    });
                     builder.Services.AddScoped<ApiService>();
                     foreach (var taskType in typeof(TaskBase).Assembly.GetExportedTypes().Where(IsTaskType))
                     {
@@ -101,8 +105,8 @@ namespace NodeService.ServiceHost.Services
                     builder.Services.AddSingleton(_taskExecutionContextDictionary);
                     builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("TaskLogger")
                     );
-
-                    builder.Services.AddHttpClient();
+                    { }
+                    builder.Services.AddHttpClient(Options.DefaultName, SetupHttpClient);
                     builder.Logging.ClearProviders();
                     builder.Logging.AddConsole();
                     builder.Logging.AddFilter((category, lever) =>

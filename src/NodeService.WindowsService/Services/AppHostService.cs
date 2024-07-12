@@ -130,7 +130,7 @@ namespace NodeService.ServiceHost.Services
             {
                 return;
             }
-            string currentServiceName = $"NodeService.{_serviceOptions.mode}";
+            var currentServiceName = $"NodeService.{_serviceOptions.mode}";
             string[] serviceNames = [Constants.ServiceProcessUpdateService, Constants.ServiceProcessWorkerService];
             if (currentServiceName != Constants.ServiceProcessWindowsService)
             {

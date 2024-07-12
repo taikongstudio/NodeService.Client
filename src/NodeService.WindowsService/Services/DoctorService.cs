@@ -25,7 +25,7 @@ namespace NodeService.ServiceHost.Services
                 {
                     Environment.Exit(0);
                 }
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                await Task.Delay(TimeSpan.FromSeconds(30));
             }
 
         }
@@ -67,7 +67,7 @@ namespace NodeService.ServiceHost.Services
                     stopwatch.Stop();
                     _logger.LogInformation($"持续观察服务\"{serviceName}\"状态，第{waitCount}次，等待：{stopwatch.Elapsed}");
                     stopwatch.Reset();
-                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     waitCount++;
                 } while (waitCount < 12);
                 return true;

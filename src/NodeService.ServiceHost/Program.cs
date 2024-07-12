@@ -107,7 +107,6 @@ namespace NodeService.ServiceHost
                     };
                 });
 
-                builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 builder.Logging.AddNLog($"NLog.config");
