@@ -191,7 +191,7 @@ namespace NodeService.ServiceHost.Tasks
                 retryTimes++;
                 if (ftpStatus == FtpStatus.Failed)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                 }
 
             } while (!cancellationToken.IsCancellationRequested
