@@ -23,9 +23,6 @@ namespace NodeService.ServiceHost.Services
 
         public ITargetBlock<LogEntry> LogMessageTargetBlock => _logActionBlock;
 
-
-
-
         public TaskCreationParameters Parameters { get; private set; }
 
         public TaskExecutionStatus Status { get; private set; }
@@ -49,7 +46,7 @@ namespace NodeService.ServiceHost.Services
                 EnsureOrdered = true
             });
             Parameters = parameters;
-            _logMessageEntryBatchQueue = new BatchQueue<LogEntry>(1024, TimeSpan.FromSeconds(3));
+            _logMessageEntryBatchQueue = new BatchQueue<LogEntry>(TimeSpan.FromSeconds(3), 1024);
             _ = Task.Run(ProcessLogMessageEntries);
         }
 

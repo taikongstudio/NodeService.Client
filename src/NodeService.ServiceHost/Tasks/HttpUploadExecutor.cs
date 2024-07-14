@@ -1,9 +1,6 @@
 ﻿using FluentFTP;
-using Microsoft.EntityFrameworkCore;
 using NodeService.Infrastructure.NodeFileSystem;
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using System.IO.Pipelines;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -265,13 +262,13 @@ namespace NodeService.ServiceHost.Tasks
                 var ftpRemoteExists = ConvertFtpFileExistsToFtpRemoteExists(FtpUploadConfiguration.FtpFileExists);
 
                 var fileInfo = new FileInfo(localFilePath);
-                var request =  CreateSyncRequest(
+                var request = CreateSyncRequest(
                     _nodeInfoId,
                     FtpUploadConfiguration.FtpConfigId,
                     remoteFilePath,
                     fileInfo);
 
-                var hitTestRsp =await apiService.HittestFileAsync(request);
+                var hitTestRsp = await apiService.HittestFileAsync(request);
                 if (hitTestRsp.ErrorCode == 0)
                 {
                     if (hitTestRsp.Result == NodeFileHittestResult.Hittested)
@@ -286,7 +283,19 @@ namespace NodeService.ServiceHost.Tasks
                 var rsp = await apiService.UploadFileAsync(request, stream, cancellationToken);
                 if (rsp.ErrorCode == 0)
                 {
-                    ftpStatus = FtpStatus.Success;
+                    if (rsp.Result.Status == NodeFileSyncStatus.Processed)
+                    {
+                        ftpStatus = FtpStatus.Success;
+                    }
+                    else if (rsp.Result.Status == NodeFileSyncStatus.Canceled || rsp.Result.Status == NodeFileSyncStatus.Skipped)
+                    {
+                        ftpStatus = FtpStatus.Skipped;
+                    }
+                    else if (rsp.Result.Status == NodeFileSyncStatus.Faulted)
+                    {
+                        ftpStatus = FtpStatus.Failed;
+                    }
+
                 }
                 else
                 {

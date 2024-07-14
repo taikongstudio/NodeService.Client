@@ -20,7 +20,7 @@ namespace NodeService.ServiceHost.Services
                 switch (req.Parameters["RequestType"])
                 {
                     case "Trigger":
-                        await ProcessTaskTriggerEventAsync(
+                        await ProcessTaskFireEventAsync(
                             nodeServiceClient,
                             req,
                             cancellationToken);
@@ -30,7 +30,7 @@ namespace NodeService.ServiceHost.Services
                             nodeServiceClient,
                             req,
                             cancellationToken);
-                        await ProcessTaskTriggerEventAsync(
+                        await ProcessTaskFireEventAsync(
                             nodeServiceClient,
                             req,
                             cancellationToken);
@@ -88,7 +88,7 @@ namespace NodeService.ServiceHost.Services
                 cancellationToken: cancellationToken);
         }
 
-        private async Task ProcessTaskTriggerEventAsync(
+        private async Task ProcessTaskFireEventAsync(
             NodeServiceClient nodeServiceClient,
             TaskExecutionEventRequest request,
             CancellationToken cancellationToken = default)

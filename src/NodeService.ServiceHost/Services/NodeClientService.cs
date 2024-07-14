@@ -21,8 +21,6 @@ namespace NodeService.ServiceHost.Services
             public required CancellationToken CancellationToken { get; set; }
         }
 
-
-        readonly IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel, bool>> _fileSystemConfigurationQueue;
         readonly ActionBlock<SubscribeEventInfo> _subscribeEventActionBlock;
         readonly INodeIdentityProvider _nodeIdentityProvider;
         readonly Metadata _headers;
@@ -38,8 +36,6 @@ namespace NodeService.ServiceHost.Services
             IServiceProvider serviceProvider,
             IAsyncQueue<TaskExecutionContext> taskExecutionContextQueue,
             IAsyncQueue<TaskExecutionReport> taskReportQueue,
-            [FromKeyedServices(nameof(NodeClientService))]IAsyncQueue<FileSystemWatchEventReport> fileSystemWatchEventQueue,
-            [FromKeyedServices(nameof(NodeFileSystemWatchService))]IAsyncQueue<BatchQueueOperation<FileSystemWatchConfigModel,bool>> fileSystemConfigurationQueue,
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
@@ -52,9 +48,7 @@ namespace NodeService.ServiceHost.Services
             _serviceProvider = serviceProvider;
             _taskExecutionContextDictionary = taskExecutionContextDictionary;
             _taskExecutionContextQueue = taskExecutionContextQueue;
-            _fileSystemWatchEventQueue = fileSystemWatchEventQueue;
             _taskExecutionReportQueue = taskReportQueue;
-            _fileSystemConfigurationQueue = fileSystemConfigurationQueue;
             _logger = logger;
             _subscribeEventActionBlock = new ActionBlock<SubscribeEventInfo>(ProcessSubscribeEventAsync,
             new ExecutionDataflowBlockOptions()
@@ -169,7 +163,6 @@ namespace NodeService.ServiceHost.Services
         IEnumerable<Task> EnumTasks(CancellationToken cancellationToken = default)
         {
             yield return SubscribeAsync(cancellationToken);
-            yield return SendFileSystemEventReportAsync(cancellationToken);
             yield return SendTaskExecutionReportAsync(cancellationToken);
         }
 
@@ -218,67 +211,6 @@ namespace NodeService.ServiceHost.Services
                 _logger.LogError(ex.ToString());
             }
 
-        }
-
-        async Task SendFileSystemEventReportAsync(CancellationToken cancellationToken=default)
-        {
-            try
-            {
-
-
-                var stopwatch = new Stopwatch();
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        using var fileSystemWatchEventReportStreamingCall = _nodeServiceClient.SendFileSystemWatchEventReport(
-                                _headers,
-                                cancellationToken: cancellationToken);
-                        int messageCount = 0;
-                        stopwatch.Restart();
-                        while (!cancellationToken.IsCancellationRequested && await _fileSystemWatchEventQueue.WaitToReadAsync(cancellationToken))
-                        {
-                            if (!_fileSystemWatchEventQueue.TryPeek(out var reportMessage))
-                            {
-                                continue;
-                            }
-                            await fileSystemWatchEventReportStreamingCall.RequestStream.WriteAsync(
-                                reportMessage,
-                                cancellationToken);
-                            await _fileSystemWatchEventQueue.DeuqueAsync(cancellationToken);
-                            if (Debugger.IsAttached)
-                            {
-                                _logger.LogInformation(reportMessage.ToString());
-                            }
-                            messageCount++;
-                        }
-                        stopwatch.Stop();
-                        if (messageCount > 0)
-                        {
-                            _logger.LogInformation($"Sent {messageCount} {nameof(FileSystemWatchEventReport)} messages,spent:{stopwatch.Elapsed}");
-                        }
-                        stopwatch.Reset();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.Message);
-                    }
-                    finally
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
-                    }
-
-                }
-
-            }
-            catch (RpcException ex)
-            {
-                _logger.LogError(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ToString());
-            }
         }
 
         async Task SendTaskExecutionReportAsync(CancellationToken cancellationToken = default)

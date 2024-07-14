@@ -55,20 +55,7 @@ namespace NodeService.ServiceHost.Services
             {
                 case nameof(FileSystemWatchConfigModel):
                     {
-                        var fileSystemWatchConfig = JsonSerializer.Deserialize<FileSystemWatchConfigModel>(changedEvent.Json);
-                        if (fileSystemWatchConfig == null)
-                        {
-                            return;
-                        }
-                        var opKind = changedEvent.ChangedType switch
-                        {
-                            ConfigurationChangedType.Add or ConfigurationChangedType.Update => BatchQueueOperationKind.AddOrUpdate,
-                            ConfigurationChangedType.Delete => BatchQueueOperationKind.Delete,
-                            ConfigurationChangedType.None or _ => BatchQueueOperationKind.None
-                        };
-                        var op = new BatchQueueOperation<FileSystemWatchConfigModel, bool>(fileSystemWatchConfig, opKind);
-                        await _fileSystemConfigurationQueue.EnqueueAsync(op);
-                        var result = await op.WaitAsync();
+                        await Task.CompletedTask;
                     }
                     break;
                 default:

@@ -38,7 +38,7 @@ namespace NodeService.ServiceHost.Tasks
             }
             var nodeInfo = queryNodeInfoRsp.Result;
             var queryNodeSettingsRsp = await ApiService.QueryNodeSettingsAsync(cancellationToken);
-            if (queryNodeSettingsRsp.Result==null)
+            if (queryNodeSettingsRsp.Result == null)
             {
                 throw new Exception("Node settings not found");
             }
@@ -46,13 +46,17 @@ namespace NodeService.ServiceHost.Tasks
             string? siteUrl = null;
             foreach (var item in nodeSettings.NodeSiteMapping)
             {
-                if (item.Name==nodeInfo.Profile.FactoryName)
+                if (item.Name == nodeInfo.Profile.FactoryName)
                 {
                     siteUrl = item.Value;
                     break;
                 }
             }
-            if (siteUrl==null)
+            if (Debugger.IsAttached && siteUrl == null)
+            {
+                siteUrl = "http://localhost:5000";
+            }
+            if (siteUrl == null)
             {
                 throw new Exception("site url not found");
             }
