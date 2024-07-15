@@ -1,5 +1,6 @@
 ﻿using FluentFTP;
 using NodeService.Infrastructure;
+using NodeService.Infrastructure.DataModels;
 using NodeService.ServiceHost.Models;
 using System.Collections.Concurrent;
 using System.Net.Http;
@@ -28,40 +29,58 @@ namespace NodeService.ServiceHost.Tasks
         public override async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
             var ftpUploadTaskOptions = new FtpUploadTaskOptions();
-            await ftpUploadTaskOptions.InitAsync(TaskDefinition, ApiService);
+            await ftpUploadTaskOptions.InitAsync(TaskDefinition, ApiService, cancellationToken);
             var nodeId = _nodeIdentityProvider.GetIdentity();
-            var queryNodeInfoRsp = await ApiService.QueryNodeInfoAsync(nodeId, cancellationToken);
 
-            if (queryNodeInfoRsp.Result == null)
-            {
-                throw new Exception("Node info not found");
-            }
-            var nodeInfo = queryNodeInfoRsp.Result;
-            var queryNodeSettingsRsp = await ApiService.QueryNodeSettingsAsync(cancellationToken);
-            if (queryNodeSettingsRsp.Result == null)
-            {
-                throw new Exception("Node settings not found");
-            }
-            var nodeSettings = queryNodeSettingsRsp.Result;
-            string? siteUrl = null;
-            foreach (var item in nodeSettings.NodeSiteMapping)
-            {
-                if (item.Name == nodeInfo.Profile.FactoryName)
-                {
-                    siteUrl = item.Value;
-                    break;
-                }
-            }
-            if (Debugger.IsAttached && siteUrl == null)
-            {
-                siteUrl = "http://localhost:5000";
-            }
-            if (siteUrl == null)
-            {
-                throw new Exception("site url not found");
-            }
             foreach (var ftpUploadConfig in ftpUploadTaskOptions.FtpUploadConfigs)
             {
+                var queryNodeInfoRsp = await ApiService.QueryNodeInfoAsync(nodeId, cancellationToken);
+
+                if (queryNodeInfoRsp.Result == null)
+                {
+                    throw new Exception("Node info not found");
+                }
+                var nodeInfo = queryNodeInfoRsp.Result;
+                var queryNodeSettingsRsp = await ApiService.QueryNodeSettingsAsync(cancellationToken);
+                if (queryNodeSettingsRsp.Result == null)
+                {
+                    throw new Exception("Node settings not found");
+                }
+                var nodeSettings = queryNodeSettingsRsp.Result;
+                var areaName = "Unknown";
+                foreach (var mapping in nodeSettings.IpAddressMappings)
+                {
+                    if (string.IsNullOrEmpty(mapping.Name)
+                        || string.IsNullOrEmpty(mapping.Value))
+                        continue;
+                    if (ftpUploadConfig.FtpConfig.Host.StartsWith(mapping.Value))
+                    {
+                        areaName = mapping.Tag;
+                        break;
+                    }
+                }
+
+
+                string? siteUrl = null;
+                foreach (var item in nodeSettings.NodeSiteMapping)
+                {
+                    if (item.Name == areaName)
+                    {
+                        siteUrl = item.Value;
+                        break;
+                    }
+                }
+                if (Debugger.IsAttached && siteUrl == null)
+                {
+                    siteUrl = "http://localhost:5000";
+                }
+                if (siteUrl == null)
+                {
+                    throw new Exception("site url not found");
+                }
+
+
+
                 Logger.LogInformation($"Start executing config:{ftpUploadConfig.Name}");
                 var httpUploadTaskExecutor = new HttpUploadExecutor(
                     nodeId,

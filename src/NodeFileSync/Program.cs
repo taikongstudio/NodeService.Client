@@ -45,19 +45,15 @@ namespace NodeFileSync
             });
             try
             {
-                var rsp = await apiService.QueryNodeQueueStatusAsync();
-                if (rsp.ErrorCode == 0)
-                {
-                    Console.WriteLine(rsp.Result.QueuedCount);
-                }
 
                 var fileInfo = new FileInfo("D:\\Downloads\\Evernote_7.2.2.8065.exe");
                 string compressedFilePath = null;
-                FileStream compressedStream = null;
+                FileStream compressedStream = fileInfo.OpenRead();
                 var req =  NodeFileSyncRequestBuilder.FromFileInfo(
                     fileInfo,
-                    "DebugMachine",
-                    "ea61cc81-e1f2-44b0-a90a-a86584da2f9c",
+                                        "DebugMachine",
+                    Guid.NewGuid().ToString(),
+                    "195eeae5-c0ac-480d-a126-75b1bc2f8f36",
                     NodeFileSyncConfigurationProtocol.Ftp,
                     $"/debugtest/{fileInfo.Name}");
                 compressedStream?.Seek(0, SeekOrigin.Begin);

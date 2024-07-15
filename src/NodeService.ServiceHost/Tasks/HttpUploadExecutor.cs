@@ -268,10 +268,10 @@ namespace NodeService.ServiceHost.Tasks
                     remoteFilePath,
                     fileInfo);
 
-                var hitTestRsp = await apiService.HittestFileAsync(request);
+                var hitTestRsp = await apiService.HittestFileAsync(request, cancellationToken);
                 if (hitTestRsp.ErrorCode == 0)
                 {
-                    if (hitTestRsp.Result == NodeFileHittestResult.Hittested)
+                    if (hitTestRsp.Result == FileInfoCacheResult.Cached)
                     {
                         ftpStatus = FtpStatus.Skipped;
                         return ftpStatus;
