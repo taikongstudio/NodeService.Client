@@ -188,6 +188,7 @@ namespace NodeService.ServiceHost.Tasks
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
+                await Task.Delay(TimeSpan.FromMinutes(10), cancellationToken);
                 goto LRetry;
             }
             return uploadContextList;
@@ -397,8 +398,7 @@ namespace NodeService.ServiceHost.Tasks
             catch (IOException ex) when ((ex.HResult & 0x0000FFFF) == 32)
             {
                 _logger.LogError(ex.ToString());
-                uploadSharingViolationFile = true;
-                goto LRetry;
+                ftpStatus = FtpStatus.Skipped;
             }
             catch (Exception ex)
             {
