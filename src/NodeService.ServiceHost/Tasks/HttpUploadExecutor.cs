@@ -359,18 +359,6 @@ namespace NodeService.ServiceHost.Tasks
                 }
                 var ftpRemoteExists = ConvertFtpFileExistsToFtpRemoteExists(FtpUploadConfiguration.FtpFileExists);
 
-
-
-                var hitTestRsp = await context.ApiService.QueryFileInfoCacheResultAsync(context.Request, cancellationToken);
-                if (hitTestRsp.ErrorCode == 0)
-                {
-                    if (hitTestRsp.Result == FileInfoCacheResult.Cached)
-                    {
-                        ftpStatus = FtpStatus.Skipped;
-                        return ftpStatus;
-                    }
-                }
-
                 using var stream = context.FileInfo.OpenRead();
 
                 var rsp = await context.ApiService.UploadFileAsync(context.Request, stream, cancellationToken);
