@@ -2,7 +2,7 @@
 {
     public class Constants
     {
-        public const string Version = "AA036394-81E4-4450-8CCE-27B272BF8A1E";
+        public const string Version = "B396E0AB-F82E-425D-8FEA-3BFD2841CCD3";
 
         public const string ServiceTypeWindowsService = "WindowsService";
 

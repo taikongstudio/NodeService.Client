@@ -60,7 +60,7 @@ namespace NodeService.ServiceHost.Services
                                                                       .GroupBy(static x => x.Status))
                     {
                         var status = logStatusGroup.Key;
-                        foreach (var logEntries in logStatusGroup.Chunk(1024))
+                        foreach (var logEntries in logStatusGroup.Chunk(200))
                         {
                             var entries = logEntries.Select(LogEntryToTaskExecutionLogEntry);
                             await EnqueueLogsAsync((TaskExecutionStatus)status, entries);
