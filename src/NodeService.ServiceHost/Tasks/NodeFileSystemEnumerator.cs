@@ -10,6 +10,19 @@ using System.Threading.Tasks;
 
 namespace NodeService.ServiceHost.Tasks
 {
+    public record class PathInfo
+    {
+        public PathInfo(string localPath, string remotePath)
+        {
+            LocalPath = localPath;
+            RemotePath = remotePath;
+        }
+
+        public string LocalPath { get; init; }
+
+        public string RemotePath { get; init; }
+    }
+
     public static class PathHelper
     {
         public static string GetFilePathDirectoryName(string filePath)
@@ -17,7 +30,7 @@ namespace NodeService.ServiceHost.Tasks
             return Path.GetDirectoryName(filePath) ?? filePath;
         }
 
-        public static IEnumerable<KeyValuePair<string, string>> CalculateRemoteFilePath(
+        public static IEnumerable<PathInfo> CalculateRemoteFilePath(
             string localBaseDirectory,
             string remoteBaseDirectory,
             IEnumerable<string> filePathList)
@@ -35,7 +48,7 @@ namespace NodeService.ServiceHost.Tasks
                     var fileName = Path.GetFileName(localFilePath);
                     var remoteFilePath = Path.Combine(remoteBaseDirectory, relativePath, fileName);
                     remoteFilePath = AltDirectorySeperator(remoteFilePath);
-                    yield return KeyValuePair.Create(localFilePath, remoteFilePath);
+                    yield return new PathInfo(localFilePath, remoteFilePath);
                 }
             }
 

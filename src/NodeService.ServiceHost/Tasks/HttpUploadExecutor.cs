@@ -6,6 +6,23 @@ namespace NodeService.ServiceHost.Tasks
 {
     public class HttpUploadExecutor
     {
+        class FileUploadContext
+        {
+            public FileUploadContext(
+                NodeFileSyncRequest request,
+                FileInfo fileInfo)
+            {
+                Request = request;
+                FileInfo = fileInfo;
+            }
+
+            public NodeFileSyncRequest Request { get; init; }
+
+            public FileInfo FileInfo { get; init; }
+
+            public ApiService ApiService { get; set; }
+        }
+
         int _uploadedCount = 0;
         int _skippedCount = 0;
         int _overidedCount = 0;
@@ -67,7 +84,110 @@ namespace NodeService.ServiceHost.Tasks
             }
 
             _logger.LogInformation("Start enumerate files");
-            List<string> filePathList = [];
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            List<string> filePathList = CollectFilePathList(rootDirectory);
+            stopwatch.Stop();
+            _logger.LogInformation($"Finish enumerate files,spent:{stopwatch.Elapsed} ");
+            if (filePathList.Count == 0)
+            {
+                _logger.LogInformation($"Cound not found any mached file in {rootDirectory}");
+                return;
+            }
+
+            PrintLocalFiles(filePathList);
+
+            FtpUploadConfiguration.RemoteDirectory = FtpUploadConfiguration.RemoteDirectory.Replace("$(HostName)", hostName).Replace("\\", "/");
+
+            if (!FtpUploadConfiguration.RemoteDirectory.StartsWith('/'))
+            {
+                FtpUploadConfiguration.RemoteDirectory = '/' + FtpUploadConfiguration.RemoteDirectory;
+            }
+
+            var filePathInfoList = PathHelper.CalculateRemoteFilePath(
+                FtpUploadConfiguration.LocalDirectory,
+                FtpUploadConfiguration.RemoteDirectory,
+                filePathList).ToList();
+            if (filePathInfoList.Count != filePathList.Count)
+            {
+                throw new InvalidOperationException("file count error");
+            }
+
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.BaseAddress = new Uri(_siteUrl);
+            using var apiService = new ApiService(httpClient, new ApiServiceOptions()
+            {
+                DisposeHttpClient = true,
+            });
+
+            PrintRemoteFiles();
+
+            foreach (var contextArray in filePathInfoList.Where(IsFileExists).Select(CreateFileUploadContext).Chunk(100))
+            {
+                var uploadContextList = await BulkQueryFileInfoCacheResultAsync(apiService, contextArray, cancellationToken);
+                if (uploadContextList.Count > 0)
+                {
+                    await Parallel.ForEachAsync(uploadContextList,
+                                    new ParallelOptions()
+                                    {
+                                        CancellationToken = cancellationToken,
+                                        MaxDegreeOfParallelism = 4
+                                    }
+                                    , UploadFileAsync);
+                    _logger.LogInformation($"Upload {uploadContextList.Count} files,spent:{stopwatch.Elapsed}");
+                }
+            }
+
+            _logger.LogInformation($"UploadedCount:{_uploadedCount} SkippedCount:{_skippedCount} OveridedCount:{_overidedCount}");
+
+        }
+
+        bool IsFileExists(PathInfo pathInfo)
+        {
+            return File.Exists(pathInfo.LocalPath);
+        }
+
+        async ValueTask<List<FileUploadContext>> BulkQueryFileInfoCacheResultAsync(
+            ApiService apiService,
+            FileUploadContext[] contextChunk,
+            CancellationToken cancellationToken)
+        {
+            var requests = contextChunk.Select(static x => x.Request).ToArray();
+            List<FileUploadContext> uploadContextList = [];
+        LRetry:
+            try
+            {
+
+                var rsp = await apiService.BulkQueryFileInfoCacheResultAsync(requests, cancellationToken);
+                if (rsp.ErrorCode == 0 && rsp.Result != null)
+                {
+                    foreach (var item in rsp.Result.Items)
+                    {
+                        if (item.Result == FileInfoCacheResult.Cached)
+                        {
+                            continue;
+                        }
+                        var context = FindContext(contextChunk, item.FullPath);
+                        if (context == null)
+                        {
+                            continue;
+                        }
+                        context.ApiService = apiService;
+                        uploadContextList.Add(context);
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.ToString());
+                goto LRetry;
+            }
+            return uploadContextList;
+        }
+
+        private List<string> CollectFilePathList(string rootDirectory)
+        {
+            List<string> filePathList;
             if (FtpUploadConfiguration.UseFileGlobbing)
             {
                 StringComparison stringComparison = StringComparison.OrdinalIgnoreCase;
@@ -121,72 +241,43 @@ namespace NodeService.ServiceHost.Tasks
                 filePathList = enumerator.EnumerateAllFiles().ToList();
             }
 
-            if (filePathList.Count == 0)
-            {
-                _logger.LogInformation($"Cound not found any mached file in {rootDirectory}");
-                return;
-            }
-
-            PrintLocalFiles(filePathList);
-
-            FtpUploadConfiguration.RemoteDirectory = FtpUploadConfiguration.RemoteDirectory.Replace("$(HostName)", hostName).Replace("\\", "/");
-
-            if (!FtpUploadConfiguration.RemoteDirectory.StartsWith('/'))
-            {
-                FtpUploadConfiguration.RemoteDirectory = '/' + FtpUploadConfiguration.RemoteDirectory;
-            }
-
-            var remoteFilePathList = PathHelper.CalculateRemoteFilePath(
-                FtpUploadConfiguration.LocalDirectory,
-                FtpUploadConfiguration.RemoteDirectory,
-                filePathList).ToList();
-            if (remoteFilePathList.Count != filePathList.Count)
-            {
-                throw new InvalidOperationException("file count error");
-            }
-
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.BaseAddress = new Uri(_siteUrl);
-            using var apiService = new ApiService(httpClient, new ApiServiceOptions()
-            {
-                DisposeHttpClient = true,
-            });
-
-            PrintRemoteFiles();
-
-            await Parallel.ForEachAsync(remoteFilePathList,
-                new ParallelOptions()
-                {
-                    CancellationToken = cancellationToken,
-                    MaxDegreeOfParallelism = 4
-                }
-                , async (kv, token) =>
-              {
-                  await UploadFileAsync(
-                          apiService,
-                          kv.Key,
-                          kv.Value,
-                          token);
-              });
-
-            _logger.LogInformation($"UploadedCount:{_uploadedCount} SkippedCount:{_skippedCount} OveridedCount:{_overidedCount}");
-
+            return filePathList;
         }
 
-        async Task UploadFileAsync(
-            ApiService apiService,
-            string localFilePath,
-            string remoteFilePath,
+        static FileUploadContext? FindContext(FileUploadContext[] contextChunk, string fullName)
+        {
+            foreach (var context in contextChunk)
+            {
+                if (context.FileInfo.FullName == fullName)
+                {
+                    return context;
+                }
+            }
+            return null;
+        }
+
+        private FileUploadContext CreateFileUploadContext(PathInfo pathInfo)
+        {
+            var fileInfo = new FileInfo(pathInfo.LocalPath);
+            var request = CreateSyncRequest(
+                _nodeInfoId,
+                FtpUploadConfiguration.FtpConfigId,
+                pathInfo.RemotePath,
+                fileInfo);
+            var fileUploadContext = new FileUploadContext(request, fileInfo);
+            return fileUploadContext;
+        }
+
+        async ValueTask UploadFileAsync(
+            FileUploadContext context,
             CancellationToken cancellationToken)
         {
             FtpStatus ftpStatus = FtpStatus.Failed;
             int retryTimes = 0;
             do
             {
-                ftpStatus = await UploadFileCoreAsync(
-                    apiService,
-                    localFilePath,
-                    remoteFilePath,
+                ftpStatus = await ProcessContextAsync(
+                    context,
                     cancellationToken);
                 retryTimes++;
                 if (ftpStatus == FtpStatus.Failed)
@@ -208,12 +299,12 @@ namespace NodeService.ServiceHost.Tasks
             if (ftpStatus == FtpStatus.Success)
             {
                 _uploadedCount++;
-                _logger.LogInformation($"Upload:LocalPath:{localFilePath} RemotePath:{remoteFilePath}");
+                _logger.LogInformation($"Upload:LocalPath:{context.FileInfo.FullName} RemotePath:{context.Request.StoragePath}");
             }
             else if (ftpStatus == FtpStatus.Skipped)
             {
                 _skippedCount++;
-                _logger.LogInformation($"Skip:LocalPath:{localFilePath},RemotePath:{remoteFilePath}");
+                _logger.LogInformation($"Skip:LocalPath:{context.FileInfo.FullName} RemotePath:{context.Request.StoragePath}");
             }
         }
 
@@ -243,10 +334,8 @@ namespace NodeService.ServiceHost.Tasks
             _logger.LogInformation("Enumerate local Objects End");
         }
 
-        async Task<FtpStatus> UploadFileCoreAsync(
-            ApiService apiService,
-            string localFilePath,
-            string remoteFilePath,
+        async Task<FtpStatus> ProcessContextAsync(
+            FileUploadContext context,
             CancellationToken cancellationToken = default)
         {
             FtpStatus ftpStatus = FtpStatus.Failed;
@@ -255,20 +344,16 @@ namespace NodeService.ServiceHost.Tasks
         LRetry:
             try
             {
-                if (!File.Exists(localFilePath))
+
+                if (!File.Exists(context.FileInfo.FullName))
                 {
                     return FtpStatus.Skipped;
                 }
                 var ftpRemoteExists = ConvertFtpFileExistsToFtpRemoteExists(FtpUploadConfiguration.FtpFileExists);
 
-                var fileInfo = new FileInfo(localFilePath);
-                var request = CreateSyncRequest(
-                    _nodeInfoId,
-                    FtpUploadConfiguration.FtpConfigId,
-                    remoteFilePath,
-                    fileInfo);
 
-                var hitTestRsp = await apiService.HittestFileAsync(request, cancellationToken);
+
+                var hitTestRsp = await context.ApiService.QueryFileInfoCacheResultAsync(context.Request, cancellationToken);
                 if (hitTestRsp.ErrorCode == 0)
                 {
                     if (hitTestRsp.Result == FileInfoCacheResult.Cached)
@@ -278,9 +363,9 @@ namespace NodeService.ServiceHost.Tasks
                     }
                 }
 
-                using var stream = fileInfo.OpenRead();
+                using var stream = context.FileInfo.OpenRead();
 
-                var rsp = await apiService.UploadFileAsync(request, stream, cancellationToken);
+                var rsp = await context.ApiService.UploadFileAsync(context.Request, stream, cancellationToken);
                 if (rsp.ErrorCode == 0)
                 {
                     if (rsp.Result.Status == NodeFileSyncStatus.Processed)
