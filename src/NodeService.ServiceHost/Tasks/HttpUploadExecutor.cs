@@ -120,12 +120,16 @@ namespace NodeService.ServiceHost.Tasks
             });
 
             PrintRemoteFiles();
-
-            foreach (var contextArray in filePathInfoList.Where(IsFileExists).Select(CreateFileUploadContext).Chunk(100))
+            var totalTimeSpan = TimeSpan.Zero;
+            var timeStamp = Stopwatch.GetTimestamp();
+            var count = 0;
+            foreach (var contextArray in filePathInfoList.Where(IsFileExists).Select(CreateFileUploadContext).Chunk(1000))
             {
+
                 var uploadContextList = await BulkQueryFileInfoCacheResultAsync(apiService, contextArray, cancellationToken);
                 if (uploadContextList.Count > 0)
                 {
+                    stopwatch.Restart();
                     await Parallel.ForEachAsync(uploadContextList,
                                     new ParallelOptions()
                                     {
@@ -133,9 +137,13 @@ namespace NodeService.ServiceHost.Tasks
                                         MaxDegreeOfParallelism = 4
                                     }
                                     , UploadFileAsync);
+                    stopwatch.Stop();
                     _logger.LogInformation($"Upload {uploadContextList.Count} files,spent:{stopwatch.Elapsed}");
+                    count += uploadContextList.Count;
                 }
             }
+            totalTimeSpan = Stopwatch.GetElapsedTime(timeStamp);
+            _logger.LogInformation($"Upload {count} files,spent:{stopwatch.Elapsed}");
 
             _logger.LogInformation($"UploadedCount:{_uploadedCount} SkippedCount:{_skippedCount} OveridedCount:{_overidedCount}");
 
