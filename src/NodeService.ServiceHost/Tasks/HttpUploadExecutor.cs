@@ -400,6 +400,11 @@ namespace NodeService.ServiceHost.Tasks
                 _logger.LogError(ex.ToString());
                 ftpStatus = FtpStatus.Skipped;
             }
+            catch(HttpRequestException ex)
+            {
+                _logger.LogError(ex.ToString());
+                ftpStatus = FtpStatus.Failed;
+            }
             catch (Exception ex)
             {
                 _logger.LogInformation(ex.ToString());
