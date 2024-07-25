@@ -1,7 +1,7 @@
 ﻿using System.IO.Pipes;
 using System.Security.Principal;
 
-namespace NodeService.ServiceHost.Grpc
+namespace NodeService.WindowsService.Grpc
 {
     public class NamedPipesConnectionFactory
     {
@@ -17,7 +17,7 @@ namespace NodeService.ServiceHost.Grpc
         {
             var clientStream = new NamedPipeClientStream(
                 serverName: ".",
-                pipeName: this.pipeName,
+                pipeName: pipeName,
                 direction: PipeDirection.InOut,
                 options: PipeOptions.WriteThrough | PipeOptions.Asynchronous,
                 impersonationLevel: TokenImpersonationLevel.Anonymous);

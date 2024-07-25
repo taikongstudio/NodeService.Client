@@ -1,4 +1,4 @@
-﻿namespace NodeService.ServiceHost.Models
+﻿namespace NodeService.WindowsService.Models
 {
     public class App
     {

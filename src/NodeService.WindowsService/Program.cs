@@ -3,12 +3,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using NLog;
 using NLog.Extensions.Logging;
-using NodeService.ServiceHost.Models;
-using NodeService.ServiceHost.Services;
 using NodeService.ServiceProcess;
+using NodeService.WindowsService.Models;
+using NodeService.WindowsService.Services;
 using System.Collections.Concurrent;
 
-namespace NodeService.ServiceHost
+namespace NodeService.WindowsService
 {
     public static class Program
     {

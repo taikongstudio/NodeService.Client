@@ -1,11 +1,12 @@
 ﻿using Grpc.Core;
 using NodeService.Infrastructure.Models;
-using NodeService.ServiceHost.Models;
+using NodeService.WindowsService;
+using NodeService.WindowsService.Models;
 using System.Collections.Concurrent;
 
-namespace NodeService.ServiceHost.Services
+namespace NodeService.WindowsService.Services
 {
-    public class ProcessServiceImpl : NodeService.Infrastructure.Services.ProcessService.ProcessServiceBase
+    public class ProcessServiceImpl : Infrastructure.Services.ProcessService.ProcessServiceBase
     {
         private readonly ILogger<ProcessServiceImpl> _logger;
         private readonly ConcurrentDictionary<string, ProcessChannelInfo> _processChannelInfoDictionary;

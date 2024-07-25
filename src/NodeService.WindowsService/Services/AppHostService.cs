@@ -2,7 +2,8 @@
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
-using NodeService.ServiceHost.Models;
+using NodeService.WindowsService;
+using NodeService.WindowsService.Models;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO.Compression;
@@ -10,7 +11,7 @@ using System.IO.Pipes;
 using System.ServiceProcess;
 using static NodeService.Infrastructure.Services.ProcessService;
 
-namespace NodeService.ServiceHost.Services
+namespace NodeService.WindowsService.Services
 {
     public class AppHostService : BackgroundService
     {
@@ -48,7 +49,7 @@ namespace NodeService.ServiceHost.Services
             _appOptions = _appOptionsMonitor.CurrentValue;
             OnAppOptionsChanged(_appOptions);
             _appOptionsMonitorToken = _appOptionsMonitor.OnChange(OnAppOptionsChanged);
-            this._processDictionary = processDictionary;
+            _processDictionary = processDictionary;
             _processServiceClientCaches = new ConcurrentDictionary<string, ProcessServiceClientCache>();
         }
 
@@ -62,9 +63,9 @@ namespace NodeService.ServiceHost.Services
         private void OnServerOptionsChanged(ServerOptions serverOptions)
         {
             _serverOptions = serverOptions;
-            if (this._apiService != null)
+            if (_apiService != null)
             {
-                this._apiService.Dispose();
+                _apiService.Dispose();
             }
             _apiService = new ApiService(new HttpClient()
             {
@@ -108,7 +109,7 @@ namespace NodeService.ServiceHost.Services
             processServiceClient = null;
             try
             {
-                processServiceClient = this._processServiceClientCaches.GetOrAdd(
+                processServiceClient = _processServiceClientCaches.GetOrAdd(
                     serviceName,
                     (key) => CreateCache(serviceName, cancellationToken))?.ProcessServiceClient;
             }
@@ -182,7 +183,7 @@ namespace NodeService.ServiceHost.Services
                 };
                 killProcessRequest.Parameters.Add("Sender", sender);
 
-                if (!this.TryGetProcessServiceClient(
+                if (!TryGetProcessServiceClient(
                     serviceName,
                     out var processServiceClient,
                     cancellationToken) || processServiceClient == null)
@@ -323,14 +324,14 @@ namespace NodeService.ServiceHost.Services
         {
             try
             {
-                if (!this._processDictionary.TryGetValue(appName, out var processChannelInfo) || processChannelInfo == null)
+                if (!_processDictionary.TryGetValue(appName, out var processChannelInfo) || processChannelInfo == null)
                 {
                     return true;
                 }
                 processChannelInfo.Process.Refresh();
                 if (processChannelInfo.Process.HasExited)
                 {
-                    this._processDictionary.TryRemove(appName, out _);
+                    _processDictionary.TryRemove(appName, out _);
                     return true;
                 }
                 return false;
@@ -338,7 +339,7 @@ namespace NodeService.ServiceHost.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
-                this._processDictionary.TryRemove(appName, out _);
+                _processDictionary.TryRemove(appName, out _);
             }
             return true;
         }
@@ -587,7 +588,7 @@ namespace NodeService.ServiceHost.Services
             try
             {
 
-                if (!this._processDictionary.TryGetValue(appName, out var processChannelInfo) || processChannelInfo == null)
+                if (!_processDictionary.TryGetValue(appName, out var processChannelInfo) || processChannelInfo == null)
                 {
                     _logger.LogInformation($"没有启动的{appName}进程");
                     return true;
@@ -630,7 +631,7 @@ namespace NodeService.ServiceHost.Services
             }
             finally
             {
-                this._processDictionary.TryRemove(appName, out _);
+                _processDictionary.TryRemove(appName, out _);
             }
             return false;
         }
@@ -668,7 +669,7 @@ namespace NodeService.ServiceHost.Services
             PackageConfigModel packageConfig,
             CancellationToken stoppingToken = default)
         {
-            if (this._processDictionary.TryGetValue(appName, out var processChannelInfo) && processChannelInfo != null)
+            if (_processDictionary.TryGetValue(appName, out var processChannelInfo) && processChannelInfo != null)
             {
                 return;
             }
@@ -696,10 +697,7 @@ namespace NodeService.ServiceHost.Services
 
                 int taskIndex = Task.WaitAny(
                     process.WaitForExitAsync(),
-                    Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken), Task.Factory.StartNew(() =>
-                    {
-                        RunAppProcessPipeClientAsync(appName, stoppingToken).Wait(stoppingToken);
-                    }, stoppingToken, TaskCreationOptions.LongRunning, TaskScheduler.Default));
+                    RunAppProcessPipeClientAsync(appName, stoppingToken));
 
                 process.Exited -= AppProcess_Exited;
                 process.OutputDataReceived -= AppProcessWriteOutput;

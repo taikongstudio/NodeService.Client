@@ -1,7 +1,7 @@
-﻿using NodeService.ServiceHost.Models;
+﻿using NodeService.WindowsService.Models;
 using System.ServiceProcess;
 
-namespace NodeService.ServiceHost.Services
+namespace NodeService.WindowsService.Services
 {
     public class DoctorService : BackgroundService
     {

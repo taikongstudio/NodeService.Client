@@ -1,4 +1,4 @@
-﻿namespace NodeService.ServiceHost
+﻿namespace NodeService.WindowsService
 {
     public class Constants
     {

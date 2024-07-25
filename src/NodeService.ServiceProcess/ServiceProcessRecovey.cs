@@ -30,7 +30,7 @@ namespace NodeService.ServiceProcess
 
         private async Task UploadAsync(ServiceProcessInstallerProgress progress)
         {
-            await _apiService.AddOrUpdateUpdateInstallCounterAsync(new AddOrUpdateCounterParameters()
+            await _apiService.UploadClientUpdateLogAsync(new ClientUpdateLog()
             {
                 ClientUpdateConfigId = progress.ClientUpdateId,
                 NodeName = Dns.GetHostName(),

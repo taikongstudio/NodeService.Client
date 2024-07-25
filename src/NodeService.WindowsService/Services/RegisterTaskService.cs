@@ -2,9 +2,9 @@
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
-using NodeService.ServiceHost.Models;
+using NodeService.WindowsService.Models;
 
-namespace NodeService.ServiceHost.Services
+namespace NodeService.WindowsService.Services
 {
     public class RegisterTaskService : BackgroundService
     {
@@ -40,9 +40,9 @@ namespace NodeService.ServiceHost.Services
 
         public override void Dispose()
         {
-            if (this._serverOptionsMonitorToken != null)
+            if (_serverOptionsMonitorToken != null)
             {
-                this._serverOptionsMonitorToken.Dispose();
+                _serverOptionsMonitorToken.Dispose();
             }
             base.Dispose();
         }

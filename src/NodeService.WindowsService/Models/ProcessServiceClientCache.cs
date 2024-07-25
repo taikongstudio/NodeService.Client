@@ -1,8 +1,8 @@
 ﻿using Grpc.Net.Client;
-using NodeService.ServiceHost.Grpc;
+using NodeService.WindowsService.Grpc;
 using static NodeService.Infrastructure.Services.ProcessService;
 
-namespace NodeService.ServiceHost.Models
+namespace NodeService.WindowsService.Models
 {
     public class ProcessServiceClientCache : IDisposable
     {
@@ -38,9 +38,9 @@ namespace NodeService.ServiceHost.Models
 
         public void Dispose()
         {
-            if (this._grpcChannel != null)
+            if (_grpcChannel != null)
             {
-                this._grpcChannel.Dispose();
+                _grpcChannel.Dispose();
             }
         }
     }

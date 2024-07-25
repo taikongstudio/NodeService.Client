@@ -182,7 +182,7 @@ namespace NodeService.Installer
         {
             try
             {
-                await this.apiService.AddOrUpdateUpdateInstallCounterAsync(new Infrastructure.Models.AddOrUpdateCounterParameters()
+                await this.apiService.UploadClientUpdateLogAsync(new Infrastructure.Models.ClientUpdateLog()
                 {
                     ClientUpdateConfigId = "Installer",
                     CategoryName = e.Progress.Message,

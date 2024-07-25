@@ -1,7 +1,7 @@
 ﻿using NodeService.Infrastructure.Models;
 using System.Threading.Channels;
 
-namespace NodeService.ServiceHost.Models
+namespace NodeService.WindowsService.Models
 {
     public class ProcessChannelInfo
     {

@@ -50,7 +50,7 @@ namespace NodeService.ServiceHost
                 builder.Services.AddSingleton<TaskExecutionContextDictionary>();
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<IAsyncQueue<TaskExecutionContext>, AsyncQueue<TaskExecutionContext>>();
-                builder.Services.AddSingleton<IAsyncQueue<TaskExecutionReport>, AsyncQueue<TaskExecutionReport>>();
+                builder.Services.AddSingleton<IAsyncQueue<TaskExecutionReport>>(new AsyncQueue<TaskExecutionReport>(1024 * 500));
                 builder.Services.AddKeyedSingleton<IAsyncQueue<FileSystemWatchEventReport>, AsyncQueue<FileSystemWatchEventReport>>(nameof(NodeClientService));  builder.Services.AddHostedService<TaskHostService>();
                 builder.Services.AddHttpClient();
                 builder.Services.AddHostedService<NodeClientService>();
