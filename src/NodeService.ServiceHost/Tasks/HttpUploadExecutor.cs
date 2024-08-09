@@ -120,30 +120,40 @@ namespace NodeService.ServiceHost.Tasks
             });
 
             PrintRemoteFiles();
-            var totalTimeSpan = TimeSpan.Zero;
+            var totalBulkQueryTimeSpan = TimeSpan.Zero;
+            var totalUploadTimeSpan = TimeSpan.Zero;
             var timeStamp = Stopwatch.GetTimestamp();
-            var count = 0;
+
+            LinkedList<List<FileUploadContext>> fileUploadContextList = [];
             foreach (var contextArray in filePathInfoList.Where(IsFileExists).Select(CreateFileUploadContext).Chunk(1000))
             {
-
                 var uploadContextList = await BulkQueryFileInfoCacheResultAsync(apiService, contextArray, cancellationToken);
                 if (uploadContextList.Count > 0)
                 {
-                    stopwatch.Restart();
-                    await Parallel.ForEachAsync(uploadContextList,
-                                    new ParallelOptions()
-                                    {
-                                        CancellationToken = cancellationToken,
-                                        MaxDegreeOfParallelism = 4
-                                    }
-                                    , UploadFileAsync);
-                    stopwatch.Stop();
-                    _logger.LogInformation($"Upload {uploadContextList.Count} files,spent:{stopwatch.Elapsed}");
-                    count += uploadContextList.Count;
+                    fileUploadContextList.AddLast(uploadContextList);
                 }
             }
-            totalTimeSpan = Stopwatch.GetElapsedTime(timeStamp);
-            _logger.LogInformation($"Upload {count} files,spent:{stopwatch.Elapsed}");
+            totalBulkQueryTimeSpan = Stopwatch.GetElapsedTime(timeStamp);
+            timeStamp = Stopwatch.GetTimestamp();
+
+            var count = 0;
+            foreach (var uploadContextList in fileUploadContextList)
+            {
+                await Parallel.ForEachAsync(uploadContextList,
+                new ParallelOptions()
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = Debugger.IsAttached ? 1 : 4
+                }
+                , UploadFileAsync);
+                _logger.LogInformation($"Upload {uploadContextList.Count} files,spent:{stopwatch.Elapsed}");
+                count += uploadContextList.Count;
+            }
+
+            stopwatch.Stop();
+
+            totalUploadTimeSpan = Stopwatch.GetElapsedTime(timeStamp);
+            _logger.LogInformation($"bulk query spent:{totalBulkQueryTimeSpan},upload spent:{totalUploadTimeSpan}");
 
             _logger.LogInformation($"UploadedCount:{_uploadedCount} SkippedCount:{_skippedCount} OveridedCount:{_overidedCount}");
 
