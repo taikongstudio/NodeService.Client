@@ -36,6 +36,12 @@ namespace NodeService.ServiceHost.Services
                 heartBeatRsp.Properties.Add(NodePropertyModel.NetworkInterface_IsNetworkAvailable_Key, NetworkInterface.GetIsNetworkAvailable().ToString());
 
 
+                CollectBiosSerialNumbers(heartBeatRsp);
+
+                CollectCpuSerialNumbers(heartBeatRsp);
+
+                CollectHardDiskSerialNumbers(heartBeatRsp);
+
                 CollectDomain(heartBeatRsp);
 
                 CollectEnvironmentVariables(heartBeatRsp);
@@ -47,6 +53,7 @@ namespace NodeService.ServiceHost.Services
                 CollectDiskInfo(heartBeatRsp);
 
                 CollectWin32Services(heartBeatRsp);
+
 
             }
             catch (Exception ex)
@@ -263,6 +270,93 @@ namespace NodeService.ServiceHost.Services
                     _logger.LogError(ex.ToString());
                 }
             }
+
+            void CollectCpuSerialNumbers(HeartBeatResponse heartBeatResponse)
+            {
+                try
+                {
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        return;
+                    }
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(GetCPUSerialNumber().ToList()));
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+            }
+
+            void CollectHardDiskSerialNumbers(HeartBeatResponse heartBeatResponse)
+            {
+                try
+                {
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        return;
+                    }
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(GetHardDiskSerialNumber().ToList()));
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+            }
+
+            void CollectBiosSerialNumbers(HeartBeatResponse heartBeatResponse)
+            {
+                try
+                {
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        return;
+                    }
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(GetBIOSSerialNumber().ToList()));
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.ToString());
+                }
+
+            }
+        }
+
+        public IEnumerable<string> GetCPUSerialNumber()
+        {
+            using var searcher = new ManagementObjectSearcher("Select * From Win32_Processor");
+            foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
+            {
+                yield return mo["ProcessorId"].ToString().Trim();
+            }
+            yield break;
+        }
+
+
+        //获取主板序列号
+        public IEnumerable<string> GetBIOSSerialNumber()
+        {
+            using var searcher = new ManagementObjectSearcher("Select * From Win32_BIOS");
+            foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
+            {
+                yield return mo.GetPropertyValue("SerialNumber").ToString().Trim();             break;
+            }
+            yield break;
+        }
+
+
+        //获取硬盘序列号
+        public IEnumerable<string> GetHardDiskSerialNumber()
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMedia");
+            string sHardDiskSerialNumber = string.Empty;
+            foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
+            {
+                yield return mo["SerialNumber"].ToString().Trim();
+            }
+            yield break;
         }
 
     }
