@@ -275,12 +275,7 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    if (!OperatingSystem.IsWindows())
-                    {
-                        return;
-                    }
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(GetCPUSerialNumber().ToList()));
-
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(GetCPUSerialNumber().ToArray()));
                 }
                 catch (Exception ex)
                 {
@@ -292,12 +287,7 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    if (!OperatingSystem.IsWindows())
-                    {
-                        return;
-                    }
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(GetHardDiskSerialNumber().ToList()));
-
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(GetHardDiskSerialNumber().ToArray()));
                 }
                 catch (Exception ex)
                 {
@@ -309,12 +299,7 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    if (!OperatingSystem.IsWindows())
-                    {
-                        return;
-                    }
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(GetBIOSSerialNumber().ToList()));
-
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(GetBIOSSerialNumber().ToArray()));
                 }
                 catch (Exception ex)
                 {
@@ -324,37 +309,48 @@ namespace NodeService.ServiceHost.Services
             }
         }
 
-        public IEnumerable<string> GetCPUSerialNumber()
+        public IEnumerable<CpuInfo> GetCPUSerialNumber()
         {
             using var searcher = new ManagementObjectSearcher("Select * From Win32_Processor");
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
             {
-                yield return mo["ProcessorId"].ToString().Trim();
+                var cpuInfo = new CpuInfo()
+                {
+                    SerialNumber = mo["ProcessorId"].ToString().Trim()
+                };
+                yield return cpuInfo;
             }
             yield break;
         }
 
 
         //获取主板序列号
-        public IEnumerable<string> GetBIOSSerialNumber()
+        public IEnumerable<BIOSInfo> GetBIOSSerialNumber()
         {
             using var searcher = new ManagementObjectSearcher("Select * From Win32_BIOS");
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
             {
-                yield return mo.GetPropertyValue("SerialNumber").ToString().Trim();             break;
+                var biosInfo = new BIOSInfo
+                {
+                    SerialNumber = mo.GetPropertyValue("SerialNumber").ToString().Trim()
+                };
+                yield return biosInfo;
             }
             yield break;
         }
 
 
         //获取硬盘序列号
-        public IEnumerable<string> GetHardDiskSerialNumber()
+        public IEnumerable<PhysicalMediaInfo> GetHardDiskSerialNumber()
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMedia");
-            string sHardDiskSerialNumber = string.Empty;
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
             {
-                yield return mo["SerialNumber"].ToString().Trim();
+                var physicalMediaInfo = new PhysicalMediaInfo()
+                {
+                    SerialNumber = mo["SerialNumber"].ToString().Trim(),
+                };
+                yield return physicalMediaInfo;
             }
             yield break;
         }

@@ -106,7 +106,7 @@ namespace NodeService.ServiceHost.Services
                     builder.Services.AddScoped(sp => sp.GetService<ILoggerFactory>().CreateLogger("TaskLogger")
                     );
                     { }
-                    builder.Services.AddHttpClient(Options.DefaultName, SetupHttpClient);
+                    builder.Services.AddHttpClient(Options.DefaultName, SetupHttpClient).RemoveAllLoggers().AddDefaultLogger();
                     builder.Logging.ClearProviders();
                     builder.Logging.AddConsole();
                     builder.Logging.AddFilter((category, lever) =>
