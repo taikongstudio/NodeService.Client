@@ -7,9 +7,9 @@ namespace NodeService.ServiceHost.Services
     {
 
 
-        private async Task ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
+        private async ValueTask ProcessHeartBeatRequest(NodeServiceClient client, SubscribeEvent subscribeEvent, CancellationToken cancellationToken = default)
         {
-            HeartBeatResponse heartBeatRsp = new HeartBeatResponse
+            var heartBeatRsp = new HeartBeatResponse
             {
                 RequestId = subscribeEvent.HeartBeatRequest.RequestId
             };
@@ -275,11 +275,12 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(GetCPUSerialNumber().ToArray()));
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(GetCpuInfoList().ToArray()));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_Cpu_SerialNumbers_Key, JsonSerializer.Serialize(Array.Empty<CPUInfo>()));
                 }
             }
 
@@ -287,11 +288,12 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(GetHardDiskSerialNumber().ToArray()));
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(GetPhysicalMediaInfoList().ToArray()));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_PhysicalMedia_SerialNumbers_Key, JsonSerializer.Serialize(Array.Empty<PhysicalMediaInfo>()));
                 }
             }
 
@@ -299,17 +301,17 @@ namespace NodeService.ServiceHost.Services
             {
                 try
                 {
-                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(GetBIOSSerialNumber().ToArray()));
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(GetBIOSInfoList().ToArray()));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.ToString());
+                    heartBeatRsp.Properties.Add(NodePropertyModel.Device_BIOS_SerialNumbers_Key, JsonSerializer.Serialize(Array.Empty<BIOSInfo>()));
                 }
-
             }
         }
 
-        public IEnumerable<CpuInfo> GetCPUSerialNumber()
+        public IEnumerable<CpuInfo> GetCpuInfoList()
         {
             using var searcher = new ManagementObjectSearcher("Select * From Win32_Processor");
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
@@ -325,7 +327,7 @@ namespace NodeService.ServiceHost.Services
 
 
         //获取主板序列号
-        public IEnumerable<BIOSInfo> GetBIOSSerialNumber()
+        public IEnumerable<BIOSInfo> GetBIOSInfoList()
         {
             using var searcher = new ManagementObjectSearcher("Select * From Win32_BIOS");
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
@@ -341,7 +343,7 @@ namespace NodeService.ServiceHost.Services
 
 
         //获取硬盘序列号
-        public IEnumerable<PhysicalMediaInfo> GetHardDiskSerialNumber()
+        public IEnumerable<PhysicalMediaInfo> GetPhysicalMediaInfoList()
         {
             using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMedia");
             foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())

@@ -8,7 +8,7 @@ namespace NodeService.ServiceHost.Services
     public partial class NodeClientService
     {
 
-        private async Task ProcessConfigurationChangedReportAsync(
+        private async ValueTask ProcessConfigurationChangedReportAsync(
             NodeServiceClient client,
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken)

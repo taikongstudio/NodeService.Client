@@ -1,10 +1,5 @@
-﻿using Google.Protobuf.WellKnownTypes;
-using Grpc.Net.Client.Web;
-using NodeService.Infrastructure.Concurrent;
+﻿using NodeService.Infrastructure.Concurrent;
 using NodeService.ServiceHost.Models;
-using System.Net.Http;
-using System.Threading;
-using static NodeService.Infrastructure.Services.NodeService;
 
 namespace NodeService.ServiceHost.Services
 {
@@ -27,7 +22,7 @@ namespace NodeService.ServiceHost.Services
         readonly NodeServiceClient _nodeServiceClient;
         readonly IServiceProvider _serviceProvider;
         readonly IDisposable? _serverOptionsMonitorToken;
-        readonly ServiceOptions _serviceHostOptions;
+        readonly ServiceOptions _serviceOptions;
         public ILogger<NodeClientService> _logger { get; private set; }
 
 
@@ -39,7 +34,7 @@ namespace NodeService.ServiceHost.Services
             TaskExecutionContextDictionary taskExecutionContextDictionary,
             INodeIdentityProvider nodeIdentityProvider,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
-            ServiceOptions serviceHostOptions,
+            ServiceOptions serviceOptions,
             NodeServiceClient nodeServiceClient
             )
         {
@@ -59,7 +54,7 @@ namespace NodeService.ServiceHost.Services
 
             _nodeIdentityProvider = nodeIdentityProvider;
             _headers = [];
-            _serviceHostOptions = serviceHostOptions;
+            _serviceOptions = serviceOptions;
         }
 
         public override void Dispose()
@@ -98,7 +93,7 @@ namespace NodeService.ServiceHost.Services
                 {
                     HostName = Dns.GetHostName(),
                     NodeId = Debugger.IsAttached ? "DebugMachine" : _nodeIdentityProvider.GetIdentity(),
-                    Mode = _serviceHostOptions.mode
+                    Mode = _serviceOptions.mode
                 });
                 await RunLoopAsync(cancellationToken);
 
@@ -141,12 +136,9 @@ namespace NodeService.ServiceHost.Services
 
                 _logger.LogInformation($"OperationSystem:{Environment.OSVersion}");
 
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var tasks = EnumTasks(cancellationToken).ToArray();
-                    await Task.WhenAll(tasks);
-                    await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
-                }
+                var tasks = EnumTasks(cancellationToken).ToArray();
+                await Task.WhenAll(tasks);
+                await Task.Delay(TimeSpan.FromSeconds(Debugger.IsAttached ? 5 : 30), cancellationToken);
             }
             catch (Exception ex)
             {

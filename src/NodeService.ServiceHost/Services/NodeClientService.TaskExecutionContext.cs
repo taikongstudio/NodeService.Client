@@ -9,7 +9,7 @@ namespace NodeService.ServiceHost.Services
         private IAsyncQueue<TaskExecutionContext> _taskExecutionContextQueue;
         private readonly TaskExecutionContextDictionary _taskExecutionContextDictionary;
 
-        private async Task ProcessTaskExecutionEventRequest(
+        private async ValueTask ProcessTaskExecutionEventRequest(
             NodeServiceClient nodeServiceClient,
             SubscribeEvent subscribeEvent,
             CancellationToken cancellationToken = default)
