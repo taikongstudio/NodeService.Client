@@ -55,7 +55,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                System.Windows.Forms.MessageBox.Show($"´Ó\"{path}\"¼ÓÔØÅäÖÃÊ±·¢ÉúÁË´íÎó:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"ï¿½ï¿½\"{path}\"ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ë´ï¿½ï¿½ï¿½:{ex.Message}");
             }
 
         }
@@ -68,7 +68,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                System.Windows.Forms.MessageBox.Show($"´Ó\"Á÷\"¼ÓÔØÅäÖÃÊ±·¢ÉúÁË´íÎó:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"ï¿½ï¿½\"ï¿½ï¿½\"ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ë´ï¿½ï¿½ï¿½:{ex.Message}");
             }
 
         }
@@ -191,7 +191,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                AppendMessage($"ÉÏ´«°²×°Í³¼Æµ½·şÎñÆ÷Ê±·¢ÉúÁËÒì³£:{ex.Message}");
+                AppendMessage($"ï¿½Ï´ï¿½ï¿½ï¿½×°Í³ï¿½Æµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì³£:{ex.Message}");
             }
 
         }
@@ -443,23 +443,23 @@ namespace NodeService.Installer
                 await ftpClient.AutoConnect();
                 if (!await ftpClient.FileExists(PackagesFileName))
                 {
-                    AppendMessage("·şÎñÆ÷²»´æÔÚ°üÅäÖÃÎÄ¼ş");
+                    AppendMessage("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½");
                 }
                 using var stream = new MemoryStream();
                 if (!await ftpClient.DownloadStream(stream, PackagesFileName, progress: this))
                 {
-                    AppendMessage("ÏÂÔØ°üÅäÖÃÊ§°Ü");
+                    AppendMessage("ï¿½ï¿½ï¿½Ø°ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½");
                 }
                 if (stream != null)
                 {
-                    AppendMessage("ÏÂÔØ°üÅäÖÃ³É¹¦");
+                    AppendMessage("ï¿½ï¿½ï¿½Ø°ï¿½ï¿½ï¿½ï¿½Ã³É¹ï¿½");
                     stream.Position = 0;
                     ReadConfigFromStream(stream);
                 }
                 else
                 {
                     this._installConfigs = [new PackageConfig {
-                         ConfigName="ÁÙÊ±ÅäÖÃ",
+                         ConfigName="ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½",
                          Port=21
                     }];
                 }
@@ -468,7 +468,7 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                System.Windows.Forms.MessageBox.Show($"¼ÓÔØÄ¬ÈÏÅäÖÃÊ±·¢ÉúÁË´íÎó:{ex.Message}");
+                System.Windows.Forms.MessageBox.Show($"ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ë´ï¿½ï¿½ï¿½:{ex.Message}");
             }
 
         }

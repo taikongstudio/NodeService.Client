@@ -71,8 +71,7 @@ namespace NodeService.ServiceHost.Services
                     return;
                 }
                 using var scope = this._serviceProvider.CreateAsyncScope();
-                var task = scope.ServiceProvider.GetService(serviceType) as TaskBase;
-                if (task == null)
+                if (scope.ServiceProvider.GetService(serviceType) is not TaskBase task)
                 {
                     result = false;
                 }

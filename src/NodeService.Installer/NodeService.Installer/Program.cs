@@ -10,7 +10,7 @@ namespace NodeService.Installer
         {
             if (!Environment.IsPrivilegedProcess)
             {
-                MessageBox.Show("ĞèÒªÒÔ¹ÜÀíÔ±È¨ÏŞÔËĞĞ");
+                MessageBox.Show("éœ€è¦ä»¥ç®¡ç†å‘˜èº«ä»½è¿è¡Œ");
                 return;
             }
             // To customize application configuration such as set high DPI settings or default font,
