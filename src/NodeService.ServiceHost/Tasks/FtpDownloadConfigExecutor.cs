@@ -1,4 +1,5 @@
 ﻿using FluentFTP;
+using System.Collections.Immutable;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -7,6 +8,7 @@ namespace NodeService.ServiceHost.Tasks
         int skippedCount = 0;
         int downloadedCount = 0;
         int overidedCount;
+        private ImmutableDictionary<string, string?> _envVars;
 
         public FtpDownloadConfigModel FtpDownloadConfig { get; private set; }
 
@@ -300,6 +302,19 @@ namespace NodeService.ServiceHost.Tasks
             }
 
         }
+
+        public void SetEnvironmentVariables(ImmutableDictionary<string, string?> envVars)
+        {
+            _envVars = envVars;
+            foreach (var envVar in envVars)
+            {
+                FtpDownloadConfig.LocalDirectory = FtpDownloadConfig.LocalDirectory?.Replace($"$({envVar.Key})", envVar.Value);
+                FtpDownloadConfig.RemoteDirectory = FtpDownloadConfig.RemoteDirectory?.Replace($"$({envVar.Key})", envVar.Value);
+                FtpDownloadConfig.SearchPattern = FtpDownloadConfig.SearchPattern?.Replace($"$({envVar.Key})", envVar.Value);
+                _logger.LogInformation($"\"{envVar.Key}\" => \"{envVar.Value}\"");
+            }
+        }
+
 
     }
 }

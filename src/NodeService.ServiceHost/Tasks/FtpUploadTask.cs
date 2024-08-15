@@ -89,11 +89,13 @@ namespace NodeService.ServiceHost.Tasks
                     ftpUploadConfig,
                     _httpClientFactory,
                     Logger);
+
+                httpUploadTaskExecutor.SetEnvironmentVariables(EnvironmentVariables);
+
                 await ApplyNodeEnvVarsAsync(
                     nodeId,
                     ftpUploadConfig,
                     cancellationToken);
-                httpUploadTaskExecutor.SetEnvironmentVariables(EnvironmentVariables);
                 await httpUploadTaskExecutor.ExecuteAsync(cancellationToken);
                 Logger.LogInformation($"Finish executing config:{ftpUploadConfig.Name} completed");
             }

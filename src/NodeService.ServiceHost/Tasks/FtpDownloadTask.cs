@@ -21,8 +21,10 @@ namespace NodeService.ServiceHost.Tasks
             var options = new FtpDownloadTaskOptions();
             await options.InitAsync(TaskDefinition, ApiService, cancellationToken);
             var nodeId = _nodeIdentityProvider.GetIdentity();
-            await ApplyEnvVarsAsync(nodeId, options.FtpDownloadConfig, cancellationToken);
+
             var ftpDownloadConfigExecutor = new FtpDownloadConfigExecutor(this, options.FtpDownloadConfig, Logger);
+            ftpDownloadConfigExecutor.SetEnvironmentVariables(EnvironmentVariables);
+            await ApplyEnvVarsAsync(nodeId, options.FtpDownloadConfig, cancellationToken);
             await ftpDownloadConfigExecutor.ExecuteAsync(cancellationToken);
         }
 

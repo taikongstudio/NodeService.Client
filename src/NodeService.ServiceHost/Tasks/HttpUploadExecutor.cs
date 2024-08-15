@@ -58,6 +58,9 @@ namespace NodeService.ServiceHost.Tasks
             _envVars = envVars;
             foreach (var envVar in envVars)
             {
+                this.FtpUploadConfiguration.LocalDirectory = FtpUploadConfiguration.LocalDirectory?.Replace($"$({envVar.Key})", envVar.Value);
+                this.FtpUploadConfiguration.RemoteDirectory = FtpUploadConfiguration.RemoteDirectory?.Replace($"$({envVar.Key})", envVar.Value);
+                this.FtpUploadConfiguration.SearchPattern = FtpUploadConfiguration.SearchPattern?.Replace($"$({envVar.Key})", envVar.Value);
                 _logger.LogInformation($"\"{envVar.Key}\" => \"{envVar.Value}\"");
             }
         }

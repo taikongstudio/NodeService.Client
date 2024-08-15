@@ -49,30 +49,25 @@
                 string nodeId = this._nodeIdentityProvider.GetIdentity();
                 batchScriptTempFile = Path.Combine(EnsureScriptsHomeDirectory(), $"{Guid.NewGuid()}.bat");
                 var options = new ExecuteBatchScriptTaskOptions();
-                await options.InitAsync(TaskDefinition, ApiService);
-                string scripts = options.Scripts.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
+                foreach (var envVar in EnvironmentVariables)
+                {
+                    options.WorkingDirectory = options.WorkingDirectory.Replace($"$({envVar.Key})", envVar.Value);
+                }
+                await options.InitAsync(TaskDefinition, ApiService, cancellationToken);
+                string scripts = options.Scripts.Replace("$(WorkingDirectory)", options.WorkingDirectory);
                 scripts = scripts.ReplaceLineEndings("\r\n");
                 scripts = scripts.Replace("$(NodeId)", nodeId);
                 scripts = scripts.Replace("$(HostName)", Dns.GetHostName());
                 scripts = scripts.Replace("$(ParentProcessId)", Environment.ProcessId.ToString());
-                var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, cancellationToken);
-                if (rsp.ErrorCode == 0 && rsp.Result != null)
+                foreach (var envVar in EnvironmentVariables)
                 {
-                    foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
-                    {
-                        scripts = scripts.Replace($"$({envVar.Name})", envVar.Value);
-                    }
+                    scripts = scripts.Replace($"$({envVar.Key})", envVar.Value);
                 }
+                scripts = await ApplyEnvVarsAsync(nodeId, scripts, cancellationToken);
                 string workingDirectory = options.WorkingDirectory.Replace("$(WorkingDirectory)", AppContext.BaseDirectory);
                 bool createNoWindow = options.CreateNoWindow;
 
                 File.WriteAllText(batchScriptTempFile, scripts);
-
-                if (string.IsNullOrEmpty(workingDirectory))
-                {
-                    workingDirectory = AppContext.BaseDirectory;
-                }
-
 
                 string cmdFilePath = ResolveCmdExecutablePath();
 
@@ -115,6 +110,20 @@
                 }
 
             }
+        }
+
+        private async Task<string> ApplyEnvVarsAsync(string nodeId, string str, CancellationToken cancellationToken)
+        {
+            var rsp = await ApiService.QueryNodeEnvVarsConfigAsync(nodeId, cancellationToken);
+            if (rsp.ErrorCode == 0 && rsp.Result != null)
+            {
+                foreach (var envVar in rsp.Result.Value.EnvironmentVariables)
+                {
+                    str = str.Replace($"$({envVar.Name})", envVar.Value);
+                }
+            }
+
+            return str;
         }
 
         private static string ResolveCmdExecutablePath()
