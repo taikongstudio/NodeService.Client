@@ -5,6 +5,10 @@
         public string GetIdentity()
         {
             const string ServiceName = "NodeService.WindowsService";
+            if (Debugger.IsAttached)
+            {
+                return "DebugMachine";
+            }
             using var softwareSubKey = Registry.LocalMachine.OpenSubKey("SOFTWARE", true);
             var subKeyNames = softwareSubKey.GetSubKeyNames();
             RegistryKey nodeRegisty = null;

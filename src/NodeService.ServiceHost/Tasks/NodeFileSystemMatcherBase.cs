@@ -1,13 +1,18 @@
 ﻿using Newtonsoft.Json.Linq;
+using System.Collections.Immutable;
 
 namespace NodeService.ServiceHost.Tasks
 {
     public abstract class NodeFileSystemMatcherBase
     {
 
-        protected bool ExecuteDateTimeFilters(string filePath, IEnumerable<DateTimeFilter> dateTimeFilters)
+        protected bool ExecuteDateTimeFilters(string filePath, ImmutableArray<DateTimeFilter> dateTimeFilters)
         {
             bool isMatched = false;
+            if (dateTimeFilters.IsDefaultOrEmpty)
+            {
+                return true;
+            }
             var lastWriteTime = File.GetLastWriteTime(filePath);
             var creationTime = File.GetCreationTime(filePath);
             foreach (var dateTimeFilter in dateTimeFilters)
@@ -38,10 +43,14 @@ namespace NodeService.ServiceHost.Tasks
             return isMatched;
         }
 
-        protected bool ExecuteFileLengthFilters(string filePath, IEnumerable<FileLengthFilter> fileLengthFilters)
+        protected bool ExecuteFileLengthFilters(string filePath, ImmutableArray<FileLengthFilter> fileLengthFilters)
         {
             var fileInfo = new FileInfo(filePath);
             var matchedCount = 0;
+            if (fileLengthFilters.IsDefaultOrEmpty)
+            {
+                return true;
+            }
             foreach (var fileLengthFilter in fileLengthFilters)
             {
                 var value0 = CalcuateLength(fileLengthFilter.LengthUnit, fileLengthFilter.Values[0]);
@@ -110,5 +119,6 @@ namespace NodeService.ServiceHost.Tasks
                 return (long)length;
             }
         }
+
     }
 }
