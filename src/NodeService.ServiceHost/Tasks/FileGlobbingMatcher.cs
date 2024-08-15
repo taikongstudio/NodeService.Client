@@ -1,9 +1,5 @@
 ﻿using Microsoft.Extensions.FileSystemGlobbing;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Immutable;
 
 namespace NodeService.ServiceHost.Tasks
 {
@@ -19,8 +15,8 @@ namespace NodeService.ServiceHost.Tasks
             string directoryPath,
             IEnumerable<string> includes,
             IEnumerable<string> excludes,
-            IEnumerable<DateTimeFilter> dateTimeFilters,
-            IEnumerable<FileLengthFilter> fileLengthFilters)
+            ImmutableArray<DateTimeFilter> dateTimeFilters,
+            ImmutableArray<FileLengthFilter> fileLengthFilters)
         {
             _matcher.AddIncludePatterns(includes);
             _matcher.AddExcludePatterns(excludes);

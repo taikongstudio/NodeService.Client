@@ -253,8 +253,8 @@ namespace NodeService.ServiceHost.Tasks
                     rootDirectory,
                     includes,
                     excludes,
-                    FtpUploadConfiguration.DateTimeFilters,
-                    FtpUploadConfiguration.LengthFilters).ToList();
+                    [.. FtpUploadConfiguration.DateTimeFilters],
+                    [.. FtpUploadConfiguration.LengthFilters]).ToList();
 
             }
             else

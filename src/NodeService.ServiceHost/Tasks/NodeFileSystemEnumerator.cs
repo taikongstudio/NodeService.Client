@@ -221,12 +221,12 @@ namespace NodeService.ServiceHost.Tasks
 
         bool ExecuteFileLengthFilter(string filePath)
         {
-            return base.ExecuteFileLengthFilters(filePath, _ftpUploadConfig.Value.LengthFilters);
+            return base.ExecuteFileLengthFilters(filePath, [.. _ftpUploadConfig.Value.LengthFilters]);
         }
 
         bool ExecuteDateTimeFilters(string filePath)
         {
-            return base.ExecuteDateTimeFilters(filePath, _ftpUploadConfig.Value.DateTimeFilters);
+            return base.ExecuteDateTimeFilters(filePath, [.. _ftpUploadConfig.Value.DateTimeFilters]);
         }
 
         IEnumerable<string> ExecuteFilter(
