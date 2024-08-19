@@ -288,11 +288,14 @@ namespace NodeService.Installer
                 var str = Encoding.UTF8.GetString(bytes);
                 if (str == this.txtKey.Text)
                 {
-                    if (!_selectedNodeInfo.IsNew && _matchedNodeInfoList.Count > 0 && !_matchedNodeInfoList.Any(x => x.Id == _selectedNodeInfo.Id))
+                    if (_selectedNodeInfo != null)
                     {
-                        if (MessageBox.Show(this, $"选择的节点信息不在历史匹配信息内，确定使用{_selectedNodeInfo.Id}作为节点ID？", "", MessageBoxButtons.OKCancel) != DialogResult.OK)
+                        if (!_selectedNodeInfo.IsNew && _matchedNodeInfoList.Count > 0 && !_matchedNodeInfoList.Any(x => x.Id == _selectedNodeInfo.Id))
                         {
-                            return;
+                            if (MessageBox.Show(this, $"选择的节点信息不在历史匹配信息内，确定使用{_selectedNodeInfo.Id}作为节点ID？", "", MessageBoxButtons.OKCancel) != DialogResult.OK)
+                            {
+                                return;
+                            }
                         }
                     }
                     UpdateNodeId();
@@ -305,13 +308,17 @@ namespace NodeService.Installer
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message);
+                MessageBox.Show(this, ex.ToString());
             }
 
         }
 
         private void UpdateNodeId()
         {
+            if (_selectedNodeInfo == null)
+            {
+                return;
+            }
             const string ServiceName = "NodeService.WindowsService";
             using var softwareSubKey = Registry.LocalMachine.OpenSubKey("SOFTWARE", true);
             var subKeyNames = softwareSubKey.GetSubKeyNames();
