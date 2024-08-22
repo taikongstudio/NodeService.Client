@@ -358,12 +358,21 @@ namespace NodeService.Installer
         {
             foreach (DataGridViewRow item in dataGridView1.Rows)
             {
-                (item.DataBoundItem as NodeInfo).IsSelected = false;
+                if (item.DataBoundItem is not NodeInfo nodeInfo)
+                {
+                    continue;
+                }
+                nodeInfo.IsSelected = false;
             }
             foreach (DataGridViewRow item in dataGridView1.SelectedRows)
             {
-                (item.DataBoundItem as NodeInfo).IsSelected = true;
-                _selectedNodeInfo = (item.DataBoundItem as NodeInfo);
+                if (item.DataBoundItem is not NodeInfo nodeInfo)
+                {
+                    continue;
+                }
+                nodeInfo.IsSelected = true;
+                _selectedNodeInfo = nodeInfo;
+                break;
             }
             dataGridView1.Invalidate();
         }
@@ -373,7 +382,11 @@ namespace NodeService.Installer
             dataGridView1.Visible = false;
             foreach (var item in nodeInfoBindingSource)
             {
-                (item as NodeInfo).IsSelected = false;
+                if (item is not NodeInfo nodeInfo)
+                {
+                    continue;
+                }
+                nodeInfo.IsSelected = false;
             }
             _selectedNodeInfo = new NodeInfo()
             {
