@@ -6,6 +6,7 @@ using NodeService.Infrastructure.Models;
 using System.Data;
 using System.Management;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
 
@@ -135,74 +136,56 @@ namespace NodeService.Installer
                     pageIndex++;
                 }
 
-                var nodeExtendInfo = new NodeExtendInfo();
-                nodeExtendInfo.CpuInfoList = GetCpuInfoList().ToList();
-                nodeExtendInfo.BIOSInfoList = GetBIOSInfoList().ToList();
-                nodeExtendInfo.PhysicalMediaInfoList = GetPhysicalMediaInfoList().ToList();
-
+                var nodes = await GetNodeInfoListAsync(apiService);
                 Invoke(() =>
                 {
                     lblStatus.Text = $"正在查询匹配信息";
                 });
-                var rsp = await apiService.QueryNodeInfoListByExtendInfoAsync(nodeExtendInfo);
-                if (rsp.ErrorCode == 0)
+                Invoke(() =>
                 {
-                    Invoke(() =>
-                    {
 
-                    if (rsp.Result != null && rsp.Result.Any())
+                    if (nodes != null && nodes.Any())
                     {
-                        _matchedNodeInfoList = rsp.Result.ToList();
-                        foreach (var item in rsp.Result)
+                        _matchedNodeInfoList = nodes.ToList();
+                        foreach (var item in nodes)
                         {
                             var index = 0;
-                                foreach (var nodeInfo in nodeInfoList)
-                                {
-                                    if (item.Id == nodeInfo.Id)
-                                    {
-                                        if (nodeInfoBindingSource[index] is not NodeInfo nodeInfoData)
-                                        {
-                                            continue;
-                                        }
-                                        _selectedNodeInfo = nodeInfoData;
-                                        _selectedNodeInfo.IsSelected = true;
-                                        dataGridView1.FirstDisplayedScrollingRowIndex = index;
-                                        break;
-                                    }
-                                    index++;
-                                }
-                            }
-
-                        }
-                        else
-                        {
-                            _selectedNodeInfo = new NodeInfo()
+                            foreach (var nodeInfo in nodeInfoList)
                             {
-                                Id = Guid.NewGuid().ToString(),
-                                Name = Dns.GetHostName(),
-                            };
+                                if (item.Id == nodeInfo.Id)
+                                {
+                                    if (nodeInfoBindingSource[index] is not NodeInfo nodeInfoData)
+                                    {
+                                        continue;
+                                    }
+                                    _selectedNodeInfo = nodeInfoData;
+                                    _selectedNodeInfo.IsSelected = true;
+                                    dataGridView1.FirstDisplayedScrollingRowIndex = index;
+                                    break;
+                                }
+                                index++;
+                            }
                         }
-                        this.BtnVerify.Enabled = true;
-                        dataGridView1.Enabled = true;
-                        lblStatus.Visible = false;
-                    });
-                }
-                else
-                {
-                    Invoke(() =>
+
+                    }
+                    else
                     {
-                        MessageBox.Show(this, rsp.Message);
-                        this.BtnVerify.Enabled = false;
-                        dataGridView1.Enabled = false;
-                        lblStatus.Visible = false;
-                    });
-                }
+                        _selectedNodeInfo = new NodeInfo()
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Name = Dns.GetHostName(),
+                        };
+                    }
+                    this.BtnVerify.Enabled = true;
+                    dataGridView1.Enabled = true;
+                    lblStatus.Visible = false;
+                });
             }
             catch (Exception ex)
             {
                 Invoke(() =>
                 {
-                    MessageBox.Show(this, ex.Message);
+                    MessageBox.Show(this, ex.ToString());
                     this.BtnVerify.Enabled = false;
                     lblStatus.Visible = false;
                 });
@@ -216,6 +199,28 @@ namespace NodeService.Installer
                 });
             }
 
+        }
+
+        async Task<IEnumerable<NodeInfoModel>> GetNodeInfoListAsync(ApiService apiService)
+        {
+            try
+            {
+                var nodeExtendInfo = new NodeExtendInfo();
+                nodeExtendInfo.CpuInfoList = GetCpuInfoList().ToList();
+                nodeExtendInfo.BIOSInfoList = GetBIOSInfoList().ToList();
+                nodeExtendInfo.PhysicalMediaInfoList = GetPhysicalMediaInfoList().ToList();
+                var rsp = await apiService.QueryNodeInfoListByExtendInfoAsync(nodeExtendInfo);
+                return rsp.Result;
+            }
+            catch (Exception ex)
+            {
+                Invoke(() =>
+                {
+                    MessageBox.Show(ex.ToString());
+                });
+            }
+
+            return [];
         }
 
         public IEnumerable<CpuInfo> GetCpuInfoList()
