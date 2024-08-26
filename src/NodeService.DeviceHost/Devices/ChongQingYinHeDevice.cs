@@ -1,18 +1,12 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using NModbus;
 using NModbus.Extensions.Enron;
-using NodeService.Infrastructure;
+using NodeService.DeviceHost.Data;
+using NodeService.DeviceHost.Data.Models;
 using NodeService.Infrastructure.Models;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.Metrics;
-using System.IO.Ports;
-using System.Linq;
-using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace NodeService.DeviceHost.Devices
 {
@@ -22,21 +16,33 @@ namespace NodeService.DeviceHost.Devices
 
         public int Port { get; set; }
 
+        public int SamplingDurationInSeconds { get; set; }
     }
 
-    public class YinHeDevice : Device
+    public class ChongQingYinHeDevice : Device
     {
-        private readonly ILogger<YinHeDevice> _logger;
+        JsonSerializerOptions _jsonOptions = new JsonSerializerOptions()
+        {
+            PropertyNameCaseInsensitive = true,
+        };
+
+        readonly ILogger<ChongQingYinHeDevice> _logger;
+        readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
         readonly YinHeDeviceOptions _options;
         readonly ModbusFactory _factory;
         int _optionChangesCount;
         int _connectionErrorCount;
         TcpClient _client;
         IModbusMaster _master;
+        DateTime _lastSamplingDateTime;
 
-        public YinHeDevice(ILogger<YinHeDevice> logger,YinHeDeviceOptions options)
+        public ChongQingYinHeDevice(
+            ILogger<ChongQingYinHeDevice> logger,
+            IDbContextFactory<ApplicationDbContext> dbContextFactory,
+            YinHeDeviceOptions options)
         {
             _logger = logger;
+            _dbContextFactory = dbContextFactory;
             _options = options;
             _factory = new ModbusFactory();
         }
@@ -85,6 +91,11 @@ namespace NodeService.DeviceHost.Devices
         {
             try
             {
+                if (DateTime.Now - _lastSamplingDateTime < TimeSpan.FromSeconds(_options.SamplingDurationInSeconds))
+                {
+                    return false;
+                }
+                _lastSamplingDateTime = DateTime.Now;
                 _master ??= _factory.CreateMaster(_client);
                 ushort startAddress = (ushort)0x00A0;
                 var registers = await _master.ReadHoldingRegisters32Async(0, startAddress, 2);
@@ -92,6 +103,17 @@ namespace NodeService.DeviceHost.Devices
                 var humidity = BitConverter.UInt32BitsToSingle(registers[1]);
                 _logger.LogInformation($"temperature:{temperature}");
                 _logger.LogInformation($"humidity:{humidity}");
+                await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+                await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+                await dbContext.ChongQingYinHeDataDbSet.AddAsync(new ChongQingYinHeDataModel()
+                {
+                    DateTime = DateTime.Now,
+                    DeviceName = DeviceName,
+                    Host = _options.Host,
+                    Temperature = temperature,
+                    Humidity = humidity,
+                }, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
                 return true;
             }
             catch(SocketException ex)
@@ -114,7 +136,8 @@ namespace NodeService.DeviceHost.Devices
 
         public override ValueTask<bool> UpdateOptionsAsync(JsonElement options)
         {
-            var hostPortOptions = options.Deserialize<HostPortSettings>();
+
+            var hostPortOptions = options.Deserialize<HostPortSettings>(_jsonOptions);
             if (hostPortOptions == null)
             {
                 return ValueTask.FromResult(true);
@@ -131,8 +154,16 @@ namespace NodeService.DeviceHost.Devices
                 _options.Port = hostPortOptions.Port;
                 _optionChangesCount++;
             }
+
+            _options.SamplingDurationInSeconds = hostPortOptions.SamplingDurationInSeconds;
+
             return ValueTask.FromResult(true);
         }
 
+        public override ValueTask DisposeAsync()
+        {
+            _client.Dispose();
+            return ValueTask.CompletedTask;
+        }
     }
 }

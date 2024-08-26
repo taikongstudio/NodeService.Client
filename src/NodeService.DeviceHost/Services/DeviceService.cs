@@ -1,17 +1,10 @@
-﻿using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using NodeService.DeviceHost.Devices;
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
 using NodeService.ServiceHost.Models;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NodeService.DeviceHost.Services
 {
@@ -117,13 +110,13 @@ namespace NodeService.DeviceHost.Services
 
         async Task RefreshDeviceListAsync(CancellationToken cancellationToken = default)
         {
+            using var apiService = CreateApiService();
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    using var apiService = CreateApiService();
                     _logger.LogInformation("Begin query network devices");
-                    var networkDeviceList = await QueryNetworkDeviceLIstAsync(apiService, cancellationToken);
+                    var networkDeviceList = await QueryNetworkDeviceListAsync(apiService, cancellationToken);
                     _logger.LogInformation("Finish query network devices");
                     if (networkDeviceList.Count < _devicesDictionary.Count)
                     {
@@ -166,7 +159,7 @@ namespace NodeService.DeviceHost.Services
 
         }
 
-        async Task<List<NodeInfoModel>> QueryNetworkDeviceLIstAsync(ApiService apiService, CancellationToken cancellationToken)
+        async Task<List<NodeInfoModel>> QueryNetworkDeviceListAsync(ApiService apiService, CancellationToken cancellationToken)
         {
             int pageIndex = 1;
             int pageSize = 100;

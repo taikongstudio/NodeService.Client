@@ -1,10 +1,12 @@
 ﻿using CommandLine;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
+using NodeService.DeviceHost.Data;
 using NodeService.DeviceHost.Devices;
 using NodeService.DeviceHost.Models;
 using NodeService.DeviceHost.Services;
@@ -46,6 +48,15 @@ namespace NodeService.DeviceHost
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<DeviceFactory>();
                 builder.Services.AddHostedService<DeviceService>();
+                builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
+                    options.UseMySql(builder.Configuration.GetConnectionString("NodeDataDbMySQL"),
+                        MySqlServerVersion.LatestSupportedServerVersion, mySqlOptionBuilder =>
+                        {
+                            mySqlOptionBuilder.EnableRetryOnFailure();
+                            mySqlOptionBuilder.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                            mySqlOptionBuilder.EnableStringComparisonTranslations();
+                        }),
+                        2048);
 
                 builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();

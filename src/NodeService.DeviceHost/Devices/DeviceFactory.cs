@@ -36,7 +36,7 @@ namespace NodeService.DeviceHost.Devices
             }
             switch (nodeInfo.Profile.Manufacturer)
             {
-                case "CQYH":
+                case "CHONG_QING_YIN_HE":
                     await device.UpdateOptionsAsync(jsonElement);
                     break;
                 default:
@@ -58,15 +58,14 @@ namespace NodeService.DeviceHost.Devices
             }
             switch (nodeInfo.Profile.Manufacturer)
             {
-                case "CQYH":
+                case "CHONG_QING_YIN_HE":
                     var hostPortSettings = jsonElement.Deserialize<HostPortSettings>(_options);
-                    device = new YinHeDevice(
-                        _serviceProvider.GetService<ILogger<YinHeDevice>>(),
-                        new YinHeDeviceOptions()
-                        {
-                            Host = hostPortSettings.IpAddress,
-                            Port = hostPortSettings.Port,
-                        });
+                    device = ActivatorUtilities.CreateInstance<ChongQingYinHeDevice>(_serviceProvider, new YinHeDeviceOptions()
+                    {
+                        Host = hostPortSettings.IpAddress,
+                        Port = hostPortSettings.Port,
+                        SamplingDurationInSeconds = Math.Max(hostPortSettings.SamplingDurationInSeconds, 30)
+                    });
                     break;
                 default:
                     break;

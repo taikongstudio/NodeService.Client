@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace NodeService.DeviceHost.Devices
 {
-    public abstract class Device
+    public abstract class Device : IAsyncDisposable
     {
 
         public string DeviceId { get; set; }
@@ -18,5 +18,7 @@ namespace NodeService.DeviceHost.Devices
         public abstract ValueTask<bool> UpdateOptionsAsync(JsonElement options);
 
         public abstract ValueTask<bool> FetchDataAsync(CancellationToken cancellationToken = default);
+
+        public abstract ValueTask DisposeAsync();
     }
 }
