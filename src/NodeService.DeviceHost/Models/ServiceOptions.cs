@@ -13,5 +13,8 @@ namespace NodeService.DeviceHost.Models
 
         [Option("pid", HelpText = "pid")]
         public string? pid { get; set; }
+
+        [Option("verbs", HelpText = "verbs")]
+        public int verbs { get; set; }
     }
 }

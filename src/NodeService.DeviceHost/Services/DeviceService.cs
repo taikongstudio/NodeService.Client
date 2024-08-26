@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Google.Protobuf.Reflection;
+using Microsoft.Extensions.Options;
 using NodeService.DeviceHost.Devices;
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
@@ -14,6 +15,7 @@ namespace NodeService.DeviceHost.Services
         readonly IHttpClientFactory _httpClientFactory;
         private readonly DeviceFactory _deviceFactory;
         readonly IDisposable _serverOptionMonitorToken;
+        private readonly ServiceOptions _serviceOptions;
         readonly ConcurrentDictionary<string, Device> _devicesDictionary;
         ServerOptions _serverOptions;
         ApiService _apiService;
@@ -22,7 +24,8 @@ namespace NodeService.DeviceHost.Services
             ILogger<DeviceService> logger,
             IHttpClientFactory httpClientFactory,
             IOptionsMonitor<ServerOptions> serverOptionsMonitor,
-            DeviceFactory deviceFactory
+            DeviceFactory deviceFactory,
+            ServiceOptions serviceOptions
             )
         {
             _logger = logger;
@@ -31,6 +34,7 @@ namespace NodeService.DeviceHost.Services
             _devicesDictionary = new ConcurrentDictionary<string, Device>();
             OnServerOptionChanged(serverOptionsMonitor.CurrentValue);
             _serverOptionMonitorToken = serverOptionsMonitor.OnChange(OnServerOptionChanged);
+            _serviceOptions = serviceOptions;
         }
 
         public override void Dispose()

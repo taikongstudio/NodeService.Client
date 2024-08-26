@@ -4,6 +4,7 @@ using NModbus;
 using NModbus.Extensions.Enron;
 using NodeService.DeviceHost.Data;
 using NodeService.DeviceHost.Data.Models;
+using NodeService.DeviceHost.Models;
 using NodeService.Infrastructure.Models;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -30,6 +31,7 @@ namespace NodeService.DeviceHost.Devices
         readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
         readonly YinHeDeviceOptions _options;
         readonly ModbusFactory _factory;
+        private readonly ServiceOptions _serviceOptions;
         int _optionChangesCount;
         int _connectionErrorCount;
         TcpClient _client;
@@ -39,12 +41,14 @@ namespace NodeService.DeviceHost.Devices
         public ChongQingYinHeDevice(
             ILogger<ChongQingYinHeDevice> logger,
             IDbContextFactory<ApplicationDbContext> dbContextFactory,
-            YinHeDeviceOptions options)
+            YinHeDeviceOptions options,
+            ServiceOptions serviceOptions)
         {
             _logger = logger;
             _dbContextFactory = dbContextFactory;
             _options = options;
             _factory = new ModbusFactory();
+            _serviceOptions = serviceOptions;
         }
 
         public override async ValueTask<bool> ConnectAsync()
@@ -101,8 +105,11 @@ namespace NodeService.DeviceHost.Devices
                 var registers = await _master.ReadHoldingRegisters32Async(0, startAddress, 2);
                 var temperature = BitConverter.UInt32BitsToSingle(registers[0]);
                 var humidity = BitConverter.UInt32BitsToSingle(registers[1]);
-                _logger.LogInformation($"temperature:{temperature}");
-                _logger.LogInformation($"humidity:{humidity}");
+                if (_serviceOptions.verbs != 0)
+                {
+                    _logger.LogInformation($"temperature:{temperature}");
+                    _logger.LogInformation($"humidity:{humidity}");
+                }
                 await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
                 await dbContext.Database.EnsureCreatedAsync(cancellationToken);
                 await dbContext.ChongQingYinHeDataDbSet.AddAsync(new ChongQingYinHeDataModel()

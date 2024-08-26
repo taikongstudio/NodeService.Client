@@ -12,6 +12,7 @@ using NodeService.DeviceHost.Models;
 using NodeService.DeviceHost.Services;
 using NodeService.ServiceHost.Models;
 using System.Diagnostics;
+using System.ServiceProcess;
 using System.Text;
 
 namespace NodeService.DeviceHost
@@ -57,6 +58,11 @@ namespace NodeService.DeviceHost
                             mySqlOptionBuilder.EnableStringComparisonTranslations();
                         }),
                         2048);
+
+                builder.Services.AddWindowsService(windowsServiceOptions =>
+                {
+                    windowsServiceOptions.ServiceName = "NodeService.DeviceHost";
+                });
 
                 builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();
