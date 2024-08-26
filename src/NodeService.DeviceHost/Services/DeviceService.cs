@@ -1,6 +1,7 @@
-﻿using Google.Protobuf.Reflection;
+﻿
 using Microsoft.Extensions.Options;
 using NodeService.DeviceHost.Devices;
+using NodeService.DeviceHost.Models;
 using NodeService.Infrastructure;
 using NodeService.Infrastructure.DataModels;
 using NodeService.Infrastructure.Models;
