@@ -48,6 +48,12 @@ namespace NodeService.DeviceHost
                 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("ServerOptions"));
                 builder.Services.AddSingleton<ServiceOptions>(options);
                 builder.Services.AddSingleton<DeviceFactory>();
+
+                builder.Services.AddWindowsService(windowsServiceOptions =>
+                {
+                    windowsServiceOptions.ServiceName = "NodeService.DeviceHost";
+                });
+
                 builder.Services.AddHostedService<DeviceService>();
                 builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
                     options.UseMySql(builder.Configuration.GetConnectionString("NodeDataDbMySQL"),
@@ -58,11 +64,6 @@ namespace NodeService.DeviceHost
                             mySqlOptionBuilder.EnableStringComparisonTranslations();
                         }),
                         2048);
-
-                builder.Services.AddWindowsService(windowsServiceOptions =>
-                {
-                    windowsServiceOptions.ServiceName = "NodeService.DeviceHost";
-                });
 
                 builder.Services.AddHttpClient();
                 builder.Logging.ClearProviders();
