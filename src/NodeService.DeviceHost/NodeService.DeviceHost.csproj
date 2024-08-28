@@ -16,6 +16,7 @@
 	<PackageReference Include="NLog.Extensions.Logging" Version="5.3.5" />
 	<PackageReference Include="NLog.Web.AspNetCore" Version="5.3.5" />
 	<PackageReference Include="NModbus" Version="3.0.81" />
+	<PackageReference Include="NModbus.Serial" Version="3.0.81" />
 	<PackageReference Include="System.IO.Ports" Version="8.0.0" />
 	<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.7" />

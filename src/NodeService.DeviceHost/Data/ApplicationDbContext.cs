@@ -17,7 +17,7 @@ namespace NodeService.DeviceHost.Data
     {
         public DatabaseProviderType ProviderType { get; }
 
-        public DbSet<ChongQingYinHeDataModel> ChongQingYinHeDataDbSet { get; set; }
+        public DbSet<DeviceDataModel> DeviceDataDbSet { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -42,7 +42,7 @@ namespace NodeService.DeviceHost.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            modelBuilder.Entity<ChongQingYinHeDataModel>().HasKey(t => t.Id);
+            modelBuilder.Entity<DeviceDataModel>().HasKey(t => t.Id);
         }
 
     }

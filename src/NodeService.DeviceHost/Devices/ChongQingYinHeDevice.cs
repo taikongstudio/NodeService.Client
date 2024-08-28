@@ -112,7 +112,7 @@ namespace NodeService.DeviceHost.Devices
                 }
                 await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
                 await dbContext.Database.EnsureCreatedAsync(cancellationToken);
-                await dbContext.ChongQingYinHeDataDbSet.AddAsync(new ChongQingYinHeDataModel()
+                await dbContext.DeviceDataDbSet.AddAsync(new DeviceDataModel()
                 {
                     DateTime = DateTime.Now,
                     DeviceName = DeviceName,

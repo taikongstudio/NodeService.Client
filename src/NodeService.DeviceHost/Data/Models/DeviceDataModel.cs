@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NodeService.DeviceHost.Data.Models
 {
-    public class ChongQingYinHeDataModel
+    public class DeviceDataModel
     {
         public int Id { get; set; }
 
@@ -15,6 +15,8 @@ namespace NodeService.DeviceHost.Data.Models
         public string Host { get; set; }
 
         public string DeviceName { get; set; }
+
+        public string DeviceManufacture { get; set; }
 
         public double Temperature { get; set; }
 
