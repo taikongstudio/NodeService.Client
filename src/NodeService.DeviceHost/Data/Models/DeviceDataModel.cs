@@ -16,8 +16,6 @@ namespace NodeService.DeviceHost.Data.Models
 
         public string DeviceName { get; set; }
 
-        public string DeviceManufacture { get; set; }
-
         public double Temperature { get; set; }
 
         public double Humidity { get; set; }
